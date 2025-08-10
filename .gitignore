@@ -8,3 +8,5 @@
 Thumbs.db
 /mariadb
 /data
+.idea/
+.env

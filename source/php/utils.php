@@ -1,6 +1,14 @@
 <?php
 
 class Utils {
+
+    // Utility: Absolute FTP path generator
+    public static function ftpDir(string $relativePath): string {
+        $ftpRoot = Config::get('FTP_ROOT'); // no more globals
+        $absPath = $ftpRoot . '/' . ltrim($relativePath, '/');
+        return preg_replace('#/+#', '/', '/' . $absPath);
+    }
+    
 	public static function DecodePostJSON() {
 		$inputJSON = file_get_contents('php://input');
 		return json_decode($inputJSON, true); //convert JSON into an array
@@ -9,7 +17,7 @@ class Utils {
     // create directories for the specified file path if these don't exist
     public static function PrepareDir($filePath)
     {
-        $absDir = FTPDir(dirname($filePath));
+        $absDir = self::ftpDir(dirname($filePath));
         if(!is_dir($absDir))
         {
             mkdir($absDir, 0777, true);       
@@ -22,19 +30,19 @@ class Utils {
         self::PrepareDir($filePath);
 
         // save content to file
-        $absPath = FTPDir($filePath);
+        $absPath = self::ftpDir($filePath);
         return file_put_contents($absPath, $contents, $flags);
     }
 
     public static function ReadFileAsString($filePath)
     {
-        $absDir = FTPDir($filePath);
+        $absDir = self::ftpDir($filePath);
         return file_get_contents($absDir);
     }
 
     public static function DeleteFile($filePath)
     {
-        $absDir = FTPDir($filePath);
+        $absDir = self::ftpDir($filePath);
         unlink($absDir);
     }
 
@@ -46,7 +54,7 @@ class Utils {
             $dirPath = substr($dirPath, 0, $lastCharIndex);
 
         // calc absoluted path for ftp
-        $absDir = FTPDir($dirPath);
+        $absDir = self::ftpDir($dirPath);
 
         self::DeleteDirInternal($absDir);
     }
@@ -71,7 +79,7 @@ class Utils {
 
     public static function OutputFile($filePath, $contentType, $fileName, $isDownload = false)
     {
-        $absFilePath = FTPDir($filePath);
+        $absFilePath = self::ftpDir($filePath);
         if (file_exists($absFilePath)) {
             header("Content-Type: $contentType");
             header('Content-Length: ' . filesize($absFilePath));
@@ -88,13 +96,13 @@ class Utils {
 
     public static function FileExists($filePath)
     {
-        $absFilePath = FTPDir($filePath);
+        $absFilePath = self::ftpDir($filePath);
         return file_exists($absFilePath);
     }
 
     public static function CreateImageThumbnail($srcImgPath, $destImgPath)
     {
-        $srcAbsPath = FTPDir($srcImgPath);
+        $srcAbsPath = self::ftpDir($srcImgPath);
         $srcInfo = getimagesize($srcAbsPath);
 
         // load the source image
@@ -121,7 +129,7 @@ class Utils {
         imagecopyresampled($destImage, $srcImage, 0, 0, 0, 0, $destWidth, $destHeight, $srcInfo[0], $srcInfo[1]);
 
         // save thumbnail as jpg
-        $destAbsPath = FTPDir($destImgPath);
+        $destAbsPath = self::ftpDir($destImgPath);
         $destAbsDir = dirname($destAbsPath);
         if(!is_dir($destAbsDir))
         {

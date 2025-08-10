@@ -1,31 +1,79 @@
 <?php
+    require_once __DIR__ . '/config.php';
+
+    class DatabaseConnectionException extends RuntimeException {}
+
 	class DB {
 
-		private static $db = NULL;
-		private static $transactionNesting = 0;
-		private static $transactionFailed = false;
+		private static ?PDO $db = NULL;
+		private static int $transactionNesting = 0;
+		private static bool $transactionFailed = false;
 
-		//Open a new connection to a database.
-		public static function open()
-		{
-			global $CFG;
+        /**
+         * Check that the config is valid.
+         */
+        private static function validateConfig(): void
+        {
+            if (!Config::has('DB_DSN')) {
+                throw new DatabaseConnectionException("DB_DSN is missing.");
+            }
+        }
 
-			if (is_null(self::$db))
-			{
-				$opt = array(
-					PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-					PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-					PDO::ATTR_EMULATE_PREPARES   => false,
-				);
-				try {
-					self::$db = new PDO($CFG["DB_DSN"], $CFG["DB_USERNAME"], $CFG["DB_PASSWORD"], $opt);
-				} catch (PDOException $e) {
-					http_response_code(500);
-					exit("DB Connection Error.");
-				}	
-			}
-			return self::$db;
-		}
+        /**
+         * Log a connection error.
+         */
+        private static function logConnectionError(PDOException $e): void
+        {
+            error_log("[DB ERROR] Connection failed: " . $e->getMessage());
+            if (Config::get('APP_ENV') === 'development') {
+                $dsnSafe = preg_replace('/password=[^;]*/i', 'password=hunter2', Config::get('DB_DSN'));
+                error_log("[DB ERROR] DSN used: " . $dsnSafe);
+            }
+        }
+
+        /**
+         * Format an error message based on the environment.
+         */
+        private static function formatErrorMessage(PDOException $e): string {
+            return Config::get('APP_ENV') === 'development'
+                ? "[DB ERROR] Connection failed: {$e->getMessage()}"
+                : "[DB ERROR] Connection error. Please try again later.";
+        }
+
+        /**
+         * Open a new connection to a database.
+         * @throws DatabaseConnectionException if the connection fails.
+         */
+		public static function open() : PDO
+        {
+            if (is_null(self::$db)) {
+                $opt = array(
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false,
+                    PDO::ATTR_PERSISTENT => true
+                );
+
+                try {
+                    self::validateConfig();
+                    self::$db = new PDO(
+                        Config::get('DB_DSN'),
+                        Config::get('DB_USERNAME'),
+                        Config::get('DB_PASSWORD'),
+                        $opt
+                    );
+                } catch (PDOException $e) {
+                    self::logConnectionError($e);
+                    throw new DatabaseConnectionException(
+                        self::formatErrorMessage($e),
+                        0,
+                        $e
+                    );
+                }
+            }
+
+            return self::$db;
+        }
 
 		// Open a DB transaction, can be nested
 		public static function beginTransaction()

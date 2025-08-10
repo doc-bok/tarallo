@@ -1006,7 +1006,7 @@ class API
 		// open the zip archive from the export
 		$exportPath = self::TEMP_EXPORT_PATH;
 		$exportZip = new ZipArchive();		
-		if (!$exportZip->open(FTPDir($exportPath)))
+		if (!$exportZip->open(Utils::ftpDir($exportPath)))
 		{
 			http_response_code(500);
 			exit("Import Failed: export zip not found.");
@@ -1124,7 +1124,7 @@ class API
 
 			// unzip board content to board/ folder
 			$boardFolder = self::GetBoardContentDir($newBoardID);
-			if (!$exportZip->extractTo(FTPDir($boardFolder)))
+			if (!$exportZip->extractTo(Utils::ftpDir($boardFolder)))
 			{
 				DB::rollBack();
 				http_response_code(500);
@@ -1643,7 +1643,7 @@ class API
 		Utils::PrepareDir($exportPath);
 		$exportZip = new ZipArchive();
 
-		if (!$exportZip->open(FTPDir($exportPath), ZipArchive::CREATE | ZipArchive::OVERWRITE))
+		if (!$exportZip->open(Utils::ftpDir($exportPath), ZipArchive::CREATE | ZipArchive::OVERWRITE))
 		{
 			http_response_code(500);
 			exit("Export failed: zip creation error.");
@@ -1663,14 +1663,14 @@ class API
 		// add the data struct to the zip as json
 		$exportDataJsonPath = "temp/export.json";
 		Utils::WriteToFile($exportDataJsonPath, json_encode($boardExportData));
-		if (!$exportZip->addFile(FTPDir($exportDataJsonPath), "db.json"))
+		if (!$exportZip->addFile(Utils::ftpDir($exportDataJsonPath), "db.json"))
 		{
 			http_response_code(500);
 			exit("Export failed: failed to add db data.");
 		}
 
 		// add the whole board folder (attachments + background)
-		$boardBaseDir = FTPDir("boards/{$boardID}/");
+		$boardBaseDir = Utils::ftpDir("boards/{$boardID}/");
 		$dirIterator = new RecursiveDirectoryIterator($boardBaseDir);
 		$fileIterator = new RecursiveIteratorIterator($dirIterator, RecursiveIteratorIterator::SELF_FIRST);
 
@@ -1735,7 +1735,7 @@ class API
 
 		// prepare the response
 		$response = array();
-		$response["size"] = filesize(FTPDir($destFilePath));
+		$response["size"] = filesize(Utils::ftpDir($destFilePath));
 		return $response;
 	}
 
