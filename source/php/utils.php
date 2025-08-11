@@ -1,211 +1,147 @@
 <?php
 
+declare(strict_types=1);
+
+require_once __DIR__ . '/file.php';
+require_once __DIR__ . '/logger.php';
+
 class Utils {
 
-    // Utility: Absolute FTP path generator
-    public static function ftpDir(string $relativePath): string {
-        $ftpRoot = Config::get('FTP_ROOT'); // no more globals
-        $absPath = $ftpRoot . '/' . ltrim($relativePath, '/');
-        return preg_replace('#/+#', '/', '/' . $absPath);
-    }
-    
-	public static function DecodePostJSON() {
-		$inputJSON = file_get_contents('php://input');
-		return json_decode($inputJSON, true); //convert JSON into an array
-	}
-
-    // create directories for the specified file path if these don't exist
-    public static function PrepareDir($filePath)
+    /**
+     * Produces a recursive associative diff between two arrays.
+     * Returns an array of changed/added/removed keys with their new values.
+     */
+    public static function arrayDiffRecursive(array $old, array $new): array
     {
-        $absDir = self::ftpDir(dirname($filePath));
-        if(!is_dir($absDir))
-        {
-            mkdir($absDir, 0777, true);       
-        }
-    }
+        $diff = [];
 
-	public static function WriteToFile($filePath, $contents, $flags = 0) 
-    {
-        // create subdirectories that do not exists
-        self::PrepareDir($filePath);
-
-        // save content to file
-        $absPath = self::ftpDir($filePath);
-        return file_put_contents($absPath, $contents, $flags);
-    }
-
-    public static function ReadFileAsString($filePath)
-    {
-        $absDir = self::ftpDir($filePath);
-        return file_get_contents($absDir);
-    }
-
-    public static function DeleteFile($filePath)
-    {
-        $absDir = self::ftpDir($filePath);
-        unlink($absDir);
-    }
-
-    public static function DeleteDir($dirPath)
-    {
-        // remove trailing slash if any
-        $lastCharIndex = strlen($dirPath) - 1;
-        if ($dirPath[$lastCharIndex] == '\\' || $dirPath[$lastCharIndex] == '/')
-            $dirPath = substr($dirPath, 0, $lastCharIndex);
-
-        // calc absoluted path for ftp
-        $absDir = self::ftpDir($dirPath);
-
-        self::DeleteDirInternal($absDir);
-    }
-
-    private static function DeleteDirInternal($dirPath)
-    {
-        $fileNames = array_diff(scandir($dirPath), array('.','..'));
-
-        // remove files recursively
-        foreach ($fileNames as $fileName) 
-        {
-            $filePath = "$dirPath/$fileName";
-            if (is_dir($filePath))
-                self::DeleteDirInternal($filePath);
-            else
-                unlink($filePath);
+        // Keys present only in new data
+        foreach (array_diff_key($new, $old) as $key => $val) {
+            $diff[$key] = $val;
         }
 
-        // delete the top folder
-        rmdir($dirPath);
-    }
-
-    public static function OutputFile($filePath, $contentType, $fileName, $isDownload = false)
-    {
-        $absFilePath = self::ftpDir($filePath);
-        if (file_exists($absFilePath)) {
-            header("Content-Type: $contentType");
-            header('Content-Length: ' . filesize($absFilePath));
-            $contentDisp = $isDownload ? "attachment" : "inline";
-            header("Content-Disposition: {$contentDisp}; filename=\"{$fileName}\"");
-            readfile($absFilePath);
-            exit;
+        // Keys present only in old data (removed)
+        foreach (array_diff_key($old, $new) as $key => $_) {
+            $diff[$key] = '[REMOVED]';
         }
-        else {
-            http_response_code(404);
-            exit("File not found.");
+
+        // Keys present in both but changed
+        foreach (array_intersect_key($new, $old) as $key => $val) {
+            if (is_array($val) && is_array($old[$key])) {
+                $subDiff = self::arrayDiffRecursive($old[$key], $val);
+                if ($subDiff !== []) {
+                    $diff[$key] = $subDiff;
+                }
+            } elseif ($val !== $old[$key]) {
+                $diff[$key] = $val;
+            }
         }
+
+        return $diff;
     }
 
-    public static function FileExists($filePath)
-    {
-        $absFilePath = self::ftpDir($filePath);
-        return file_exists($absFilePath);
-    }
+    /**
+     * Creates a JPEG thumbnail of a source image with a fixed width 256px,
+     * maintaining aspect ratio, saving it to the destination path.
+     * @param string $srcImgPath  Relative or absolute path within FTP root for source image.
+     * @param string $destImgPath Relative or absolute path within FTP root for thumbnail.
+     * @param int    $thumbWidth  Width of thumbnail in pixels (default: 256).
+     * @param int    $dirMode     Directory permissions (default: 0777).
+     * @param int    $jpegQuality JPEG quality 0-100 (default: 85).
+     * @throws RuntimeException if any step fails.
+     */
+    public static function createImageThumbnail(
+        string $srcImgPath,
+        string $destImgPath,
+        int $thumbWidth = 256,
+        int $dirMode = 0777,
+        int $jpegQuality = 85
+    ): void {
+        $srcAbsPath = File::ftpDir($srcImgPath);
 
-    public static function CreateImageThumbnail($srcImgPath, $destImgPath)
-    {
-        $srcAbsPath = self::ftpDir($srcImgPath);
-        $srcInfo = getimagesize($srcAbsPath);
+        if (!is_file($srcAbsPath) || !is_readable($srcAbsPath)) {
+            Logger::error("createImageThumbnail: Source image not found or unreadable: {$srcAbsPath}");
+            throw new \RuntimeException("Source image missing or unreadable: {$srcAbsPath}");
+        }
 
-        // load the source image
-        switch($srcInfo[2])
-        {
+        $srcInfo = @getimagesize($srcAbsPath);
+        if ($srcInfo === false) {
+            Logger::error("createImageThumbnail: Failed to get image size for {$srcAbsPath}");
+            throw new \RuntimeException("Unable to get image size: {$srcAbsPath}");
+        }
+
+        // Detect image type and create source image resource
+        switch ($srcInfo[2]) {
             case IMAGETYPE_GIF:
-                $srcImage = imagecreatefromgif($srcAbsPath);
+                $srcImage = @imagecreatefromgif($srcAbsPath);
                 break;
             case IMAGETYPE_JPEG:
-                $srcImage = imagecreatefromjpeg($srcAbsPath);
+                $srcImage = @imagecreatefromjpeg($srcAbsPath);
                 break;
             case IMAGETYPE_PNG:
-                $srcImage = imagecreatefrompng($srcAbsPath);
+                $srcImage = @imagecreatefrompng($srcAbsPath);
                 break;
             default:
-                // unsupported for thumbnail (or add another imagecreate case)
-                return;
+                Logger::error("createImageThumbnail: Unsupported image type for {$srcAbsPath}");
+                throw new \RuntimeException("Unsupported image type for thumbnail: {$srcAbsPath}");
         }
 
-        // create a smaller copy of the src image
-        $destWidth = 256;
-        $destHeight = floor($destWidth * $srcInfo[1] / $srcInfo[0]);
-        $destImage = imagecreatetruecolor($destWidth, $destHeight);
-        imagecopyresampled($destImage, $srcImage, 0, 0, 0, 0, $destWidth, $destHeight, $srcInfo[0], $srcInfo[1]);
-
-        // save thumbnail as jpg
-        $destAbsPath = self::ftpDir($destImgPath);
-        $destAbsDir = dirname($destAbsPath);
-        if(!is_dir($destAbsDir))
-        {
-            // create subdirectories that do not exists
-            mkdir($destAbsDir, 0777, true);
+        if ($srcImage === false) {
+            Logger::error("createImageThumbnail: Failed to load image resource from {$srcAbsPath}");
+            throw new \RuntimeException("Failed to load image resource: {$srcAbsPath}");
         }
-        imagejpeg($destImage, $destAbsPath);
-    }
 
-    // given a list of db row records, this function builds a mapping of the speicified id field from the current to a new value, 
-    // starting from the given next free id
-    public static function RebuildDBIndex($dbRows, $idFieldName, $nextFreeID)
-    {
-        $newIndex = array();
-		$rowCount = count($dbRows);
-		for ($i = 0; $i < $rowCount; $i++)
-		{
-			$newIndex[$dbRows[$i][$idFieldName]] = $nextFreeID++;
-		}
-		return $newIndex;
-    }
+        // Calculate scaled height keeping aspect ratio
+        $srcWidth = $srcInfo[0];
+        $srcHeight = $srcInfo[1];
+        $thumbHeight = (int) floor($thumbWidth * $srcHeight / $srcWidth);
 
-    public const MimeTypes = array(
-            'txt' => 'text/plain',
-            'htm' => 'text/html',
-            'html' => 'text/html',
-            'php' => 'text/html',
-            'css' => 'text/css',
-            'js' => 'application/javascript',
-            'json' => 'application/json',
-            'xml' => 'application/xml',
-            'swf' => 'application/x-shockwave-flash',
-            'flv' => 'video/x-flv',
+        $destImage = imagecreatetruecolor($thumbWidth, $thumbHeight);
 
-            // images
-            'png' => 'image/png',
-            'jpe' => 'image/jpeg',
-            'jpeg' => 'image/jpeg',
-            'jpg' => 'image/jpeg',
-            'gif' => 'image/gif',
-            'bmp' => 'image/bmp',
-            'ico' => 'image/vnd.microsoft.icon',
-            'tiff' => 'image/tiff',
-            'tif' => 'image/tiff',
-            'svg' => 'image/svg+xml',
-            'svgz' => 'image/svg+xml',
+        // Preserve transparency for PNG and GIF by filling with transparent color
+        if (in_array($srcInfo[2], [IMAGETYPE_PNG, IMAGETYPE_GIF], true)) {
+            imagecolortransparent($destImage, imagecolorallocatealpha($destImage, 0, 0, 0, 127));
+            imagealphablending($destImage, false);
+            imagesavealpha($destImage, true);
+        }
 
-            // archives
-            'zip' => 'application/zip',
-            'rar' => 'application/x-rar-compressed',
-            'exe' => 'application/x-msdownload',
-            'msi' => 'application/x-msdownload',
-            'cab' => 'application/vnd.ms-cab-compressed',
-
-            // audio/video
-            'mp3' => 'audio/mpeg',
-            'qt' => 'video/quicktime',
-            'mov' => 'video/quicktime',
-
-            // adobe
-            'pdf' => 'application/pdf',
-            'psd' => 'image/vnd.adobe.photoshop',
-            'ai' => 'application/postscript',
-            'eps' => 'application/postscript',
-            'ps' => 'application/postscript',
-
-            // ms office
-            'doc' => 'application/msword',
-            'rtf' => 'application/rtf',
-            'xls' => 'application/vnd.ms-excel',
-            'ppt' => 'application/vnd.ms-powerpoint',
-
-            // open office
-            'odt' => 'application/vnd.oasis.opendocument.text',
-            'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
+        // Resample (resize) the image
+        $resampled = imagecopyresampled(
+            $destImage, $srcImage,
+            0, 0, 0, 0,
+            $thumbWidth, $thumbHeight,
+            $srcWidth, $srcHeight
         );
-}
 
-?>
+        if (!$resampled) {
+            imagedestroy($srcImage);
+            imagedestroy($destImage);
+            Logger::error("createImageThumbnail: Failed to resample image for {$srcAbsPath}");
+            throw new \RuntimeException("Failed to resize image: {$srcAbsPath}");
+        }
+
+        // Prepare destination directory
+        $destAbsPath = File::ftpDir($destImgPath);
+        $destAbsDir = dirname($destAbsPath);
+        if (!is_dir($destAbsDir)) {
+            if (!mkdir($destAbsDir, $dirMode, true) && !is_dir($destAbsDir)) {
+                imagedestroy($srcImage);
+                imagedestroy($destImage);
+                Logger::error("createImageThumbnail: Failed to create directory {$destAbsDir}");
+                throw new \RuntimeException("Failed to create directory: {$destAbsDir}");
+            }
+        }
+
+        // Save thumbnail as JPEG with given quality
+        $saveSuccess = imagejpeg($destImage, $destAbsPath, $jpegQuality);
+        imagedestroy($srcImage);
+        imagedestroy($destImage);
+
+        if (!$saveSuccess) {
+            Logger::error("createImageThumbnail: Failed to save thumbnail to {$destAbsPath}");
+            throw new \RuntimeException("Failed to save thumbnail to: {$destAbsPath}");
+        }
+
+        Logger::info("Thumbnail created: {$destAbsPath} (width: {$thumbWidth}px, height: {$thumbHeight}px)");
+    }
+}

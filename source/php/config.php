@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/loglevel.php';
+
 ini_set('display_errors', '1');
 ini_set('display_startup_errors', '1');
 error_reporting(E_ALL);
@@ -33,6 +35,9 @@ class Config {
             'DB_DSN'      => $_ENV['TARALLO_DB_DSN'] ?? 'mysql:host=mysql;port=3306;dbname=tarallo;charset=utf8',
             'DB_USERNAME' => $_ENV['TARALLO_DB_USERNAME'] ?? '',
             'DB_PASSWORD' => $_ENV['TARALLO_DB_PASSWORD'] ?? '',
+            'DB_LOG_LEVEL' => $_ENV['TARALLO_DB_LOG_LEVEL'] ?? LogLevel::ERROR,
+            'DB_MAX_RETRIES'  => isset($_ENV['TARALLO_DB_MAX_RETRIES']) ? (int)$_ENV['DB_MAX_RETRIES'] : 3,
+            'DB_RETRY_DELAY_MS' => isset($_ENV['TARALLO_DB_RETRY_DELAY_MS']) ? (int)$_ENV['DB_RETRY_DELAY_MS'] : 500,
         ];
     }
 

@@ -1,15 +1,16 @@
 <?php
 require_once 'config.php';
-require_once 'utils.php';
 require_once 'dbaccess.php';
-
+require_once 'file.php';
+require_once 'json.php';
+require_once 'utils.php';
 
 // page initialization
 header('Content-Type: application/json; charset=utf-8');
 session_start(['cookie_samesite' => 'Strict',]);
 
 // initialize parameters
-$request = Utils::DecodePostJSON(); // params posted as json
+$request = Json::decodePostJSON(); // params posted as json
 $request = array_merge($request == null ? array() : $request, $_GET); // params added to the url
 
 // check the the api call name has been specified
@@ -48,9 +49,9 @@ class API
 	const USERID_MIN = self::USERID_ONREGISTER; // this should be the minimun special user ID
 
 	// request the page that should be displayed for the current state
-	public static function GetCurrentPage($request)
+	public static function  GetCurrentPage($request)
 	{
-		$dbExists = DB::query_one_result("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'tarallo_settings'") > 0;
+		$dbExists = DB::fetchOneWithStoredParams("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'tarallo_settings'") > 0;
 		
 		if (!$dbExists) {
 			// first startup without db, try to reset state and load the db
@@ -124,7 +125,7 @@ class API
 		$boardsQuery .= " ORDER BY last_modified_time DESC";
 
 		DB::setParam("user_id", $_SESSION["user_id"]);
-		$results = DB::fetch_table($boardsQuery);
+		$results = DB::fetchTableWithStoredParams($boardsQuery);
 
 		// fill an array of all the user boards
 		$boardList = array();
@@ -191,7 +192,7 @@ class API
 		// query board cardlists
 		$cardlistsQuery = "SELECT id, name, prev_list_id, next_list_id FROM tarallo_cardlists WHERE board_id = :board_id";
 		DB::setParam("board_id", $boardID);
-		$cardlists = DB::fetch_table($cardlistsQuery, "id");
+		$cardlists = DB::fetchTableWithStoredParams($cardlistsQuery, "id");
 
 		// fill in cardlist data
 		$pageContent["cardlists"] = $cardlists;
@@ -199,7 +200,7 @@ class API
 		// query the board's cards
 		$cardsQuery = "SELECT * FROM tarallo_cards WHERE board_id = :board_id";
 		DB::setParam("board_id", $boardID);
-		$cardRecords = DB::fetch_table($cardsQuery);
+		$cardRecords = DB::fetchTableWithStoredParams($cardsQuery);
 
 		// fill in cards data
 		$cards = array();
@@ -226,7 +227,7 @@ class API
 
 		$userQuery = "SELECT * FROM tarallo_users WHERE username = :username";
 		DB::setParam("username", $request["username"]);
-		$userRecord = DB::fetch_row($userQuery);
+		$userRecord = DB::fetchRowWithStoredParams($userQuery);
 					
 		if (!$userRecord) 
 		{
@@ -240,11 +241,11 @@ class API
 			$setPasswordQuery = "UPDATE tarallo_users SET password = :passwordHash WHERE username = :username";
 			DB::setParam("username", $request["username"]);
 			DB::setParam("passwordHash", $passwordHash);
-			DB::query($setPasswordQuery);
+			DB::queryWithStoredParams($setPasswordQuery);
 
 			// update the record query so that the newly created password will be verified
 			DB::setParam("username", $request["username"]);
-			$userRecord = DB::fetch_row($userQuery);
+			$userRecord = DB::fetchRowWithStoredParams($userQuery);
 		} 
 		
 		if (!password_verify($request["password"], $userRecord["password"])) 
@@ -266,7 +267,7 @@ class API
 		$updateLoginTimeQuery = "UPDATE tarallo_users SET last_access_time = :last_access_time WHERE id = :user_id";
 		DB::setParam("last_access_time", time());
 		DB::setParam("user_id", $userRecord["id"]);
-		DB::query($updateLoginTimeQuery);
+		DB::queryWithStoredParams($updateLoginTimeQuery);
 
 		// response
 		$response = array();
@@ -342,7 +343,7 @@ class API
 
 		// add initial permissions (if any is defined)
 		DB::setParam("user_id", self::USERID_ONREGISTER);
-		$initialPermissions = DB::fetch_table("SELECT * FROM tarallo_permissions where user_id = :user_id");
+		$initialPermissions = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_permissions where user_id = :user_id");
 		$initialPermissionCount = count($initialPermissions);
 		if ($initialPermissionCount)
 		{
@@ -359,9 +360,9 @@ class API
 					continue;
 
 				// add query parameters
-				DB::$qparams[] = $userID;
-				DB::$qparams[] = $curPermissions["board_id"];
-				DB::$qparams[] = $curPermissions["user_type"];
+				DB::$QUERY_PARAMS[] = $userID;
+				DB::$QUERY_PARAMS[] = $curPermissions["board_id"];
+				DB::$QUERY_PARAMS[] = $curPermissions["user_type"];
 
 				// add query format
 				$addPermsQuery .= (!$firstInitialPermission ? ", " : "") . $recordPlaceholders;
@@ -369,7 +370,7 @@ class API
 			}
 
 			// add all the initial permissions
-			DB::query($addPermsQuery);
+			DB::queryWithStoredParams($addPermsQuery);
 		}
 
 		$response = $settings;
@@ -392,7 +393,7 @@ class API
 		$openCardQuery .= " WHERE tarallo_cards.id = :id AND tarallo_permissions.user_id = :user_id";
 		DB::setParam("user_id", $_SESSION["user_id"]);
 		DB::setParam("id", $request["id"]);
-		$cardRecord = DB::fetch_row($openCardQuery);
+		$cardRecord = DB::fetchRowWithStoredParams($openCardQuery);
 
 		if (!$cardRecord)
 		{
@@ -409,7 +410,7 @@ class API
 		// fetch attachments
 		$attachmentsQuery = "SELECT * FROM tarallo_attachments WHERE card_id = :card_id";
 		DB::setParam("card_id", $request["id"]);
-		$attachmentList = DB::fetch_table($attachmentsQuery);
+		$attachmentList = DB::fetchTableWithStoredParams($attachmentsQuery);
 		$attachmentCount = count($attachmentList);
 		$response["attachmentList"] = array();
 		for ($i = 0; $i < $attachmentCount; $i++) 
@@ -495,7 +496,7 @@ class API
 			$updateAttachmentsQuery = "UPDATE tarallo_attachments SET card_id = :new_card_id WHERE card_id = :old_card_id";
 			DB::setParam("new_card_id", $newCardRecord["id"]);
 			DB::setParam("old_card_id", $request["moved_card_id"]);
-			DB::query($updateAttachmentsQuery);
+			DB::queryWithStoredParams($updateAttachmentsQuery);
 
 			self::UpdateBoardModifiedTime($request["board_id"]);
 
@@ -532,7 +533,7 @@ class API
 			// query the first cardlist, that will be the next after the moved one
 			$nextCardListQuery = "SELECT * FROM tarallo_cardlists WHERE board_id = :board_id AND prev_list_id = 0";
 			DB::setParam("board_id", $boardData['id']);
-			$nextCardListRecord = DB::fetch_row($nextCardListQuery);
+			$nextCardListRecord = DB::fetchRowWithStoredParams($nextCardListQuery);
 			$nextCardListID = $nextCardListRecord['id'];
 		}
 
@@ -546,7 +547,7 @@ class API
 			DB::setParam("prev_list_id", $request["new_prev_cardlist_id"]);
 			DB::setParam("next_list_id", $nextCardListID);
 			DB::setParam("id", $request["moved_cardlist_id"]);
-			DB::query("UPDATE tarallo_cardlists SET prev_list_id = :prev_list_id, next_list_id = :next_list_id WHERE id = :id");
+			DB::queryWithStoredParams("UPDATE tarallo_cardlists SET prev_list_id = :prev_list_id, next_list_id = :next_list_id WHERE id = :id");
 			self::AddCardListToLL($request["moved_cardlist_id"], $request["new_prev_cardlist_id"], $nextCardListID);
 
 			self::UpdateBoardModifiedTime($request["board_id"]);
@@ -576,7 +577,7 @@ class API
 		$titleUpdateQuery = "UPDATE tarallo_cards SET title = :title WHERE id = :id";
 		DB::setParam("title", $request["title"]);
 		DB::setParam("id", $request["id"]);
-		DB::query($titleUpdateQuery);
+		DB::queryWithStoredParams($titleUpdateQuery);
 
 		self::UpdateBoardModifiedTime($request["board_id"]);
 
@@ -596,7 +597,7 @@ class API
 		$titleUpdateQuery = "UPDATE tarallo_cards SET content = :content WHERE id = :id";
 		DB::setParam("content", $request["content"]);
 		DB::setParam("id", $request["id"]);
-		DB::query($titleUpdateQuery);
+		DB::queryWithStoredParams($titleUpdateQuery);
 
 		self::UpdateBoardModifiedTime($request["board_id"]);
 
@@ -622,7 +623,7 @@ class API
 		$flagsUpdateQuery = "UPDATE tarallo_cards SET flags = :flags WHERE id = :id";
 		DB::setParam("flags", $cardRecord["flags"]);
 		DB::setParam("id", $request["id"]);
-		DB::query($flagsUpdateQuery);
+		DB::queryWithStoredParams($flagsUpdateQuery);
 
 		self::UpdateBoardModifiedTime($request["board_id"]);
 
@@ -655,7 +656,7 @@ class API
 		DB::setParam("extension", $extension);
 		DB::setParam("card_id", $request["card_id"]);
 		DB::setParam("board_id", $request["board_id"]);
-		$attachmentID = DB::query($addAttachmentQuery, true);
+		$attachmentID = DB::insertWithStoredParams($addAttachmentQuery);
 		
 		if (!$attachmentID) 
 		{
@@ -666,17 +667,17 @@ class API
 		// save attachment to file
 		$filePath = self::GetAttachmentFilePath($request["board_id"], $guid, $extension);
 		$fileContent = base64_decode($request["attachment"]);
-		Utils::WriteToFile($filePath, $fileContent);
+		File::writeToFile($filePath, $fileContent);
 
 		// create a thumbnail
 		$thumbFilePath = self::GetThumbnailFilePath($request["board_id"], $guid);
-		Utils::CreateImageThumbnail($filePath, $thumbFilePath);
-		if (Utils::FileExists($thumbFilePath)) 
+		Utils::createImageThumbnail($filePath, $thumbFilePath);
+		if (File::FileExists($thumbFilePath)) 
 		{
 			// a thumbnail has been created, set it at the card cover image
 			DB::setParam("attachment_id", $attachmentID);
 			DB::setParam("card_id", $cardRecord["id"]);
-			DB::query("UPDATE tarallo_cards SET cover_attachment_id = :attachment_id WHERE id = :card_id");
+			DB::queryWithStoredParams("UPDATE tarallo_cards SET cover_attachment_id = :attachment_id WHERE id = :card_id");
 		}
 
 		self::UpdateBoardModifiedTime($request["board_id"]);
@@ -707,23 +708,23 @@ class API
 		$guid = uniqid("", true). "#" . $extension;
 		$newBackgroundPath = self::GetBackgroundUrl($request["board_id"], $guid);
 		$fileContent = base64_decode($request["background"]);
-		Utils::WriteToFile($newBackgroundPath, $fileContent);
+		File::writeToFile($newBackgroundPath, $fileContent);
 
 		// save a thumbnail copy of it for board tiles
 		$newBackgroundThumbPath = self::GetBackgroundUrl($request["board_id"], $guid, true);
-		Utils::CreateImageThumbnail($newBackgroundPath, $newBackgroundThumbPath);
+		Utils::createImageThumbnail($newBackgroundPath, $newBackgroundThumbPath);
 
 		// delete old background files
 		if (stripos($boardData["background_url"], self::DEFAULT_BG) === false) 
 		{
-			Utils::DeleteFile($boardData["background_url"]);
-			Utils::DeleteFile($boardData["background_thumb_url"]);
+			File::deleteFile($boardData["background_url"]);
+			File::deleteFile($boardData["background_thumb_url"]);
 		}
 
 		// update background in DB
 		DB::setParam("board_id", $request["board_id"]);
 		DB::setParam("background_guid", $guid);
-		DB::query("UPDATE tarallo_boards SET background_guid = :background_guid WHERE id = :board_id");
+		DB::queryWithStoredParams("UPDATE tarallo_boards SET background_guid = :background_guid WHERE id = :board_id");
 
 		self::UpdateBoardModifiedTime($request["board_id"]);
 
@@ -747,12 +748,12 @@ class API
 		// delete attachment from db
 		$deletionQuery = "DELETE FROM tarallo_attachments WHERE id = :id";
 		DB::setParam("id", $request["id"]);
-		DB::query($deletionQuery);
+		DB::queryWithStoredParams($deletionQuery);
 
 		// delete from cover image if any
 		DB::setParam("attachment_id", $attachmentRecord["id"]);
 		DB::setParam("card_id", $attachmentRecord["card_id"]);
-		DB::query("UPDATE tarallo_cards SET cover_attachment_id = 0 WHERE cover_attachment_id = :attachment_id AND id = :card_id");
+		DB::queryWithStoredParams("UPDATE tarallo_cards SET cover_attachment_id = 0 WHERE cover_attachment_id = :attachment_id AND id = :card_id");
 
 		self::UpdateBoardModifiedTime($request["board_id"]);
 
@@ -776,7 +777,7 @@ class API
 
 		DB::setParam("id", $attachmentRecord["id"]);
 		DB::setParam("name", $filteredName);
-		DB::query("UPDATE tarallo_attachments SET name = :name WHERE id = :id");
+		DB::queryWithStoredParams("UPDATE tarallo_attachments SET name = :name WHERE id = :id");
 
 		self::UpdateBoardModifiedTime($request["board_id"]);
 
@@ -799,16 +800,16 @@ class API
 		{
 			$attachmentPath = self::GetThumbnailFilePathFromRecord($attachmentRecord);
 		}
-		if (!isset($request["thumbnail"]) || !Utils::FileExists($attachmentPath))
+		if (!isset($request["thumbnail"]) || !File::FileExists($attachmentPath))
 		{
 			$attachmentPath = self::GetAttachmentFilePathFromRecord($attachmentRecord);
 		}
 
-		$mimeType = Utils::MimeTypes[$attachmentRecord["extension"]];
+		$mimeType = File::getMimeType($attachmentRecord["extension"]);
 		$downloadName = $attachmentRecord["name"] . "." . $attachmentRecord["extension"];
 		$isImage = stripos($mimeType, "image") === 0;
 
-		Utils::OutputFile($attachmentPath, $mimeType, $downloadName, !$isImage);
+		File::outputFile($attachmentPath, $mimeType, $downloadName, !$isImage);
 	}
 
 	public static function UpdateCardListName($request)
@@ -822,7 +823,7 @@ class API
 		// update the cardlist name
 		DB::setParam("name", $request["name"]);
 		DB::setParam("id", $request["id"]);
-		DB::query("UPDATE tarallo_cardlists SET name = :name WHERE id = :id");
+		DB::queryWithStoredParams("UPDATE tarallo_cardlists SET name = :name WHERE id = :id");
 
 		self::UpdateBoardModifiedTime($request["board_id"]);
 
@@ -854,7 +855,7 @@ class API
 
 		// check the number of cards in the list (deletion of lists is only allowed when empty)
 		DB::setParam("id", $request["id"]);
-		$cardCount = DB::query_one_result("SELECT COUNT(*) FROM tarallo_cards WHERE cardlist_id = :id");
+		$cardCount = DB::fetchOneWithStoredParams("SELECT COUNT(*) FROM tarallo_cards WHERE cardlist_id = :id");
 
 		if ($cardCount > 0)
 		{
@@ -878,7 +879,7 @@ class API
 		// update the board title
 		DB::setParam("title", self::CleanBoardTitle($request["title"]));
 		DB::setParam("id", $request["board_id"]);
-		DB::query("UPDATE tarallo_boards SET title = :title WHERE id = :id");
+		DB::queryWithStoredParams("UPDATE tarallo_boards SET title = :title WHERE id = :id");
 
 		self::UpdateBoardModifiedTime($request["board_id"]);
 
@@ -908,7 +909,7 @@ class API
 
 		// mark the board as closed
 		DB::setParam("id", $request["id"]);
-		DB::query("UPDATE tarallo_boards SET closed = 1 WHERE id = :id");
+		DB::queryWithStoredParams("UPDATE tarallo_boards SET closed = 1 WHERE id = :id");
 
 		self::UpdateBoardModifiedTime($request["board_id"]);
 
@@ -923,7 +924,7 @@ class API
 
 		// mark the board as closed
 		DB::setParam("id", $request["id"]);
-		DB::query("UPDATE tarallo_boards SET closed = 0 WHERE id = :id");
+		DB::queryWithStoredParams("UPDATE tarallo_boards SET closed = 0 WHERE id = :id");
 
 		self::UpdateBoardModifiedTime($request["board_id"]);
 
@@ -947,7 +948,7 @@ class API
 
 		// save attachment records before deleting them
 		DB::setParam("board_id", $boardID);
-		$attachments = DB::fetch_table("SELECT * FROM tarallo_attachments WHERE board_id = :board_id");
+		$attachments = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_attachments WHERE board_id = :board_id");
 
 		// delete all the records from the board
 		try
@@ -956,23 +957,23 @@ class API
 
 			// delete board record
 			DB::setParam("board_id", $boardID);
-			DB::query("DELETE FROM tarallo_boards WHERE id = :board_id");
+			DB::queryWithStoredParams("DELETE FROM tarallo_boards WHERE id = :board_id");
 
 			// delete cardlists
 			DB::setParam("board_id", $boardID);
-			DB::query("DELETE FROM tarallo_cardlists WHERE board_id = :board_id");
+			DB::queryWithStoredParams("DELETE FROM tarallo_cardlists WHERE board_id = :board_id");
 
 			// delete cards
 			DB::setParam("board_id", $boardID);
-			DB::query("DELETE FROM tarallo_cards WHERE board_id = :board_id");
+			DB::queryWithStoredParams("DELETE FROM tarallo_cards WHERE board_id = :board_id");
 
 			// delete attachments
 			DB::setParam("board_id", $boardID);
-			DB::query("DELETE FROM tarallo_attachments WHERE board_id = :board_id");
+			DB::queryWithStoredParams("DELETE FROM tarallo_attachments WHERE board_id = :board_id");
 
 			// delete permissions
 			DB::setParam("board_id", $boardID);
-			DB::query("DELETE FROM tarallo_permissions WHERE board_id = :board_id");
+			DB::queryWithStoredParams("DELETE FROM tarallo_permissions WHERE board_id = :board_id");
 
 			DB::commit();
 		}
@@ -984,7 +985,7 @@ class API
 
 		// delete all board files
 		$boardDir = self::GetBoardContentDir($boardID);
-		Utils::DeleteDir($boardDir);
+		File::DeleteDir($boardDir);
 
 		return $boardData;
 	}
@@ -1006,7 +1007,7 @@ class API
 		// open the zip archive from the export
 		$exportPath = self::TEMP_EXPORT_PATH;
 		$exportZip = new ZipArchive();		
-		if (!$exportZip->open(Utils::ftpDir($exportPath)))
+		if (!$exportZip->open(File::ftpDir($exportPath)))
 		{
 			http_response_code(500);
 			exit("Import Failed: export zip not found.");
@@ -1025,14 +1026,14 @@ class API
 		}
 
 		// build new db indices
-		$nextCardlistID = DB::query_one_result("SELECT MAX(id) FROM tarallo_cardlists") + 1;
-		$cardlistIndex = Utils::RebuildDBIndex($boardExportData["cardlists"], "id", $nextCardlistID);
+		$nextCardlistID = DB::fetchOneWithStoredParams("SELECT MAX(id) FROM tarallo_cardlists") + 1;
+		$cardlistIndex = DB::RebuildDBIndex($boardExportData["cardlists"], "id", $nextCardlistID);
 		$cardlistIndex[0] = 0; // unlinked cardlist entry
-		$nextCardID = DB::query_one_result("SELECT MAX(id) FROM tarallo_cards") + 1;
-		$cardIndex = Utils::RebuildDBIndex($boardExportData["cards"], "id", $nextCardID);
+		$nextCardID = DB::fetchOneWithStoredParams("SELECT MAX(id) FROM tarallo_cards") + 1;
+		$cardIndex = DB::RebuildDBIndex($boardExportData["cards"], "id", $nextCardID);
 		$cardIndex[0] = 0; // no prev card id entry
-		$nextAttachmentID = DB::query_one_result("SELECT MAX(id) FROM tarallo_attachments") + 1;
-		$attachIndex = Utils::RebuildDBIndex($boardExportData["attachments"], "id", $nextAttachmentID);
+		$nextAttachmentID = DB::fetchOneWithStoredParams("SELECT MAX(id) FROM tarallo_attachments") + 1;
+		$attachIndex = DB::RebuildDBIndex($boardExportData["attachments"], "id", $nextAttachmentID);
 		$attachIndex[0] = 0; // card without cover attachment
 
 		try
@@ -1053,17 +1054,17 @@ class API
 					$curList = $boardExportData["cardlists"][$i];
 
 					// add query parameters
-					DB::$qparams[] = $cardlistIndex[$curList["id"]]; // id
-					DB::$qparams[] = $newBoardID;// board_id
-					DB::$qparams[] = $curList["name"]; // name
-					DB::$qparams[] = $cardlistIndex[$curList["prev_list_id"]]; // prev_list_id
-					DB::$qparams[] = $cardlistIndex[$curList["next_list_id"]]; // next_list_id
+					DB::$QUERY_PARAMS[] = $cardlistIndex[$curList["id"]]; // id
+					DB::$QUERY_PARAMS[] = $newBoardID;// board_id
+					DB::$QUERY_PARAMS[] = $curList["name"]; // name
+					DB::$QUERY_PARAMS[] = $cardlistIndex[$curList["prev_list_id"]]; // prev_list_id
+					DB::$QUERY_PARAMS[] = $cardlistIndex[$curList["next_list_id"]]; // next_list_id
 
 					// add query format
 					$addCardlistsQuery .= ($i > 0 ? ", " : "") . $cardlistPlaceholders;
 				}
 				// add all the cards for this list to the DB
-				DB::query($addCardlistsQuery);
+				DB::queryWithStoredParams($addCardlistsQuery);
 			}
 
 			// add cards to db
@@ -1077,23 +1078,23 @@ class API
 					$curCard = $boardExportData["cards"][$i];
 
 					// add query parameters
-					DB::$qparams[] = $cardIndex[$curCard["id"]]; // id
-					DB::$qparams[] = $curCard["title"]; // title
-					DB::$qparams[] = $curCard["content"]; // content
-					DB::$qparams[] = $cardIndex[$curCard["prev_card_id"]]; // prev_card_id
-					DB::$qparams[] = $cardIndex[$curCard["next_card_id"]];// next_card_id
-					DB::$qparams[] = $cardlistIndex[$curCard["cardlist_id"]];// cardlist_id
-					DB::$qparams[] = $newBoardID;// board_id
-					DB::$qparams[] = $attachIndex[$curCard["cover_attachment_id"]];// cover_attachment_id
-					DB::$qparams[] = $curCard["last_moved_time"]; // last_moved_time
-					DB::$qparams[] = $curCard["label_mask"];// label_mask
-					DB::$qparams[] = $curCard["flags"];// flags
+					DB::$QUERY_PARAMS[] = $cardIndex[$curCard["id"]]; // id
+					DB::$QUERY_PARAMS[] = $curCard["title"]; // title
+					DB::$QUERY_PARAMS[] = $curCard["content"]; // content
+					DB::$QUERY_PARAMS[] = $cardIndex[$curCard["prev_card_id"]]; // prev_card_id
+					DB::$QUERY_PARAMS[] = $cardIndex[$curCard["next_card_id"]];// next_card_id
+					DB::$QUERY_PARAMS[] = $cardlistIndex[$curCard["cardlist_id"]];// cardlist_id
+					DB::$QUERY_PARAMS[] = $newBoardID;// board_id
+					DB::$QUERY_PARAMS[] = $attachIndex[$curCard["cover_attachment_id"]];// cover_attachment_id
+					DB::$QUERY_PARAMS[] = $curCard["last_moved_time"]; // last_moved_time
+					DB::$QUERY_PARAMS[] = $curCard["label_mask"];// label_mask
+					DB::$QUERY_PARAMS[] = $curCard["flags"];// flags
 
 					// add query format
 					$addCardsQuery .= ($i > 0 ? ", " : "") . $cardPlaceholders;
 				}
 				// add all the cards for this list to the DB
-				DB::query($addCardsQuery);
+				DB::queryWithStoredParams($addCardsQuery);
 			}
 
 			// add attachments
@@ -1108,23 +1109,23 @@ class API
 					$curAttachment = $boardExportData["attachments"][$i];
 
 					// add query parameters
-					DB::$qparams[] = $attachIndex[$curAttachment["id"]]; // id
-					DB::$qparams[] = $curAttachment["name"]; // name
-					DB::$qparams[] = $curAttachment["guid"]; // guid
-					DB::$qparams[] = $curAttachment["extension"]; // extension
-					DB::$qparams[] = $cardIndex[$curAttachment["card_id"]]; // card_id
-					DB::$qparams[] = $newBoardID;// board_id
+					DB::$QUERY_PARAMS[] = $attachIndex[$curAttachment["id"]]; // id
+					DB::$QUERY_PARAMS[] = $curAttachment["name"]; // name
+					DB::$QUERY_PARAMS[] = $curAttachment["guid"]; // guid
+					DB::$QUERY_PARAMS[] = $curAttachment["extension"]; // extension
+					DB::$QUERY_PARAMS[] = $cardIndex[$curAttachment["card_id"]]; // card_id
+					DB::$QUERY_PARAMS[] = $newBoardID;// board_id
 
 					// add query format
 					$addAttachmentsQuery .= ($i > 0 ? ", " : "") . $attachmentsPlaceholders;
 				}
 				// add all the cards for this list to the DB
-				DB::query($addAttachmentsQuery);
+				DB::queryWithStoredParams($addAttachmentsQuery);
 			}
 
 			// unzip board content to board/ folder
 			$boardFolder = self::GetBoardContentDir($newBoardID);
-			if (!$exportZip->extractTo(Utils::ftpDir($boardFolder)))
+			if (!$exportZip->extractTo(File::ftpDir($boardFolder)))
 			{
 				DB::rollBack();
 				http_response_code(500);
@@ -1138,8 +1139,8 @@ class API
 			}
 
 			// clean temp files
-			Utils::DeleteFile($boardFolder . "db.json");
-			Utils::DeleteFile($exportPath);
+			File::deleteFile($boardFolder . "db.json");
+			File::deleteFile($exportPath);
 
 			DB::commit();
 		}
@@ -1168,7 +1169,7 @@ class API
 		}
 
 		// check the next available card id
-		$nextCardID = DB::query_one_result("SELECT MAX(id) FROM tarallo_cards") + 1;
+		$nextCardID = DB::fetchOneWithStoredParams("SELECT MAX(id) FROM tarallo_cards") + 1;
 
 		$trello = $request["trello_export"];
 
@@ -1297,16 +1298,16 @@ class API
 					}
 
 					// add query parameters
-					DB::$qparams[] = $nextCardID; // id
-					DB::$qparams[] = $curTrelloCard["name"]; // title
-					DB::$qparams[] = $curTrelloCard["desc"] . $clistContent; // content
-					DB::$qparams[] = $iCard == 0 ? 0 : ($nextCardID - 1); // prev_card_id
-					DB::$qparams[] = $iCard == ($listCardCount - 1) ? 0 : ($nextCardID + 1);// next_card_id
-					DB::$qparams[] = $newCardlistID;// cardlist_id
-					DB::$qparams[] = $newBoardID;// board_id
-					DB::$qparams[] = 0;// cover_attachment_id
-					DB::$qparams[] = $lastMovedTime; // last_moved_time
-					DB::$qparams[] = $labelMask;// label_mask
+					DB::$QUERY_PARAMS[] = $nextCardID; // id
+					DB::$QUERY_PARAMS[] = $curTrelloCard["name"]; // title
+					DB::$QUERY_PARAMS[] = $curTrelloCard["desc"] . $clistContent; // content
+					DB::$QUERY_PARAMS[] = $iCard == 0 ? 0 : ($nextCardID - 1); // prev_card_id
+					DB::$QUERY_PARAMS[] = $iCard == ($listCardCount - 1) ? 0 : ($nextCardID + 1);// next_card_id
+					DB::$QUERY_PARAMS[] = $newCardlistID;// cardlist_id
+					DB::$QUERY_PARAMS[] = $newBoardID;// board_id
+					DB::$QUERY_PARAMS[] = 0;// cover_attachment_id
+					DB::$QUERY_PARAMS[] = $lastMovedTime; // last_moved_time
+					DB::$QUERY_PARAMS[] = $labelMask;// label_mask
 
 					// add query format
 					$addCardsQuery .= ($iCard > 0 ? ", " : "") . $recordPlaceholders;
@@ -1316,7 +1317,7 @@ class API
 				} // end foreach card
 
 				// add all the cards for this list to the DB
-				DB::query($addCardsQuery);
+				DB::queryWithStoredParams($addCardsQuery);
 			}
 
 			$prevCardlistID = $newCardlistID;
@@ -1445,7 +1446,7 @@ class API
 		// remove the label flag from all the cards of this board
 		DB::setParam("removed_label_mask", ~(1 << $labelIndex));
 		DB::setParam("board_id", $request["board_id"]);
-		DB::query("UPDATE tarallo_cards SET label_mask = label_mask & :removed_label_mask WHERE board_id = :board_id");
+		DB::queryWithStoredParams("UPDATE tarallo_cards SET label_mask = label_mask & :removed_label_mask WHERE board_id = :board_id");
 
 		// return the removed label index
 		$response = array();
@@ -1489,7 +1490,7 @@ class API
 		// update the card
 		DB::setParam("label_mask", $labelMask);
 		DB::setParam("card_id", $cardData["id"]);
-		DB::query("UPDATE tarallo_cards SET label_mask = :label_mask WHERE id = :card_id");
+		DB::queryWithStoredParams("UPDATE tarallo_cards SET label_mask = :label_mask WHERE id = :card_id");
 
 		self::UpdateBoardModifiedTime($request["board_id"]);
 
@@ -1513,7 +1514,7 @@ class API
 		$boardPermissionsQuery .= " FROM tarallo_permissions LEFT JOIN tarallo_users ON tarallo_permissions.user_id = tarallo_users.id";
 		$boardPermissionsQuery .= " WHERE board_id = :board_id";
 		DB::setParam("board_id", $request["id"]);
-		$boardData["permissions"] = DB::fetch_table($boardPermissionsQuery);
+		$boardData["permissions"] = DB::fetchTableWithStoredParams($boardPermissionsQuery);
 		$boardData["is_admin"] = $_SESSION["is_admin"];
 
 		return $boardData;
@@ -1556,7 +1557,7 @@ class API
 		$boardPermissionsQuery .= " WHERE board_id = :board_id AND user_id = :user_id";
 		DB::setParam("board_id", $request["board_id"]);
 		DB::setParam("user_id", $request["user_id"]);
-		$permission = DB::fetch_row($boardPermissionsQuery);
+		$permission = DB::fetchRowWithStoredParams($boardPermissionsQuery);
 
 		if (!$isSpecialPermission)
 		{
@@ -1579,12 +1580,12 @@ class API
 		if ($permission) 
 		{
 			// update permission
-			DB::query("UPDATE tarallo_permissions SET user_type = :user_type WHERE board_id = :board_id AND user_id = :user_id");
+			DB::queryWithStoredParams("UPDATE tarallo_permissions SET user_type = :user_type WHERE board_id = :board_id AND user_id = :user_id");
 		} 
 		else // if ($isSpecialPermission)
 		{
 			// add permission (only special permissions can be added here if not present)
-			DB::query("INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:user_id, :board_id, :user_type)");
+			DB::queryWithStoredParams("INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:user_id, :board_id, :user_type)");
 		}
 
 		self::UpdateBoardModifiedTime($request["board_id"]);
@@ -1592,7 +1593,7 @@ class API
 		// query back for the updated permission
 		DB::setParam("board_id", $request["board_id"]);
 		DB::setParam("user_id", $request["user_id"]);
-		$permission = DB::fetch_row($boardPermissionsQuery);
+		$permission = DB::fetchRowWithStoredParams($boardPermissionsQuery);
 
 		return $permission;
 	}
@@ -1618,7 +1619,7 @@ class API
 		else
 			$guestPermissionQuery = "UPDATE tarallo_permissions SET user_type = :user_type WHERE user_id = :user_id AND board_id = :board_id";
 
-		DB::query($guestPermissionQuery);
+		DB::queryWithStoredParams($guestPermissionQuery);
 
 		// prepare the response
 		$response = array();
@@ -1640,10 +1641,10 @@ class API
 
 		// create a zip for the export
 		$exportPath = self::TEMP_EXPORT_PATH;
-		Utils::PrepareDir($exportPath);
+		File::prepareDir($exportPath);
 		$exportZip = new ZipArchive();
 
-		if (!$exportZip->open(Utils::ftpDir($exportPath), ZipArchive::CREATE | ZipArchive::OVERWRITE))
+		if (!$exportZip->open(File::ftpDir($exportPath), ZipArchive::CREATE | ZipArchive::OVERWRITE))
 		{
 			http_response_code(500);
 			exit("Export failed: zip creation error.");
@@ -1651,26 +1652,26 @@ class API
 
 		// create a board data struct
 		DB::setParam("id", $boardID);
-		$boardExportData = DB::fetch_row("SELECT * FROM tarallo_boards WHERE id = :id");
+		$boardExportData = DB::fetchRowWithStoredParams("SELECT * FROM tarallo_boards WHERE id = :id");
 		DB::setParam("board_id", $boardID);
-		$boardExportData["cardlists"] = DB::fetch_table("SELECT * FROM tarallo_cardlists WHERE board_id = :board_id");
+		$boardExportData["cardlists"] = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_cardlists WHERE board_id = :board_id");
 		DB::setParam("board_id", $boardID);
-		$boardExportData["cards"] = DB::fetch_table("SELECT * FROM tarallo_cards WHERE board_id = :board_id");
+		$boardExportData["cards"] = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_cards WHERE board_id = :board_id");
 		DB::setParam("board_id", $boardID);
-		$boardExportData["attachments"] = DB::fetch_table("SELECT * FROM tarallo_attachments WHERE board_id = :board_id");
+		$boardExportData["attachments"] = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_attachments WHERE board_id = :board_id");
 		$boardExportData["db_version"] = self::GetDBSetting("db_version");
 
 		// add the data struct to the zip as json
 		$exportDataJsonPath = "temp/export.json";
-		Utils::WriteToFile($exportDataJsonPath, json_encode($boardExportData));
-		if (!$exportZip->addFile(Utils::ftpDir($exportDataJsonPath), "db.json"))
+		File::writeToFile($exportDataJsonPath, json_encode($boardExportData));
+		if (!$exportZip->addFile(File::ftpDir($exportDataJsonPath), "db.json"))
 		{
 			http_response_code(500);
 			exit("Export failed: failed to add db data.");
 		}
 
 		// add the whole board folder (attachments + background)
-		$boardBaseDir = Utils::ftpDir("boards/{$boardID}/");
+		$boardBaseDir = File::ftpDir("boards/{$boardID}/");
 		$dirIterator = new RecursiveDirectoryIterator($boardBaseDir);
 		$fileIterator = new RecursiveIteratorIterator($dirIterator, RecursiveIteratorIterator::SELF_FIRST);
 
@@ -1701,7 +1702,7 @@ class API
 
 		//output zip file as download
 		$downloadName =  "export - " . strtolower($boardData["title"]) . " " . date("Y-m-d H-i-s")  . ".zip";
-		Utils::OutputFile($exportPath, Utils::MimeTypes["zip"], $downloadName, true);
+		File::outputFile($exportPath, File::MimeTypes["zip"], $downloadName, true);
 	}
 
 	public static function UploadChunk($request)
@@ -1731,11 +1732,11 @@ class API
 		// decode content and write to file
 		$writeFlags = $request["chunkIndex"] === 0 ? 0 : FILE_APPEND; // append if its not the first chunk
 		$chunkContent = base64_decode($request["data"]);
-		Utils::WriteToFile($destFilePath, $chunkContent, $writeFlags);
+		File::writeToFile($destFilePath, $chunkContent, $writeFlags);
 
 		// prepare the response
 		$response = array();
-		$response["size"] = filesize(Utils::ftpDir($destFilePath));
+		$response["size"] = filesize(File::ftpDir($destFilePath));
 		return $response;
 	}
 
@@ -1753,17 +1754,17 @@ class API
 		DB::setParam("label_names", $labelsString);
 		DB::setParam("label_colors", $labelColorsString);
 		DB::setParam("board_id", $boardID);
-		DB::query("UPDATE tarallo_boards SET label_names = :label_names, label_colors = :label_colors WHERE id = :board_id");
+		DB::queryWithStoredParams("UPDATE tarallo_boards SET label_names = :label_names, label_colors = :label_colors WHERE id = :board_id");
 	}
 
 	private static function TryApplyingDBPatch($sqlFilePath) 
 	{
-		if (!Utils::FileExists($sqlFilePath))
+		if (!File::FileExists($sqlFilePath))
 			return false;
 
 		// load sql patch file and execute it
-		$sql = Utils::ReadFileAsString($sqlFilePath);
-		DB::exec($sql);
+		$sql = File::readFileAsString($sqlFilePath);
+		DB::run($sql);
 		return true;
 	}
 
@@ -1795,9 +1796,9 @@ class API
 	private static function DeleteAttachmentFiles($attachmentRecord)
 	{
 		$attachmentPath = self::GetAttachmentFilePathFromRecord($attachmentRecord);
-		Utils::DeleteFile($attachmentPath);
+		File::deleteFile($attachmentPath);
 		$thumbnailPath = self::GetThumbnailFilePathFromRecord($attachmentRecord);
-		Utils::DeleteFile($thumbnailPath);
+		File::deleteFile($thumbnailPath);
 	}
 
 	private static function DeleteCardInternal($boardID, $cardID, $deleteAttachments = true)
@@ -1805,7 +1806,7 @@ class API
 		// query the card data
 		$cardQuery = "SELECT * FROM tarallo_cards WHERE id = :id";
 		DB::setParam("id", $cardID);
-		$cardRecord = DB::fetch_row($cardQuery);
+		$cardRecord = DB::fetchRowWithStoredParams($cardQuery);
 
 		if (!$cardRecord)
 		{
@@ -1830,7 +1831,7 @@ class API
 				$prevCardLinkQuery = "UPDATE tarallo_cards SET next_card_id = :next_card_id WHERE id = :prev_card_id";
 				DB::setParam("prev_card_id", $cardRecord["prev_card_id"]);
 				DB::setParam("next_card_id", $cardRecord["next_card_id"]);
-				DB::query($prevCardLinkQuery);
+				DB::queryWithStoredParams($prevCardLinkQuery);
 			}
 
 			// re-link the next card
@@ -1839,13 +1840,13 @@ class API
 				$nextCardLinkQuery = "UPDATE tarallo_cards SET prev_card_id = :prev_card_id WHERE id = :next_card_id";
 				DB::setParam("prev_card_id", $cardRecord["prev_card_id"]);
 				DB::setParam("next_card_id", $cardRecord["next_card_id"]);
-				DB::query($nextCardLinkQuery);
+				DB::queryWithStoredParams($nextCardLinkQuery);
 			}
 
 			// delete the card
 			$deletionQuery = "DELETE FROM tarallo_cards WHERE id = :id";
 			DB::setParam("id", $cardID);
-			DB::query($deletionQuery);
+			DB::queryWithStoredParams($deletionQuery);
 
 			// delete attachments
 			if ($deleteAttachments) 
@@ -1853,7 +1854,7 @@ class API
 				// delete attachments files
 				$attachmentsQuery = "SELECT * FROM tarallo_attachments WHERE card_id = :id";
 				DB::setParam("id", $cardID);
-				$attachments = DB::fetch_table($attachmentsQuery);
+				$attachments = DB::fetchTableWithStoredParams($attachmentsQuery);
 				$attachmentCount = count($attachments);
 				for ($i = 0; $i < $attachmentCount; $i++) 
 				{
@@ -1863,7 +1864,7 @@ class API
 				// delete attachments entries from db
 				$deletionQuery = "DELETE FROM tarallo_attachments WHERE card_id = :id";
 				DB::setParam("id", $cardID);
-				DB::query($deletionQuery);
+				DB::queryWithStoredParams($deletionQuery);
 			}
 
 			DB::commit();
@@ -1882,7 +1883,7 @@ class API
 		// count the card in the destination cardlist
 		$cardCountQuery = "SELECT COUNT(*) FROM tarallo_cards WHERE cardlist_id = :cardlist_id";
 		DB::setParam("cardlist_id", $cardlistID);
-		$cardCount = DB::query_one_result($cardCountQuery);
+		$cardCount = DB::fetchOneWithStoredParams($cardCountQuery);
 
 		if ($cardCount == 0 && $prevCardID > 0)
 		{
@@ -1899,7 +1900,7 @@ class API
 			$nextCardQuery = "SELECT * FROM tarallo_cards WHERE cardlist_id = :cardlist_id AND prev_card_id = :prev_card_id";
 			DB::setParam("cardlist_id", $cardlistID);
 			DB::setParam("prev_card_id", $prevCardID);
-			$nextCardData = DB::fetch_row($nextCardQuery);
+			$nextCardData = DB::fetchRowWithStoredParams($nextCardQuery);
 
 			// query prev card data
 			$preCardData = false;
@@ -1908,7 +1909,7 @@ class API
 				$prevCardQuery = "SELECT * FROM tarallo_cards WHERE cardlist_id = :cardlist_id AND id = :prev_card_id";
 				DB::setParam("cardlist_id", $cardlistID);
 				DB::setParam("prev_card_id", $prevCardID);
-				$prevCardData = DB::fetch_row($prevCardQuery);
+				$prevCardData = DB::fetchRowWithStoredParams($prevCardQuery);
 
 				if (!$prevCardData)
 				{
@@ -1942,7 +1943,7 @@ class API
 			DB::setParam("last_moved_time", $lastMovedTime);
 			DB::setParam("label_mask", $labelMask);
 			DB::setParam("flags", $flagMask);
-			$newCardID = DB::query($addCardQuery, true);
+			$newCardID = DB::insertWithStoredParams($addCardQuery);
 
 			if ($nextCardID > 0)
 			{
@@ -1950,7 +1951,7 @@ class API
 				$linkCardQuery = "UPDATE tarallo_cards SET prev_card_id = :new_id WHERE id = :next_card_id";
 				DB::setParam("new_id", $newCardID);
 				DB::setParam("next_card_id", $nextCardID);
-				DB::query($linkCardQuery);
+				DB::queryWithStoredParams($linkCardQuery);
 			}
 
 			if ($prevCardID > 0)
@@ -1959,7 +1960,7 @@ class API
 				$linkCardQuery = "UPDATE tarallo_cards SET next_card_id = :new_id WHERE id = :prev_card_id";
 				DB::setParam("new_id", $newCardID);
 				DB::setParam("prev_card_id", $prevCardID);
-				DB::query($linkCardQuery);
+				DB::queryWithStoredParams($linkCardQuery);
 			}
 
 			DB::commit();
@@ -1973,7 +1974,7 @@ class API
 		// re-query the added card and return its record
 		$cardQuery = "SELECT * FROM tarallo_cards WHERE id = :id";
 		DB::setParam("id", $newCardID);
-		$cardRecord = DB::fetch_row($cardQuery);
+		$cardRecord = DB::fetchRowWithStoredParams($cardQuery);
 
 		return $cardRecord;
 	}
@@ -1986,7 +1987,7 @@ class API
 			$prevCardLinkQuery = "UPDATE tarallo_cardlists SET next_list_id = :next_list_id WHERE id = :prev_list_id";
 			DB::setParam("prev_list_id", $cardListData["prev_list_id"]);
 			DB::setParam("next_list_id", $cardListData["next_list_id"]);
-			DB::query($prevCardLinkQuery);
+			DB::queryWithStoredParams($prevCardLinkQuery);
 		}
 
 		// re-link the next list
@@ -1995,7 +1996,7 @@ class API
 			$nextCardLinkQuery = "UPDATE tarallo_cardlists SET prev_list_id = :prev_list_id WHERE id = :next_list_id";
 			DB::setParam("prev_list_id", $cardListData["prev_list_id"]);
 			DB::setParam("next_list_id", $cardListData["next_list_id"]);
-			DB::query($nextCardLinkQuery);
+			DB::queryWithStoredParams($nextCardLinkQuery);
 		}
 	}
 
@@ -2011,7 +2012,7 @@ class API
 			// delete the list
 			$deletionQuery = "DELETE FROM tarallo_cardlists WHERE id = :id";
 			DB::setParam("id", $cardListData["id"]);
-			DB::query($deletionQuery);
+			DB::queryWithStoredParams($deletionQuery);
 
 			DB::commit();
 		}
@@ -2031,7 +2032,7 @@ class API
 			// update the next card list by linking it to the new one
 			DB::setParam("new_id", $newListID);
 			DB::setParam("next_list_id", $nextListID);
-			DB::query("UPDATE tarallo_cardlists SET prev_list_id = :new_id WHERE id = :next_list_id");
+			DB::queryWithStoredParams("UPDATE tarallo_cardlists SET prev_list_id = :new_id WHERE id = :next_list_id");
 		}
 
 		if ($prevListID > 0)
@@ -2039,7 +2040,7 @@ class API
 			// update the prev card by linking it to the new one
 			DB::setParam("new_id", $newListID);
 			DB::setParam("prev_list_id", $prevListID);
-			DB::query("UPDATE tarallo_cardlists SET next_list_id = :new_id WHERE id = :prev_list_id");
+			DB::queryWithStoredParams("UPDATE tarallo_cardlists SET next_list_id = :new_id WHERE id = :prev_list_id");
 		}
 	}
 
@@ -2048,7 +2049,7 @@ class API
 		// count the cardlists in the destination board
 		$cardListCountQuery = "SELECT COUNT(*) FROM tarallo_cardlists WHERE board_id = :board_id";
 		DB::setParam("board_id", $boardID);
-		$cardListCount = DB::query_one_result($cardListCountQuery);
+		$cardListCount = DB::fetchOneWithStoredParams($cardListCountQuery);
 
 		if ($cardListCount == 0 && $prevListID > 0)
 		{
@@ -2065,7 +2066,7 @@ class API
 			$nextCardListQuery = "SELECT * FROM tarallo_cardlists WHERE board_id = :board_id AND prev_list_id = :prev_list_id";
 			DB::setParam("board_id", $boardID);
 			DB::setParam("prev_list_id", $prevListID);
-			$nextCardListRecord = DB::fetch_row($nextCardListQuery);
+			$nextCardListRecord = DB::fetchRowWithStoredParams($nextCardListQuery);
 
 			// query prev card list data
 			$preCardListRecord = false;
@@ -2074,7 +2075,7 @@ class API
 				$prevCardListQuery = "SELECT * FROM tarallo_cardlists WHERE board_id = :board_id AND id = :prev_list_id";
 				DB::setParam("board_id", $boardID);
 				DB::setParam("prev_list_id", $prevListID);
-				$prevCardListRecord = DB::fetch_row($prevCardListQuery);
+				$prevCardListRecord = DB::fetchRowWithStoredParams($prevCardListQuery);
 
 				if (!$prevCardListRecord)
 				{
@@ -2102,7 +2103,7 @@ class API
 			DB::setParam("name", $name);
 			DB::setParam("prev_list_id", $prevListID);
 			DB::setParam("next_list_id", $nextListID);
-			$newListID = DB::query($addCardListQuery, true);
+			$newListID = DB::insertWithStoredParams($addCardListQuery);
 
 			self::AddCardListToLL($newListID, $prevListID, $nextListID);
 
@@ -2132,7 +2133,7 @@ class API
 			DB::setParam("label_colors", $labelColors);
 			DB::setParam("last_modified_time", time());
 			DB::setParam("background_guid", $backgroundGUID);
-			$newBoardID = DB::query($createBoardQuery, true);
+			$newBoardID = DB::insertWithStoredParams($createBoardQuery);
 
 			// create the owner permission record
 			$createBoardQuery = "INSERT INTO tarallo_permissions (user_id, board_id, user_type)";
@@ -2140,7 +2141,7 @@ class API
 			DB::setParam("user_id", $_SESSION["user_id"]);
 			DB::setParam("board_id", $newBoardID);
 			DB::setParam("user_type", self::USERTYPE_Owner);
-			DB::query($createBoardQuery);
+			DB::queryWithStoredParams($createBoardQuery);
 		
 			DB::commit();
 		}
@@ -2229,13 +2230,13 @@ class API
 		$boardQuery .= " WHERE tarallo_boards.id = :board_id AND user_id = :user_id";
 		DB::setParam("board_id", $boardID);
 		DB::setParam("user_id", $userID);
-		$boardRecord = DB::fetch_row($boardQuery);
+		$boardRecord = DB::fetchRowWithStoredParams($boardQuery);
 
 		if (!$boardRecord)
 		{
 			// the specified board_id does not exists, or the current user do not have access to it
 			DB::setParam("board_id", $boardID);
-			$boardRecord = DB::fetch_row("SELECT * FROM tarallo_boards WHERE tarallo_boards.id = :board_id");
+			$boardRecord = DB::fetchRowWithStoredParams("SELECT * FROM tarallo_boards WHERE tarallo_boards.id = :board_id");
 
 			if (!$boardRecord)
 			{
@@ -2256,7 +2257,7 @@ class API
 	{
 		DB::setParam("last_modified_time", time());
 		DB::setParam("board_id", $boardID);
-		DB::query("UPDATE tarallo_boards SET last_modified_time = :last_modified_time WHERE id = :board_id");
+		DB::queryWithStoredParams("UPDATE tarallo_boards SET last_modified_time = :last_modified_time WHERE id = :board_id");
 	}
 
 	private static function CheckPermissions($userType, $requestedUserType, $exitIfFailed = true)
@@ -2278,7 +2279,7 @@ class API
 		// query and validate cardlist
 		$cardlistQuery = "SELECT * FROM tarallo_cardlists WHERE id = :cardlist_id";
 		DB::setParam("cardlist_id", $cardlistID);
-		$cardlistData = DB::fetch_row($cardlistQuery);
+		$cardlistData = DB::fetchRowWithStoredParams($cardlistQuery);
 
 		if (!$cardlistData)
 		{
@@ -2300,7 +2301,7 @@ class API
 		// query and validate cardlist
 		$cardQuery = "SELECT * FROM tarallo_cards WHERE id = :card_id";
 		DB::setParam("card_id", $cardID);
-		$cardData = DB::fetch_row($cardQuery);
+		$cardData = DB::fetchRowWithStoredParams($cardQuery);
 
 		if (!$cardData)
 		{
@@ -2321,7 +2322,7 @@ class API
 	{
 		// query attachment
 		DB::setParam("id", $attachmentID);
-		$attachmentRecord = DB::fetch_row("SELECT * FROM tarallo_attachments WHERE id = :id");
+		$attachmentRecord = DB::fetchRowWithStoredParams("SELECT * FROM tarallo_attachments WHERE id = :id");
 
 		if (!$attachmentRecord)
 		{
@@ -2451,19 +2452,19 @@ class API
 	private static function GetDBSetting($name)
 	{
 		DB::setParam("name", $name);
-		return DB::query_one_result("SELECT value FROM tarallo_settings WHERE name = :name");
+		return DB::fetchOneWithStoredParams("SELECT value FROM tarallo_settings WHERE name = :name");
 	}
 
 	private static function SetDBSetting($name, $value)
 	{
 		DB::setParam("name", $name);
 		DB::setParam("value", $value);
-		return DB::query("UPDATE tarallo_settings SET value = :value WHERE name = :name");
+		return DB::queryWithStoredParams("UPDATE tarallo_settings SET value = :value WHERE name = :name");
 	}
 
 	private static function GetDBSettings()
 	{
-		return DB::fetch_assoc("SELECT name, value FROM tarallo_settings", "name", "value");
+		return DB::fetchAssocWithStoredParams("SELECT name, value FROM tarallo_settings", "name", "value");
 	}
 
 	private static function UsernameExists($username) 
@@ -2472,7 +2473,7 @@ class API
 		$userQuery = "SELECT COUNT(*) FROM tarallo_users where username = :username";
 		DB::setParam("username", $username);
 
-		return DB::query_one_result($userQuery);
+		return DB::fetchOneWithStoredParams($userQuery);
 	}
 
 	private static function AddUserInternal($username, $password, $displayName, $isAdmin = false)
@@ -2486,7 +2487,7 @@ class API
 		DB::setParam("display_name", $displayName);
 		DB::setParam("register_time", time());
 		DB::setParam("is_admin", $isAdmin ? 1 : 0);
-		$userID = DB::query($addUserQuery, true);
+		$userID = DB::insertWithStoredParams($addUserQuery);
 		return $userID;
 	}
 
@@ -2498,7 +2499,7 @@ class API
 		// find the first available admin* account name
 		{
 			$userQuery = "SELECT username FROM tarallo_users where username LIKE 'admin%'";
-			$usedAdminNames = DB::fetch_array($userQuery, "username");
+			$usedAdminNames = DB::fetchArrayWithStoredParams($userQuery, "username");
 			for ($i = 0; in_array($account["username"], $usedAdminNames); $account["username"] = "admin" . ++$i) ;
 		}
 
