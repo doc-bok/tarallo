@@ -159,9 +159,8 @@ class API
      */
     public static function GetBoardListPage(): array
     {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
+        self::EnsureSession();
+
         if (empty($_SESSION['user_id'])) {
             Logger::error("GetBoardListPage: No user_id in session");
             throw new RuntimeException("Not logged in");
@@ -257,9 +256,7 @@ class API
      */
     public static function Login(array $request): array
     {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
+        self::EnsureSession();
 
         // Force logout if already logged in
         if (self::IsUserLoggedIn()) {
@@ -338,9 +335,7 @@ class API
      */
     public static function Register(array $request): array
     {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
+        self::EnsureSession();
 
         $settings = self::GetDBSettings();
         if (empty($settings['registration_enabled'])) {
@@ -424,9 +419,7 @@ class API
      */
     public static function Logout(array $request): array
     {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
+        self::EnsureSession();
 
         if (self::IsUserLoggedIn()) {
             Logger::info("Logout: User {$_SESSION['username']} (ID {$_SESSION['user_id']}) logging out");
@@ -2291,9 +2284,7 @@ class API
         bool $includeCardLists = false,
         bool $includeCards = false
     ): array {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
+        self::EnsureSession();
         
         if (empty($_SESSION['user_id'])) {
             Logger::error("GetBoardData: No user_id in session");
@@ -2519,14 +2510,23 @@ class API
 	}
 
     /**
+     * Ensures a PHP session is started.
+     * Call this at the start of any function that uses $_SESSION.
+     */
+    private static function EnsureSession(): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+    }
+
+    /**
      * Checks to see if a user is logged in.
      * @return bool TRUE if a user is logged into the session.
      */
     private static function IsUserLoggedIn(): bool
     {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
+        self::EnsureSession();
         return !empty($_SESSION['user_id']) && is_numeric($_SESSION['user_id']);
     }
 
@@ -2535,9 +2535,7 @@ class API
      */
     private static function LogoutInternal(): void
     {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
+        self::EnsureSession();
 
         // Clear all session variables
         $_SESSION = [];
