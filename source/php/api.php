@@ -48,8 +48,8 @@ class API
 	const USERTYPE_None = 11; // no access (no record on db)
 
 	// special user IDs
-	const USERID_ONREGISTER = -1; // if a permission record on the permission table has this user_id, the permission will be copied to any new registered user
-	const USERID_MIN = self::USERID_ONREGISTER; // this should be the minimun special user ID
+	const userId_ONREGISTER = -1; // if a permission record on the permission table has this user_id, the permission will be copied to any new registered user
+	const userId_MIN = self::userId_ONREGISTER; // this should be the minimun special user ID
 
     const INIT_DB_PATCH = "dbpatch/init_db.sql";
 
@@ -384,25 +384,25 @@ class API
         }
 
         // Create user
-        $userID = self::AddUserInternal($username, $password, $displayName);
-        if (!$userID) {
+        $userId = self::AddUserInternal($username, $password, $displayName);
+        if (!$userId) {
             Logger::error("Register: Failed to create user '$username'");
             http_response_code(500);
             return ['error' => 'Internal server error while creating user'];
         }
 
-        Logger::info("Register: Created new user '$username' with ID $userID");
+        Logger::info("Register: Created new user '$username' with ID $userId");
 
         // Apply initial permissions
         $initialPerms = DB::fetchTable(
             "SELECT * FROM tarallo_permissions WHERE user_id = :id",
-            ['id' => self::USERID_ONREGISTER]
+            ['id' => self::userId_ONREGISTER]
         );
         foreach ($initialPerms as $perm) {
             if ($perm['user_type'] == self::USERTYPE_Blocked) continue;
             DB::query(
                 "INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:uid, :bid, :ut)",
-                ['uid' => $userID, 'bid' => $perm['board_id'], 'ut' => $perm['user_type']]
+                ['uid' => $userId, 'bid' => $perm['board_id'], 'ut' => $perm['user_type']]
             );
         }
 
@@ -431,42 +431,61 @@ class API
         return ['success' => true];
     }
 
+    /**
+     * Open a card.
+     * @param array $request The request parameters.
+     * @return string[] The card data, if successful.
+     */
+    public static function OpenCard(array $request): array
+    {
+        self::EnsureSession();
 
-	public static function OpenCard($request)
-	{
-		// fetch and validate card data
-		$openCardQuery = "SELECT tarallo_cards.*, tarallo_permissions.user_type";
-		$openCardQuery .= " FROM tarallo_cards INNER JOIN tarallo_permissions ON tarallo_cards.board_id = tarallo_permissions.board_id";
-		$openCardQuery .= " WHERE tarallo_cards.id = :id AND tarallo_permissions.user_id = :user_id";
-		DB::setParam("user_id", $_SESSION["user_id"]);
-		DB::setParam("id", $request["id"]);
-		$cardRecord = DB::fetchRowWithStoredParams($openCardQuery);
+        $userId = $_SESSION['user_id'] ?? null;
+        $cardId = isset($request['id']) ? (int) $request['id'] : 0;
 
-		if (!$cardRecord)
-		{
-			http_response_code(404);
-			exit("The specified id does not exists or the user do not have access to the board.");
-		}
+        if (!$userId) {
+            http_response_code(401);
+            return ['error' => 'Not logged in'];
+        }
+        if ($cardId <= 0) {
+            http_response_code(400);
+            return ['error' => 'Invalid card ID'];
+        }
 
-		// init the response with the card data and its content
-		$response = self::CardRecordToData($cardRecord);
-		$response["content"] = $cardRecord["content"];
+        // Get board_id for this card
+        $boardRow = DB::fetchRow(
+            "SELECT board_id FROM tarallo_cards WHERE id = :id LIMIT 1",
+            ['id' => $cardId]
+        );
+        if (!$boardRow) {
+            http_response_code(404);
+            return ['error' => 'Card not found'];
+        }
 
-		self::CheckPermissions($response["user_type"], self::USERTYPE_Observer);
+        try {
+            $boardData = self::GetBoardData(
+                (int) $boardRow['board_id'],
+                self::USERTYPE_Observer,
+                false,  // no lists
+                true,   // include cards
+                true,   // include card content
+                true    // include attachments
+            );
+        } catch (RuntimeException $e) {
+            http_response_code(403);
+            return ['error' => 'Unable to get card data'];
+        }
 
-		// fetch attachments
-		$attachmentsQuery = "SELECT * FROM tarallo_attachments WHERE card_id = :card_id";
-		DB::setParam("card_id", $request["id"]);
-		$attachmentList = DB::fetchTableWithStoredParams($attachmentsQuery);
-		$attachmentCount = count($attachmentList);
-		$response["attachmentList"] = array();
-		for ($i = 0; $i < $attachmentCount; $i++) 
-		{
-			$response["attachmentList"][] = self::AttachmentRecordToData($attachmentList[$i]);
-		}
+        // Find the card by ID and return it
+        foreach ($boardData['cards'] as $card) {
+            if ((int)$card['id'] === $cardId) {
+                return $card;
+            }
+        }
 
-		return $response;
-	}
+        http_response_code(404);
+        return ['error' => 'Card not accessible'];
+    }
 
 	public static function AddNewCard($request)
 	{
@@ -1580,7 +1599,7 @@ class API
 				exit("Special permissions are only available to site admins.");
 			}
 
-			if ($request["user_id"] < self::USERID_MIN)
+			if ($request["user_id"] < self::userId_MIN)
 			{
 				http_response_code(400);
 				exit("Invalid special permission.");
@@ -2282,7 +2301,9 @@ class API
         int $boardId,
         int $minRole = self::USERTYPE_None,
         bool $includeCardLists = false,
-        bool $includeCards = false
+        bool $includeCards = false,
+        bool $includeCardContent = false,
+        bool $includeAttachments = false
     ): array {
         self::EnsureSession();
         
@@ -2307,13 +2328,13 @@ class API
         ]);
 
         if (!$boardRecord) {
-            Logger::warning("GetBoardData: Board $boardId not found or no permissions for user $userID");
+            Logger::warning("GetBoardData: Board $boardId not found or no permissions for user $userId");
             throw new RuntimeException("Board not found or access denied");
         }
 
         // Check minimum required role
         if (!self::CheckPermissions($boardRecord['user_type'], $minRole, false)) {
-            Logger::warning("GetBoardData: User $userID has insufficient permissions for board $boardId");
+            Logger::warning("GetBoardData: User $userId has insufficient permissions for board $boardId");
             throw new RuntimeException("Permission denied");
         }
 
@@ -2334,14 +2355,39 @@ class API
 
         // Optionally pull cards
         if ($includeCards) {
-            $cardsSQL = "SELECT * FROM tarallo_cards WHERE board_id = :board_id ORDER BY id ASC";
-            $cardRecords = DB::fetchTable($cardsSQL, ['board_id' => $boardId]);
-            $boardData['cards'] = array_map([self::class, 'CardRecordToData'], $cardRecords);
+            $sql = "SELECT * FROM tarallo_cards WHERE board_id = :board_id ORDER BY id ASC";
+
+            $cardsRaw = DB::fetchTable($sql, ['board_id' => $boardId]);
+            $cards = array_map([self::class, 'CardRecordToData'], $cardsRaw);
+
+            // If content not included in CardRecordToData, append from raw
+            if ($includeCardContent && isset($cardsRaw[0]['content'])) {
+                foreach ($cards as $i => &$c) {
+                    $c['content'] = $cardsRaw[$i]['content'] ?? '';
+                }
+            }
+
+            // Optionally add attachments per card
+            if ($includeAttachments) {
+                foreach ($cards as &$card) {
+                    $attachments = DB::fetchTable(
+                        "SELECT * FROM tarallo_attachments WHERE card_id = :cid",
+                        ['cid' => $card['id']]
+                    );
+                    $card['attachmentList'] = array_map([self::class, 'AttachmentRecordToData'], $attachments);
+                }
+            }
+
+            $boardData['cards'] = $cards;
         }
 
-        Logger::debug("GetBoardData: User $userID fetched board $boardId with role {$boardData['user_type']}" .
-            ($includeCardLists ? ', with card lists' : '') .
-            ($includeCards ? ', with cards' : ''));
+        Logger::debug(
+            "GetBoardData: User {$userId} fetched board {$boardId}" .
+            ($includeCardLists ? ' + lists' : '') .
+            ($includeCards ? ' + cards' : '') .
+            ($includeCardContent ? ' + content' : '') .
+            ($includeAttachments ? ' + attachments' : '')
+        );
 
         return $boardData;
     }
@@ -2624,8 +2670,8 @@ class API
 		DB::setParam("display_name", $displayName);
 		DB::setParam("register_time", time());
 		DB::setParam("is_admin", $isAdmin ? 1 : 0);
-		$userID = DB::insertWithStoredParams($addUserQuery);
-		return $userID;
+		$userId = DB::insertWithStoredParams($addUserQuery);
+		return $userId;
 	}
 
 	private static function CreateNewAdminAccount()
