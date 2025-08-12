@@ -180,13 +180,13 @@ class API
         $results = DB::fetchColumn($sql, 'id', ['user_id' => $userId]);
 
         $boardList = [];
-        foreach ($results as $boardRecord) {
+        foreach ($results as $boardId) {
             try {
                 // Use GetBoardData to enforce permissions and formatting
-                $board = self::GetBoardData((int)$boardRecord['id'], self::USERTYPE_Observer);
+                $board = self::GetBoardData((int)$boardId, self::USERTYPE_Observer);
                 $boardList[] = $board;
             } catch (RuntimeException $e) {
-                Logger::debug("GetBoardListPage: Skipping board {$boardRecord['id']} - " . $e->getMessage());
+                Logger::debug("GetBoardListPage: Skipping board $boardId - " . $e->getMessage());
             }
         }
 
@@ -210,70 +210,45 @@ class API
      */
     public static function GetBoardPage(array $request): array
     {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
-
         if (empty($request['board_id'])) {
-            Logger::error("GetBoardPage: Missing board_id");
+            Logger::error("GetBoardPage: Missing 'board_id'");
             http_response_code(400);
             return [
                 'page_name'    => 'Error',
-                'page_content' => ['message' => 'The parameter board_id of the requested board is missing.']
+                'page_content' => ['message' => 'board_id parameter is missing']
             ];
         }
 
-        $boardID = (int) $request['board_id'];
+        $boardId     = (int) $request['board_id'];
         $displayName = $_SESSION['display_name'] ?? 'Unknown';
 
         try {
-            $boardData = self::GetBoardData($boardID, self::USERTYPE_None);
-        } catch (RuntimeException $e) {
-            // Permission denied or not found
-            Logger::warning("GetBoardPage: " . $e->getMessage());
+            $boardData = self::GetBoardData($boardId, self::USERTYPE_None, true, true);
+        } catch (\RuntimeException $e) {
             return [
                 'page_name'    => 'UnaccessibleBoard',
                 'page_content' => [
-                    'id'               => $boardID,
+                    'id'               => $boardId,
                     'display_name'     => $displayName,
-                    'access_requested' => false // Optionally detect from exception/message
+                    'access_requested' => false
                 ]
             ];
         }
 
-        $pageContent = $boardData;
-        $pageContent['display_name'] = $displayName;
+        $boardData['display_name'] = $displayName;
 
         if (!empty($boardData['closed'])) {
-            Logger::info("GetBoardPage: Board {$boardID} is closed");
             return [
                 'page_name'    => 'ClosedBoard',
-                'page_content' => $pageContent
+                'page_content' => $boardData
             ];
         }
 
-        // Cardlists
-        $query = "SELECT id, name, prev_list_id, next_list_id FROM tarallo_cardlists WHERE board_id = :board_id";
-        $cardlists = DB::fetchTable($query, ['board_id' => $boardID], 'id');
-        $pageContent['cardlists'] = $cardlists;
-
-        // Cards
-        $cards = [];
-        foreach (DB::fetchTable("SELECT * FROM tarallo_cards WHERE board_id = :board_id", ['board_id' => $boardID]) as $cardRecord) {
-            $cards[] = self::CardRecordToData($cardRecord);
-        }
-
-        $pageContent['cards'] = $cards;
-
-        Logger::debug("GetBoardPage: Board {$boardID} - " . count($cardlists) . " lists, " . count($cards) . " cards");
-
         return [
             'page_name'    => 'Board',
-            'page_content' => $pageContent
+            'page_content' => $boardData
         ];
     }
-
-
 
 	public static function Login($request)
 	{
@@ -1728,7 +1703,7 @@ class API
 		}
 
 		// add the whole board folder (attachments + background)
-		$boardBaseDir = File::ftpDir("boards/{$boardID}/");
+		$boardBaseDir = File::ftpDir("boards/$boardId/");
 		$dirIterator = new RecursiveDirectoryIterator($boardBaseDir);
 		$fileIterator = new RecursiveIteratorIterator($dirIterator, RecursiveIteratorIterator::SELF_FIRST);
 
@@ -2280,17 +2255,24 @@ class API
     /**
      * Retrieves board data for the given board ID and user,
      * including the user's permission level for that board.
-     * @param int $boardId   Board ID to fetch
-     * @param int $minRole   Minimum role constant to require (defaults to USERTYPE_None)
-     * @return array         Board data including 'user_type'
-     * @throws RuntimeException if board does not exist or permission denied
+     * Optionally includes card lists and cards.
+     * @param int  $boardId
+     * @param int  $minRole          Minimum role constant to require.
+     * @param bool $includeCardLists Whether to include card lists.
+     * @param bool $includeCards     Whether to include cards.
+     * @return array
+     * @throws RuntimeException
      */
-    public static function GetBoardData(int $boardId, int $minRole = self::USERTYPE_None): array
-    {
+    public static function GetBoardData(
+        int $boardId,
+        int $minRole = self::USERTYPE_None,
+        bool $includeCardLists = false,
+        bool $includeCards = false
+    ): array {
         if (session_status() !== PHP_SESSION_ACTIVE) {
             session_start();
         }
-
+        
         if (empty($_SESSION['user_id'])) {
             Logger::error("GetBoardData: No user_id in session");
             throw new RuntimeException("Not logged in");
@@ -2298,40 +2280,57 @@ class API
 
         $userId = (int) $_SESSION['user_id'];
 
-        // Query board info with the user’s permission in one go
+        // Base board data with user permissions
         $sql = "
-        SELECT b.*,
-               p.user_type
+        SELECT b.*, p.user_type
         FROM tarallo_boards b
         INNER JOIN tarallo_permissions p ON b.id = p.board_id
-        WHERE b.id = :board_id
-          AND p.user_id = :user_id
+        WHERE b.id = :board_id AND p.user_id = :user_id
         LIMIT 1
     ";
-
         $boardRecord = DB::fetchRow($sql, [
             'board_id' => $boardId,
             'user_id'  => $userId
         ]);
 
         if (!$boardRecord) {
-            Logger::warning("GetBoardData: Board {$boardId} not found or no permission entry for user {$userId}");
-            throw new RuntimeException("Board not found or no permission entry");
+            Logger::warning("GetBoardData: Board $boardId not found or no permissions for user {$userId}");
+            throw new RuntimeException("Board not found or access denied");
         }
 
-        // Permission check wrapper
+        // Check minimum required role
         if (!self::CheckPermissions($boardRecord['user_type'], $minRole, false)) {
-            Logger::warning("GetBoardData: User {$userId} lacks permission to access board {$boardId} (has {$boardRecord['user_type']}, requires {$minRole})");
+            Logger::warning("GetBoardData: User {$userId} has insufficient permissions for board $boardId");
             throw new RuntimeException("Permission denied");
         }
 
-        // Normalise / enrich the board record if needed
-        $formattedBoard = self::BoardRecordToData($boardRecord);
-        $formattedBoard['user_type'] = (int) $boardRecord['user_type'];
+        // Convert DB record to API-friendly structure
+        $boardData = self::BoardRecordToData($boardRecord);
+        $boardData['user_type'] = (int) $boardRecord['user_type'];
 
-        Logger::debug("GetBoardData: User {$userId} fetched board {$boardId} with role {$formattedBoard['user_type']}");
+        // Optionally pull card lists
+        if ($includeCardLists) {
+            $listSQL = "
+            SELECT id, name, prev_list_id, next_list_id
+            FROM tarallo_cardlists
+            WHERE board_id = :board_id
+            ORDER BY id ASC
+        ";
+            $boardData['cardlists'] = DB::fetchTable($listSQL, ['board_id' => $boardId], 'id');
+        }
 
-        return $formattedBoard;
+        // Optionally pull cards
+        if ($includeCards) {
+            $cardsSQL = "SELECT * FROM tarallo_cards WHERE board_id = :board_id ORDER BY id ASC";
+            $cardRecords = DB::fetchTable($cardsSQL, ['board_id' => $boardId]);
+            $boardData['cards'] = array_map([self::class, 'CardRecordToData'], $cardRecords);
+        }
+
+        Logger::debug("GetBoardData: User {$userId} fetched board $boardId with role {$boardData['user_type']}" .
+            ($includeCardLists ? ', with card lists' : '') .
+            ($includeCards ? ', with cards' : ''));
+
+        return $boardData;
     }
 
 
