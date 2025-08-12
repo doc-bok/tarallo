@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Random\RandomException;
+
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/logger.php';
 
@@ -23,7 +25,8 @@ class DatabaseConnectionException extends RuntimeException {}
  *   DB::beginTransaction();
  *   ...
  *   DB::commit();
- *   // Supports nested transactions using MySQL savepoints.
+ *
+ * Supports nested transactions using MySQL save points.
  */
 
 class DB {
@@ -82,7 +85,6 @@ class DB {
      * Open a new connection to a database.
      * @return PDO The newly created database connection.
      * @throws DatabaseConnectionException if the connection fails.
-     * @throws \Random\RandomException if the RNG in the jitter fails.
      */
     public static function open() : PDO
     {
@@ -118,9 +120,15 @@ class DB {
                     if ($attempt > $maxRetries) {
                         throw new DatabaseConnectionException(self::formatErrorMessage($e), 0, $e);
                     }
-                    // Sleep with exponential backoff before retrying
-                    usleep(($delay + random_int(0, 250)) * 1000);
-                    $delay *= 2; // double the delay for next attempt
+
+                    // Sleep with exponential backoff and jitter before retrying
+                    try {
+                        usleep(($delay + random_int(0, 250)) * 1000);
+                        $delay *= 2; // double the delay for next attempt
+                    } catch (RandomException $randomException) {
+                        Logger::error($randomException->getMessage());
+                        break;
+                    }
                 }
             } while($attempt <= $maxRetries);
         }
@@ -133,7 +141,6 @@ class DB {
      * Supports true nested transactions using MySQL SAVEPOINT.
      * The outermost call starts the actual transaction.
      * @throws DatabaseConnectionException if the connection fails.
-     * @throws \Random\RandomException if the RNG for jitter fails.
      */
     public static function beginTransaction(): void
     {
@@ -160,7 +167,6 @@ class DB {
      * The actual commit occurs only when outermost transaction commits.
      * If a rollback was triggered in any nested transaction, performs overall rollback.
      * @throws DatabaseConnectionException if the connection fails.
-     * @throws \Random\RandomException if the RNG for jitter fails.
      */
     public static function commit(): void
     {
@@ -195,7 +201,6 @@ class DB {
      * Rolls back the transaction or rolls back to the last savepoint if nested.
      * Marks the transaction as failed, so outermost commit becomes rollback.
      * @throws DatabaseConnectionException if the connection fails.
-     * @throws \Random\RandomException if the RNG for jitter fails.
      */
     public static function rollBack(): void
     {
@@ -229,7 +234,6 @@ class DB {
      * @param string $sql The query to execute.
      * @return PDOStatement The data returned by the query.
      * @throws DatabaseConnectionException if the connection fails.
-     * @throws \Random\RandomException if the RNG for jitter fails.
      */
     public static function query(string $sql, array $params = []): PDOStatement
     {
@@ -249,7 +253,6 @@ class DB {
      * @param string $sql The query to execute.
      * @return string The key of the last row inserted.
      * @throws DatabaseConnectionException if the connection fails.
-     * @throws \Random\RandomException if the RNG for jitter fails.
      */
     public static function insert(string $sql, array $params = []): string
     {
@@ -264,7 +267,6 @@ class DB {
      * @param string $sql The query to execute.
      * @return int The number of affected rows.
      * @throws DatabaseConnectionException if the connection fails.
-     * @throws \Random\RandomException if the RNG for jitter fails.
      */
     public static function run(string $sql): int
     {
@@ -280,7 +282,7 @@ class DB {
 
             return $affected;
         } catch (PDOException $e) {
-            Logger::error("Exec failed: {$e->getMessage()} | SQL: {$sql}");
+            Logger::error("Exec failed: {$e->getMessage()} | SQL: $sql");
             throw new DatabaseConnectionException("Database exec failed.", 0, $e);
         }
     }
@@ -290,7 +292,6 @@ class DB {
      * @param string $sql The query to execute.
      * @return mixed The row if the query is successful, otherwise null.
      * @throws DatabaseConnectionException if the connection fails.
-     * @throws \Random\RandomException if the RNG for jitter fails.
      */
     public static function fetchOne(string $sql, array $params = []): mixed
     {
@@ -299,7 +300,7 @@ class DB {
             $row  = $stmt->fetch(PDO::FETCH_NUM);
             return $row[0] ?? null; // null if no row or first col is null
         } catch (PDOException $e) {
-            Logger::error("fetchOne failed: {$e->getMessage()} | SQL: {$sql} | Params: " . json_encode($params));
+            Logger::error("fetchOne failed: {$e->getMessage()} | SQL: $sql | Params: " . json_encode($params));
             throw new DatabaseConnectionException("Database fetchOne() failed.", 0, $e);
         }
     }
@@ -312,7 +313,6 @@ class DB {
      * @param string $valueName The column to use for the values.
      * @return array The associative array.
      * @throws DatabaseConnectionException if the connection fails.
-     * @throws \Random\RandomException if the RNG for jitter fails.
      */
     public static function fetchAssoc(string $sql, string $keyName, string $valueName, array $params = []): array
     {
@@ -326,7 +326,7 @@ class DB {
             }
             return $dictionary;
         } catch (PDOException $e) {
-            Logger::error("fetchAssoc failed: {$e->getMessage()} | SQL: {$sql} | Params: " . json_encode($params));
+            Logger::error("fetchAssoc failed: {$e->getMessage()} | SQL: $sql | Params: " . json_encode($params));
             throw new DatabaseConnectionException("Database fetchAssoc() failed.", 0, $e);
         }
     }
@@ -336,7 +336,6 @@ class DB {
      * @param string $sql The query to execute.
      * @return array The associative array.
      * @throws DatabaseConnectionException if the connection fails.
-     * @throws \Random\RandomException if the RNG for jitter fails.
      */
     public static function fetchTable(string $sql, array $params = []): array
     {
@@ -344,7 +343,7 @@ class DB {
             $stmt = self::query($sql, $params);
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
-            Logger::error("fetchTable failed: {$e->getMessage()} | SQL: {$sql} | Params: " . json_encode($params));
+            Logger::error("fetchTable failed: {$e->getMessage()} | SQL: $sql | Params: " . json_encode($params));
             throw new DatabaseConnectionException("Database fetchTable() failed.", 0, $e);
         }
     }
@@ -354,7 +353,6 @@ class DB {
      * @param string $sql The query to execute.
      * @return ?array The associative array, or false if the query fails.
      * @throws DatabaseConnectionException if the connection fails.
-     * @throws \Random\RandomException if the RNG for jitter fails.
      */
     public static function fetchRow(string $sql, array $params = []): ?array
     {
@@ -363,7 +361,7 @@ class DB {
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             return $row !== false ? $row : null;
         } catch (PDOException $e) {
-            Logger::error("fetchRow failed: {$e->getMessage()} | SQL: {$sql} | Params: " . json_encode($params));
+            Logger::error("fetchRow failed: {$e->getMessage()} | SQL: $sql | Params: " . json_encode($params));
             throw new DatabaseConnectionException("Database fetchRow() failed.", 0, $e);
         }
     }
@@ -374,9 +372,8 @@ class DB {
      * @param string $fieldName The column to look for.
      * @return array The array of values.
      * @throws DatabaseConnectionException if the connection fails.
-     * @throws \Random\RandomException if the RNG for jitter fails.
      */
-    public static function fetchArray(string $sql, string $fieldName, array $params = []): array
+    public static function fetchColumn(string $sql, string $fieldName, array $params = []): array
     {
         $values = [];
         try {
@@ -388,9 +385,10 @@ class DB {
                     Logger::error("fetchArray: field '$fieldName' not found in row.");
                 }
             }
+
             return $values;
         } catch (PDOException $e) {
-            Logger::error("fetchArray failed: {$e->getMessage()} | SQL: {$sql} | Params: " . json_encode($params));
+            Logger::error("fetchArray failed: {$e->getMessage()} | SQL: $sql | Params: " . json_encode($params));
             throw new DatabaseConnectionException("Database fetchArray() failed.", 0, $e);
         }
     }
@@ -410,7 +408,7 @@ class DB {
 
         foreach ($dbRows as $row) {
             if (!isset($row[$idFieldName])) {
-                throw new \InvalidArgumentException("ID field '{$idFieldName}' missing in DB row.");
+                throw new InvalidArgumentException("ID field '$idFieldName' missing in DB row.");
             }
 
             $oldID = $row[$idFieldName];
@@ -478,6 +476,6 @@ class DB {
     public static function fetchArrayWithStoredParams(string $sql, string $fieldName): array {
         $params = self::$QUERY_PARAMS;
         self::$QUERY_PARAMS = [];
-        return self::fetchArray($sql, $fieldName, $params);
+        return self::fetchColumn($sql, $fieldName, $params);
     }
 }

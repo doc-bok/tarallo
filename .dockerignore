@@ -2,4 +2,4 @@
 **/.DS_Store
 **/.git*
 **/Thumbs.db
-.env
+source/php/.env

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use JetBrains\PhpStorm\NoReturn;
+
 require_once __DIR__ . '/logger.php';
 
 class File {
@@ -72,7 +74,7 @@ class File {
         'eps'   => 'application/postscript',
         'ps'    => 'application/postscript',
 
-        // ms office
+        // MS Office
         'doc'   => 'application/msword',
         'dot'   => 'application/msword',
         'rtf'   => 'application/rtf',
@@ -119,7 +121,7 @@ class File {
 
         // If filePath is provided and file exists, try finfo
         if ($filePath !== null && is_file($filePath) && extension_loaded('fileinfo')) {
-            $finfo = new \finfo(FILEINFO_MIME_TYPE);
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
             $mime = $finfo->file($filePath);
             if ($mime !== false && $mime !== '') {
                 return $mime;
@@ -144,9 +146,7 @@ class File {
 
         $absPath = $ftpRoot . '/' . ltrim($relativePath, '/');
         // Normalise slashes and resolve .. or . segments
-        $absPath = preg_replace('#/+#', '/', $absPath);
-
-        return $absPath;
+        return preg_replace('#/+#', '/', $absPath);
     }
 
     /**
@@ -167,7 +167,7 @@ class File {
 
         // Try to create the directory recursively
         if (@mkdir($absDir, $mode, true)) {
-            Logger::info("Created directory: {$absDir}");
+            Logger::info("Created directory: $absDir");
             return true;
         }
 
@@ -177,8 +177,8 @@ class File {
         }
 
         $error = error_get_last()['message'] ?? 'unknown error';
-        Logger::error("Failed to create directory: {$absDir} — {$error}");
-        throw new RuntimeException("Failed to create directory '{$absDir}': {$error}");
+        Logger::error("Failed to create directory: $absDir — $error");
+        throw new RuntimeException("Failed to create directory '$absDir': $error");
     }
 
     /**
@@ -206,11 +206,11 @@ class File {
         if ($createFile && !file_exists($absPath)) {
             if (@touch($absPath)) {
                 @chmod($absPath, $fileMode);
-                Logger::info("Created file: {$absPath}");
+                Logger::info("Created file: $absPath");
             } else {
                 $error = error_get_last()['message'] ?? 'unknown error';
-                Logger::error("Failed to create file '{$absPath}': {$error}");
-                throw new RuntimeException("Failed to create file '{$absPath}': {$error}");
+                Logger::error("Failed to create file '$absPath': $error");
+                throw new RuntimeException("Failed to create file '$absPath': $error");
             }
         }
 
@@ -245,48 +245,12 @@ class File {
 
         if ($bytes === false) {
             $error = error_get_last()['message'] ?? 'unknown error';
-            Logger::error("Failed to write to file '{$absPath}': {$error}");
-            throw new RuntimeException("Failed to write to file '{$absPath}': {$error}");
+            Logger::error("Failed to write to file '$absPath': $error");
+            throw new RuntimeException("Failed to write to file '$absPath': $error");
         }
 
-        Logger::debug("Wrote {$bytes} bytes to file: {$absPath}");
+        Logger::debug("Wrote $bytes bytes to file: $absPath");
         return $bytes;
-    }
-
-    /**
-     * Appends content to a file, creating directories and file if needed.
-     * @param string $filePath   Relative or absolute path within FTP root.
-     * @param string $contents   Content to append.
-     * @param int    $dirMode    Directory permissions (default: 0775).
-     * @param int    $fileMode   File permissions (default: 0664).
-     * @return int   Number of bytes written.
-     * @throws RuntimeException on failure.
-     */
-    public static function safeAppendToFile(
-        string $filePath,
-        string $contents,
-        int $dirMode = 0775,
-        int $fileMode = 0664
-    ): int {
-        return self::writeToFile($filePath, $contents, FILE_APPEND, $dirMode, $fileMode);
-    }
-
-    /**
-     * Overwrites a file with new content, creating directories and file if needed.
-     * @param string $filePath   Relative or absolute path within FTP root.
-     * @param string $contents   Content to write.
-     * @param int    $dirMode    Directory permissions (default: 0775).
-     * @param int    $fileMode   File permissions (default: 0664).
-     * @return int   Number of bytes written.
-     * @throws RuntimeException on failure.
-     */
-    public static function safeOverwriteFile(
-        string $filePath,
-        string $contents,
-        int $dirMode = 0775,
-        int $fileMode = 0664
-    ): int {
-        return self::writeToFile($filePath, $contents, 0, $dirMode, $fileMode);
     }
 
     /**
@@ -300,21 +264,21 @@ class File {
         $absPath = self::ftpDir($filePath);
 
         if (!is_file($absPath)) {
-            Logger::error("readFileAsString: File not found '{$absPath}'");
-            throw new \RuntimeException("File not found: {$absPath}");
+            Logger::error("readFileAsString: File not found '$absPath'");
+            throw new RuntimeException("File not found: $absPath");
         }
 
         $handle = @fopen($absPath, 'rb');
         if (!$handle) {
             $error = error_get_last()['message'] ?? 'unknown error';
-            Logger::error("readFileAsString: Failed to open '{$absPath}': {$error}");
-            throw new \RuntimeException("Unable to open file '{$absPath}': {$error}");
+            Logger::error("readFileAsString: Failed to open '$absPath': $error");
+            throw new RuntimeException("Unable to open file '$absPath': $error");
         }
 
         if (!flock($handle, LOCK_SH)) {
             fclose($handle);
-            Logger::error("readFileAsString: Could not lock file '{$absPath}' for reading.");
-            throw new \RuntimeException("Unable to acquire shared lock on file '{$absPath}'");
+            Logger::error("readFileAsString: Could not lock file '$absPath' for reading.");
+            throw new RuntimeException("Unable to acquire shared lock on file '$absPath'");
         }
 
         $contents = $maxBytes !== null
@@ -325,170 +289,16 @@ class File {
         fclose($handle);
 
         if ($contents === false) {
-            Logger::error("readFileAsString: Failed to read from '{$absPath}'");
-            throw new \RuntimeException("Error reading from file: {$absPath}");
+            Logger::error("readFileAsString: Failed to read from '$absPath'");
+            throw new RuntimeException("Error reading from file: $absPath");
         }
 
         if ($maxBytes !== null && strlen($contents) > $maxBytes) {
-            Logger::error("readFileAsString: File '{$absPath}' exceeds limit of {$maxBytes} bytes");
-            throw new \RuntimeException("File size exceeds limit of {$maxBytes} bytes: {$absPath}");
+            Logger::error("readFileAsString: File '$absPath' exceeds limit of $maxBytes bytes");
+            throw new RuntimeException("File size exceeds limit of $maxBytes bytes: $absPath");
         }
 
         return $contents;
-    }
-
-    /**
-     * Reads a file from the FTP root line-by-line into an array with safety checks.
-     * @param string   $filePath  Relative or absolute path within FTP root.
-     * @param int|null $maxLines  Optional max number of lines to read (null = unlimited).
-     * @param int|null $maxBytes  Optional max bytes to read in total (null = unlimited).
-     * @return string[] Array of lines (without line endings).
-     * @throws RuntimeException if file cannot be read or limits are exceeded.
-     */
-    public static function readFileAsArray(string $filePath, ?int $maxLines = null, ?int $maxBytes = null): array
-    {
-        $absPath = self::ftpDir($filePath);
-
-        if (!is_file($absPath)) {
-            Logger::error("readFileAsArray: File not found '{$absPath}'");
-            throw new \RuntimeException("File not found: {$absPath}");
-        }
-
-        $handle = @fopen($absPath, 'rb');
-        if ($handle === false) {
-            $error = error_get_last()['message'] ?? 'unknown error';
-            Logger::error("readFileAsArray: Failed to open '{$absPath}': {$error}");
-            throw new \RuntimeException("Unable to open file '{$absPath}': {$error}");
-        }
-
-        if (!flock($handle, LOCK_SH)) {
-            fclose($handle);
-            Logger::error("readFileAsArray: Could not lock file '{$absPath}' for reading.");
-            throw new \RuntimeException("Unable to acquire shared lock on file '{$absPath}'");
-        }
-
-        $lines = [];
-        $bytesRead = 0;
-
-        while (!feof($handle)) {
-            $line = fgets($handle);
-            if ($line === false) {
-                if (!feof($handle)) {
-                    Logger::error("readFileAsArray: Error reading line from '{$absPath}'");
-                    throw new \RuntimeException("Error reading from file: {$absPath}");
-                }
-                break; // end of file
-            }
-
-            $lines[] = rtrim($line, "\r\n");
-            $bytesRead += strlen($line);
-
-            if ($maxLines !== null && count($lines) >= $maxLines) {
-                Logger::debug("readFileAsArray: Max lines {$maxLines} reached for '{$absPath}'");
-                break;
-            }
-            if ($maxBytes !== null && $bytesRead > $maxBytes) {
-                Logger::error("readFileAsArray: File '{$absPath}' exceeded max byte limit of {$maxBytes}");
-                throw new \RuntimeException("File size exceeds limit of {$maxBytes} bytes: {$absPath}");
-            }
-        }
-
-        flock($handle, LOCK_UN);
-        fclose($handle);
-
-        return $lines;
-    }
-
-    /**
-     * Safely writes an array of lines to a file, overwriting any existing content.
-     * @param string $filePath  Relative or absolute path within FTP root.
-     * @param array  $lines     Array of strings (each will become a line in the file).
-     * @param int    $dirMode   Directory permissions (default: 0775).
-     * @param int    $fileMode  File permissions (default: 0664).
-     * @throws RuntimeException if the write fails.
-     */
-    public static function writeArrayToFile(
-        string $filePath,
-        array $lines,
-        int $dirMode = 0775,
-        int $fileMode = 0664
-    ): void {
-        $absPath = self::ftpDir($filePath);
-        self::prepareDir($filePath, $dirMode);
-
-        $content = implode(PHP_EOL, $lines) . PHP_EOL;
-
-        $dir = dirname($absPath);
-        $tempFile = tempnam($dir, 'tmparr_');
-        if ($tempFile === false) {
-            throw new \RuntimeException("Failed to create temporary file in '{$dir}'");
-        }
-
-        $bytes = @file_put_contents($tempFile, $content, LOCK_EX);
-        if ($bytes === false) {
-            @unlink($tempFile);
-            $error = error_get_last()['message'] ?? 'unknown error';
-            Logger::error("writeArrayToFile: Failed to write to temp file '{$tempFile}': {$error}");
-            throw new \RuntimeException("Failed to write file '{$absPath}': {$error}");
-        }
-
-        @chmod($tempFile, $fileMode);
-        if (!@rename($tempFile, $absPath)) {
-            @unlink($tempFile);
-            $error = error_get_last()['message'] ?? 'unknown error';
-            Logger::error("writeArrayToFile: Failed to rename temp file to '{$absPath}': {$error}");
-            throw new \RuntimeException("Failed to replace file '{$absPath}': {$error}");
-        }
-
-        Logger::debug("writeArrayToFile: Wrote " . count($lines) . " lines to '{$absPath}'");
-    }
-
-    /**
-     * Safely appends an array of lines to a file.
-     * @param string $filePath  Relative or absolute path within FTP root.
-     * @param array  $lines     Array of strings (each will become a line in the file).
-     * @param int    $dirMode   Directory permissions (default: 0775).
-     * @param int    $fileMode  File permissions (default: 0664).
-     * @throws RuntimeException if append fails.
-     */
-    public static function appendArrayToFile(
-        string $filePath,
-        array $lines,
-        int $dirMode = 0775,
-        int $fileMode = 0664
-    ): void {
-        $absPath = self::ftpDir($filePath);
-        self::prepareDir($filePath, $dirMode);
-
-        $content = implode(PHP_EOL, $lines) . PHP_EOL;
-
-        $fh = @fopen($absPath, 'ab');
-        if (!$fh) {
-            $error = error_get_last()['message'] ?? 'unknown error';
-            Logger::error("appendArrayToFile: Failed to open '{$absPath}': {$error}");
-            throw new \RuntimeException("Unable to open file '{$absPath}' for appending: {$error}");
-        }
-
-        if (!flock($fh, LOCK_EX)) {
-            fclose($fh);
-            Logger::error("appendArrayToFile: Could not lock '{$absPath}' for appending");
-            throw new \RuntimeException("Unable to lock file '{$absPath}' for appending");
-        }
-
-        $bytes = fwrite($fh, $content);
-        fflush($fh);
-        flock($fh, LOCK_UN);
-        fclose($fh);
-
-        if ($bytes === false) {
-            $error = error_get_last()['message'] ?? 'unknown error';
-            Logger::error("appendArrayToFile: Failed to append to '{$absPath}': {$error}");
-            throw new \RuntimeException("Failed to append to file '{$absPath}': {$error}");
-        }
-
-        @chmod($absPath, $fileMode);
-
-        Logger::debug("appendArrayToFile: Appended " . count($lines) . " lines to '{$absPath}'");
     }
 
     /**
@@ -504,10 +314,10 @@ class File {
 
         if (!file_exists($absPath)) {
             if ($mustExist) {
-                Logger::error("deleteFile: File not found '{$absPath}'");
-                throw new \RuntimeException("File not found: {$absPath}");
+                Logger::error("deleteFile: File not found '$absPath'");
+                throw new RuntimeException("File not found: $absPath");
             }
-            Logger::debug("deleteFile: File '{$absPath}' does not exist, skipping");
+            Logger::debug("deleteFile: File '$absPath' does not exist, skipping");
             return false;
         }
 
@@ -523,8 +333,8 @@ class File {
                 fclose($fh);
             }
             $error = error_get_last()['message'] ?? 'unknown error';
-            Logger::error("deleteFile: Failed to delete '{$absPath}': {$error}");
-            throw new \RuntimeException("Unable to delete file '{$absPath}': {$error}");
+            Logger::error("deleteFile: Failed to delete '$absPath': $error");
+            throw new RuntimeException("Unable to delete file '$absPath': $error");
         }
 
         if ($fh) {
@@ -532,10 +342,9 @@ class File {
             fclose($fh);
         }
 
-        Logger::info("Deleted file: {$absPath}");
+        Logger::info("Deleted file: $absPath");
         return true;
     }
-
 
     /**
      * Deletes a directory and all its contents safely
@@ -554,10 +363,10 @@ class File {
 
         if (!is_dir($absDir)) {
             if ($mustExist) {
-                Logger::error("deleteDir: Directory not found '{$absDir}'");
-                throw new \RuntimeException("Directory not found: {$absDir}");
+                Logger::error("deleteDir: Directory not found '$absDir'");
+                throw new RuntimeException("Directory not found: $absDir");
             }
-            Logger::debug("deleteDir: Directory '{$absDir}' does not exist, skipping");
+            Logger::debug("deleteDir: Directory '$absDir' does not exist, skipping");
             return false;
         }
 
@@ -565,12 +374,12 @@ class File {
         if (!$dryRun) {
             if (!@rmdir($absDir)) {
                 $error = error_get_last()['message'] ?? 'unknown error';
-                Logger::error("deleteDir: Failed to remove dir '{$absDir}': {$error}");
-                throw new \RuntimeException("Failed to remove directory {$absDir}: {$error}");
+                Logger::error("deleteDir: Failed to remove dir '$absDir': $error");
+                throw new RuntimeException("Failed to remove directory $absDir: $error");
             }
-            Logger::info("Deleted directory: {$absDir}");
+            Logger::info("Deleted directory: $absDir");
         } else {
-            Logger::info("[DRY-RUN] Would delete directory: {$absDir}");
+            Logger::info("[DRY-RUN] Would delete directory: $absDir");
         }
 
         return true;
@@ -588,21 +397,22 @@ class File {
         foreach ($entries as $entry) {
             $path = $absDir . DIRECTORY_SEPARATOR . $entry;
             if (is_dir($path) && !is_link($path)) {
-                // recurse into subdir
+
+                // Recurse into subdirectories
                 self::deleteDirInternal($path, $dryRun);
                 if (!$dryRun && !@rmdir($path)) {
                     $error = error_get_last()['message'] ?? 'unknown error';
-                    Logger::error("deleteDirInternal: Failed to remove dir '{$path}': {$error}");
-                    throw new \RuntimeException("Failed to remove directory {$path}: {$error}");
+                    Logger::error("deleteDirInternal: Failed to remove dir '$path': $error");
+                    throw new RuntimeException("Failed to remove directory $path: $error");
                 }
                 if ($dryRun) {
-                    Logger::info("[DRY-RUN] Would delete directory: {$path}");
+                    Logger::info("[DRY-RUN] Would delete directory: $path");
                 } else {
-                    Logger::info("Deleted directory: {$path}");
+                    Logger::info("Deleted directory: $path");
                 }
             } else {
                 if ($dryRun) {
-                    Logger::info("[DRY-RUN] Would delete file: {$path}");
+                    Logger::info("[DRY-RUN] Would delete file: $path");
                     continue;
                 }
 
@@ -618,22 +428,22 @@ class File {
                             fclose($fh);
                         }
                         $error = error_get_last()['message'] ?? 'unknown error';
-                        Logger::error("deleteDirInternal: Failed to delete file '{$path}': {$error}");
-                        throw new \RuntimeException("Failed to delete file {$path}: {$error}");
+                        Logger::error("deleteDirInternal: Failed to delete file '$path': $error");
+                        throw new RuntimeException("Failed to delete file $path: $error");
                     }
                     if ($fh) {
                         @flock($fh, LOCK_UN);
                         fclose($fh);
                     }
-                    Logger::info("Deleted file: {$path}");
+                    Logger::info("Deleted file: $path");
                 } else {
                     // Symbolic link or special file
                     if (!@unlink($path)) {
                         $error = error_get_last()['message'] ?? 'unknown error';
-                        Logger::error("deleteDirInternal: Failed to delete link '{$path}': {$error}");
-                        throw new \RuntimeException("Failed to delete link {$path}: {$error}");
+                        Logger::error("deleteDirInternal: Failed to delete link '$path': $error");
+                        throw new RuntimeException("Failed to delete link $path: $error");
                     }
-                    Logger::info("Deleted link: {$path}");
+                    Logger::info("Deleted link: $path");
                 }
             }
         }
@@ -646,6 +456,7 @@ class File {
      * @param bool   $isDownload If true, forces download ("attachment"); otherwise displays inline.
      * @throws RuntimeException if file missing or unreadable.
      */
+    #[NoReturn]
     public static function outputFile(
         string $filePath,
         string $contentType,
@@ -655,7 +466,7 @@ class File {
         $absPath = self::ftpDir($filePath);
 
         if (!is_file($absPath) || !is_readable($absPath)) {
-            Logger::error("outputFile: File not found or unreadable '{$absPath}'");
+            Logger::error("outputFile: File not found or unreadable '$absPath'");
             http_response_code(404);
             exit("File not found.");
         }
@@ -663,14 +474,14 @@ class File {
         // Lock the file before streaming
         $fh = @fopen($absPath, 'rb');
         if (!$fh) {
-            Logger::error("outputFile: Failed to open '{$absPath}' for reading.");
+            Logger::error("outputFile: Failed to open '$absPath' for reading.");
             http_response_code(500);
             exit("Internal Server Error");
         }
 
         if (!flock($fh, LOCK_SH)) {
             fclose($fh);
-            Logger::error("outputFile: Could not acquire shared lock on '{$absPath}'");
+            Logger::error("outputFile: Could not acquire shared lock on '$absPath'");
             http_response_code(500);
             exit("Internal Server Error");
         }
@@ -681,14 +492,14 @@ class File {
         }
 
         $safeFileName = str_replace(["\r", "\n", '"'], '', $fileName);
-        $contentDisp  = $isDownload ? 'attachment' : 'inline';
+        $contentDisposition  = $isDownload ? 'attachment' : 'inline';
         if (!$contentType) {
             $contentType = self::getMimeType($fileName, $absPath);
         }
 
-        header("Content-Type: {$contentType}");
+        header("Content-Type: $contentType");
         header('Content-Length: ' . filesize($absPath));
-        header("Content-Disposition: {$contentDisp}; filename=\"{$safeFileName}\"");
+        header("Content-Disposition: $contentDisposition; filename=\"$safeFileName\"");
         header("Cache-Control: no-cache, must-revalidate");
         header("Pragma: no-cache");
         header("Expires: 0");
@@ -711,18 +522,18 @@ class File {
     {
         try {
             $absPath = self::ftpDir($filePath);
-        } catch (\Throwable $e) {
-            Logger::error("fileExists: Invalid path '{$filePath}': " . $e->getMessage());
+        } catch (Throwable $e) {
+            Logger::error("fileExists: Invalid path '$filePath': " . $e->getMessage());
             return false;
         }
 
         if (!is_file($absPath)) {
-            Logger::debug("fileExists: File not found or not a regular file '{$absPath}'");
+            Logger::debug("fileExists: File not found or not a regular file '$absPath'");
             return false;
         }
 
         if ($requireReadable && !is_readable($absPath)) {
-            Logger::debug("fileExists: File exists but is not readable '{$absPath}'");
+            Logger::debug("fileExists: File exists but is not readable '$absPath'");
             return false;
         }
 

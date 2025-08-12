@@ -1,6 +1,9 @@
 <?php
+
+declare(strict_types=1);
+
 require_once 'config.php';
-require_once 'dbaccess.php';
+require_once 'db.php';
 require_once 'file.php';
 require_once 'json.php';
 require_once 'utils.php';
@@ -48,175 +51,229 @@ class API
 	const USERID_ONREGISTER = -1; // if a permission record on the permission table has this user_id, the permission will be copied to any new registered user
 	const USERID_MIN = self::USERID_ONREGISTER; // this should be the minimun special user ID
 
-	// request the page that should be displayed for the current state
-	public static function  GetCurrentPage($request)
-	{
-		$dbExists = DB::fetchOneWithStoredParams("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'tarallo_settings'") > 0;
-		
-		if (!$dbExists) {
-			// first startup without db, try to reset state and load the db
-			self::LogoutInternal();
+    const INIT_DB_PATCH = "dbpatch/init_db.sql";
 
-			if(!self::TryApplyingDBPatch("dbpatch/init_db.sql")) {
-				http_response_code(500);
-				exit("Failed to initialize the DB or the DB is currupted.");
-			}
-		}
+    /**
+     * Check if the database exists and initialise it if it isn't.
+     */
+    private static function initDatabaseIfNeeded(): void
+    {
+        $dbExists = ((int) DB::fetchOne(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'tarallo_settings'"
+            )) > 0;
 
-		$response = array();
-		if (isset($_SESSION["logged_in"])) 
-		{
-			if (isset($request["board_id"])) 
-			{
-				//prepare board page
-				$response = self::GetBoardPage($request);
-			}
-			else 
-			{
-				//prepare board list page
-				$response = self::GetBoardListPage($request);
-			}		
-		} 
-		else 
-		{
-			$settings = self::GetDBSettings();
+        if (!$dbExists) {
+            Logger::warning("Database not initialised — attempting init");
+            self::LogoutInternal();
 
-			// load and apply db updates if any
-			$anyUpdateApplied = self::ApplyDBUpdates($settings["db_version"]);
-			if ($anyUpdateApplied) {
-				// update settings cache after any update
-				$settings = self::GetDBSettings();
-			}
+            if (!self::TryApplyingDBPatch(self::INIT_DB_PATCH)) {
+                Logger::error("DB init failed - corrupted or missing patch");
+                throw new RuntimeException("Database initialisation failed or DB is corrupted");
+            }
+        }
+    }
 
-			if ($settings["perform_first_startup"]) 
-			{
-				// create an admin account for the first startup
-				$adminAccount = self::CreateNewAdminAccount();
-				
-				// mark the first startup as completed
-				self::SetDBSetting("perform_first_startup", 0);
-				
-				// prepare first startup page data
-				$response["page_name"] = "FirstStartup";
-				$response["page_content"] = $settings;
-				$response["page_content"]["admin_user"] = $adminAccount["username"];
-				$response["page_content"]["admin_pass"] = $adminAccount["password"];
-			}
-			else 
-			{
-				// prepare login page data
-				$response["page_name"] = "Login";
-				$response["page_content"] = $settings;
-				$response["page_content"]["background_img_url"] = self::DEFAULT_BG;
-			}
-		}
+    /**
+     * Get the page for a logged-in user based on the request.
+     * @param array $request The request parameters.
+     * @return array Data for the page to display.
+     */
+    private static function getLoggedInPage(array $request): array
+    {
+        if (isset($request['board_id'])) {
+            return self::GetBoardPage($request);
+        }
 
-		return $response;
-	}
+        return self::getBoardListPage();
+    }
 
-	public static function GetBoardListPage($request)
-	{
-		$response = array();
+    /**
+     * Get the page for a logged-out user based on the request.
+     * @param array $request The request parameters.
+     * @return array Data for the page to display.
+     */
+    private static function getLoggedOutPage(array $request): array
+    {
+        $settings = self::GetDBSettings();
 
-		// query all the boards available to this user
-		$boardsQuery = "SELECT tarallo_boards.*, tarallo_permissions.user_type";
-		$boardsQuery .= " FROM tarallo_boards INNER JOIN tarallo_permissions ON tarallo_boards.id = tarallo_permissions.board_id";
-		$boardsQuery .= " WHERE tarallo_permissions.user_id  = :user_id";
-		$boardsQuery .= " ORDER BY last_modified_time DESC";
+        // Apply DB updates if needed
+        if (self::ApplyDBUpdates($settings['db_version'])) {
+            Logger::info("Database updates applied, refreshing settings cache");
+            $settings = self::GetDBSettings();
+        }
 
-		DB::setParam("user_id", $_SESSION["user_id"]);
-		$results = DB::fetchTableWithStoredParams($boardsQuery);
+        if (!empty($settings['perform_first_startup'])) {
+            Logger::info("First startup detected — creating admin account");
+            $adminAccount = self::CreateNewAdminAccount();
+            self::SetDBSetting('perform_first_startup', 0);
 
-		// fill an array of all the user boards
-		$boardList = array();
-		foreach ($results as $boardRecord) 
-		{
-			// skip boards that the user cannot even view
-			if (!self::CheckPermissions($results["user_type"], self::USERTYPE_Observer, false))
-				continue;
+            return [
+                'page_name' => 'FirstStartup',
+                'page_content' => array_merge($settings, [
+                    'admin_user' => $adminAccount['username'],
+                    'admin_pass' => $adminAccount['password']
+                ])
+            ];
+        }
 
-			$boardList[] = self::BoardRecordToData($boardRecord);
-		}
+        return [
+            'page_name' => 'Login',
+            'page_content' => array_merge($settings, [
+                'background_img_url' => self::DEFAULT_BG
+            ])
+        ];
+    }
 
-		// prepare json response
-		$response["page_name"] = "BoardList";
-		$pageContent = self::GetDBSettings();
-		$pageContent["boards"] = $boardList;
-		$pageContent["background_url"] = self::DEFAULT_BG;
-		$pageContent["background_tiled"] = true;
-		$pageContent["display_name"] = $_SESSION["display_name"];
-		$response["page_content"] = $pageContent;
+    /**
+     * Request the page that should be displayed for the current state.
+     * @param array $request The request parameters.
+     * @return array Data for the page to display.
+     */
+    public static function GetCurrentPage(array $request): array
+    {
+        try {
+            // Ensure DB exists or initialise
+            self::initDatabaseIfNeeded();
 
-		return $response;
-	}
+            // Logged in?
+            if (isset($_SESSION['logged_in'])) {
+                return self::getLoggedInPage($request);
+            }
 
-	public static function GetBoardPage($request)
-	{
-		if (!isset($request["board_id"]))
-		{
-			http_response_code(400);
-			exit("The parameter board_id of the requested board is missing!");
-		}
+            // Logged out flow
+            return self::getLoggedOutPage($request);
 
-		// query board data
-		$boardID = $request["board_id"];
-		$boardData = self::GetBoardData($boardID, self::USERTYPE_None);
+        } catch (Throwable $e) {
+            Logger::error("GetCurrentPage: Unhandled exception - " . $e->getMessage());
+            http_response_code(500);
+            return [
+                'page_name' => 'Error',
+                'page_content' => ['message' => 'Internal Server Error']
+            ];
+        }
+    }
 
-		if ($boardData["user_type"] >= self::USERTYPE_Guest)
-		{
-			// dont have a permission, or it's not enough to view the board
-			// return a page to notify the user
-			$response = array();
-			$response["page_name"] = "UnaccessibleBoard";
-			$pageContent = array();
-			$pageContent["id"] = $boardID;
-			$pageContent["display_name"] = $_SESSION["display_name"];
-			$pageContent["access_requested"] = $boardData["user_type"] == self::USERTYPE_Guest;
-			$response["page_content"] = $pageContent;
-			return $response;
-		}
+    /**
+     * Get the board list page from the database.
+     * @return array
+     */
+    public static function GetBoardListPage(): array
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+        if (empty($_SESSION['user_id'])) {
+            Logger::error("GetBoardListPage: No user_id in session");
+            throw new RuntimeException("Not logged in");
+        }
 
-		// fill in board data
-		$pageContent = $boardData;
-		$pageContent["display_name"] = $_SESSION["display_name"];
+        $userId = (int) $_SESSION['user_id'];
+        $displayName = $_SESSION['display_name'] ?? 'Unknown';
 
-		if ($boardData["closed"])
-		{
-			// this board is closed, just return basic data with another page name
-			$response = array();
-			$response["page_name"] = "ClosedBoard";
-			$response["page_content"] = $pageContent;
-			return $response;
-		}
+        $sql = "
+        SELECT b.*, p.user_type
+        FROM tarallo_boards b
+        INNER JOIN tarallo_permissions p ON b.id = p.board_id
+        WHERE p.user_id = :user_id
+        ORDER BY b.last_modified_time DESC
+    ";
+        $results = DB::fetchColumn($sql, 'id', ['user_id' => $userId]);
 
-		// query board cardlists
-		$cardlistsQuery = "SELECT id, name, prev_list_id, next_list_id FROM tarallo_cardlists WHERE board_id = :board_id";
-		DB::setParam("board_id", $boardID);
-		$cardlists = DB::fetchTableWithStoredParams($cardlistsQuery, "id");
+        $boardList = [];
+        foreach ($results as $boardRecord) {
+            try {
+                // Use GetBoardData to enforce permissions and formatting
+                $board = self::GetBoardData((int)$boardRecord['id'], self::USERTYPE_Observer);
+                $boardList[] = $board;
+            } catch (RuntimeException $e) {
+                Logger::debug("GetBoardListPage: Skipping board {$boardRecord['id']} - " . $e->getMessage());
+            }
+        }
 
-		// fill in cardlist data
-		$pageContent["cardlists"] = $cardlists;
+        $settings = self::GetDBSettings();
 
-		// query the board's cards
-		$cardsQuery = "SELECT * FROM tarallo_cards WHERE board_id = :board_id";
-		DB::setParam("board_id", $boardID);
-		$cardRecords = DB::fetchTableWithStoredParams($cardsQuery);
+        return [
+            'page_name'    => 'BoardList',
+            'page_content' => array_merge($settings, [
+                'boards'           => $boardList,
+                'background_url'   => self::DEFAULT_BG,
+                'background_tiled' => true,
+                'display_name'     => $displayName
+            ])
+        ];
+    }
 
-		// fill in cards data
-		$cards = array();
-		foreach ($cardRecords as $cardRecord) 
-		{
-			$cards[] = self::CardRecordToData($cardRecord);
-		}
-		$pageContent["cards"] = $cards;
+    /**
+     * Get the page for a single board.
+     * @param array $request The request parameters.
+     * @return array The page content.
+     */
+    public static function GetBoardPage(array $request): array
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
 
-		// prepare json response
-		$response = array();
-		$response["page_name"] = "Board";
-		$response["page_content"] = $pageContent;
+        if (empty($request['board_id'])) {
+            Logger::error("GetBoardPage: Missing board_id");
+            http_response_code(400);
+            return [
+                'page_name'    => 'Error',
+                'page_content' => ['message' => 'The parameter board_id of the requested board is missing.']
+            ];
+        }
 
-		return $response;
-	}
+        $boardID = (int) $request['board_id'];
+        $displayName = $_SESSION['display_name'] ?? 'Unknown';
+
+        try {
+            $boardData = self::GetBoardData($boardID, self::USERTYPE_None);
+        } catch (RuntimeException $e) {
+            // Permission denied or not found
+            Logger::warning("GetBoardPage: " . $e->getMessage());
+            return [
+                'page_name'    => 'UnaccessibleBoard',
+                'page_content' => [
+                    'id'               => $boardID,
+                    'display_name'     => $displayName,
+                    'access_requested' => false // Optionally detect from exception/message
+                ]
+            ];
+        }
+
+        $pageContent = $boardData;
+        $pageContent['display_name'] = $displayName;
+
+        if (!empty($boardData['closed'])) {
+            Logger::info("GetBoardPage: Board {$boardID} is closed");
+            return [
+                'page_name'    => 'ClosedBoard',
+                'page_content' => $pageContent
+            ];
+        }
+
+        // Cardlists
+        $query = "SELECT id, name, prev_list_id, next_list_id FROM tarallo_cardlists WHERE board_id = :board_id";
+        $cardlists = DB::fetchTable($query, ['board_id' => $boardID], 'id');
+        $pageContent['cardlists'] = $cardlists;
+
+        // Cards
+        $cards = [];
+        foreach (DB::fetchTable("SELECT * FROM tarallo_cards WHERE board_id = :board_id", ['board_id' => $boardID]) as $cardRecord) {
+            $cards[] = self::CardRecordToData($cardRecord);
+        }
+
+        $pageContent['cards'] = $cards;
+
+        Logger::debug("GetBoardPage: Board {$boardID} - " . count($cardlists) . " lists, " . count($cards) . " cards");
+
+        return [
+            'page_name'    => 'Board',
+            'page_content' => $pageContent
+        ];
+    }
+
+
 
 	public static function Login($request)
 	{
@@ -672,7 +729,7 @@ class API
 		// create a thumbnail
 		$thumbFilePath = self::GetThumbnailFilePath($request["board_id"], $guid);
 		Utils::createImageThumbnail($filePath, $thumbFilePath);
-		if (File::FileExists($thumbFilePath)) 
+		if (File::fileExists($thumbFilePath)) 
 		{
 			// a thumbnail has been created, set it at the card cover image
 			DB::setParam("attachment_id", $attachmentID);
@@ -800,7 +857,7 @@ class API
 		{
 			$attachmentPath = self::GetThumbnailFilePathFromRecord($attachmentRecord);
 		}
-		if (!isset($request["thumbnail"]) || !File::FileExists($attachmentPath))
+		if (!isset($request["thumbnail"]) || !File::fileExists($attachmentPath))
 		{
 			$attachmentPath = self::GetAttachmentFilePathFromRecord($attachmentRecord);
 		}
@@ -985,7 +1042,7 @@ class API
 
 		// delete all board files
 		$boardDir = self::GetBoardContentDir($boardID);
-		File::DeleteDir($boardDir);
+		File::deleteDir($boardDir);
 
 		return $boardData;
 	}
@@ -1027,13 +1084,13 @@ class API
 
 		// build new db indices
 		$nextCardlistID = DB::fetchOneWithStoredParams("SELECT MAX(id) FROM tarallo_cardlists") + 1;
-		$cardlistIndex = DB::RebuildDBIndex($boardExportData["cardlists"], "id", $nextCardlistID);
+		$cardlistIndex = DB::rebuildDBIndex($boardExportData["cardlists"], "id", $nextCardlistID);
 		$cardlistIndex[0] = 0; // unlinked cardlist entry
 		$nextCardID = DB::fetchOneWithStoredParams("SELECT MAX(id) FROM tarallo_cards") + 1;
-		$cardIndex = DB::RebuildDBIndex($boardExportData["cards"], "id", $nextCardID);
+		$cardIndex = DB::rebuildDBIndex($boardExportData["cards"], "id", $nextCardID);
 		$cardIndex[0] = 0; // no prev card id entry
 		$nextAttachmentID = DB::fetchOneWithStoredParams("SELECT MAX(id) FROM tarallo_attachments") + 1;
-		$attachIndex = DB::RebuildDBIndex($boardExportData["attachments"], "id", $nextAttachmentID);
+		$attachIndex = DB::rebuildDBIndex($boardExportData["attachments"], "id", $nextAttachmentID);
 		$attachIndex[0] = 0; // card without cover attachment
 
 		try
@@ -1702,7 +1759,7 @@ class API
 
 		//output zip file as download
 		$downloadName =  "export - " . strtolower($boardData["title"]) . " " . date("Y-m-d H-i-s")  . ".zip";
-		File::outputFile($exportPath, File::MimeTypes["zip"], $downloadName, true);
+		File::outputFile($exportPath, File::getMimeType("zip"), $downloadName, true);
 	}
 
 	public static function UploadChunk($request)
@@ -1759,7 +1816,7 @@ class API
 
 	private static function TryApplyingDBPatch($sqlFilePath) 
 	{
-		if (!File::FileExists($sqlFilePath))
+		if (!File::fileExists($sqlFilePath))
 			return false;
 
 		// load sql patch file and execute it
@@ -2220,38 +2277,63 @@ class API
 		return $boardData;
 	}
 
-	private static function GetBoardData($boardID, $maxUserType = self::USERTYPE_Owner)
-	{
-		$userID = $_SESSION["user_id"];
+    /**
+     * Retrieves board data for the given board ID and user,
+     * including the user's permission level for that board.
+     * @param int $boardId   Board ID to fetch
+     * @param int $minRole   Minimum role constant to require (defaults to USERTYPE_None)
+     * @return array         Board data including 'user_type'
+     * @throws RuntimeException if board does not exist or permission denied
+     */
+    public static function GetBoardData(int $boardId, int $minRole = self::USERTYPE_None): array
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
 
-		// query board data
-		$boardQuery = "SELECT tarallo_boards.*, tarallo_permissions.user_type";
-		$boardQuery .= " FROM tarallo_boards INNER JOIN tarallo_permissions ON tarallo_boards.id = tarallo_permissions.board_id";
-		$boardQuery .= " WHERE tarallo_boards.id = :board_id AND user_id = :user_id";
-		DB::setParam("board_id", $boardID);
-		DB::setParam("user_id", $userID);
-		$boardRecord = DB::fetchRowWithStoredParams($boardQuery);
+        if (empty($_SESSION['user_id'])) {
+            Logger::error("GetBoardData: No user_id in session");
+            throw new RuntimeException("Not logged in");
+        }
 
-		if (!$boardRecord)
-		{
-			// the specified board_id does not exists, or the current user do not have access to it
-			DB::setParam("board_id", $boardID);
-			$boardRecord = DB::fetchRowWithStoredParams("SELECT * FROM tarallo_boards WHERE tarallo_boards.id = :board_id");
+        $userId = (int) $_SESSION['user_id'];
 
-			if (!$boardRecord)
-			{
-				http_response_code(404);
-				exit("The specified board_id does not exists.");
-			}
+        // Query board info with the user’s permission in one go
+        $sql = "
+        SELECT b.*,
+               p.user_type
+        FROM tarallo_boards b
+        INNER JOIN tarallo_permissions p ON b.id = p.board_id
+        WHERE b.id = :board_id
+          AND p.user_id = :user_id
+        LIMIT 1
+    ";
 
-			// use blocked as "no permission record available"
-			$boardRecord["user_type"] = self::USERTYPE_None;
-		}
+        $boardRecord = DB::fetchRow($sql, [
+            'board_id' => $boardId,
+            'user_id'  => $userId
+        ]);
 
-		self::CheckPermissions($boardRecord["user_type"], $maxUserType);
+        if (!$boardRecord) {
+            Logger::warning("GetBoardData: Board {$boardId} not found or no permission entry for user {$userId}");
+            throw new RuntimeException("Board not found or no permission entry");
+        }
 
-		return self::BoardRecordToData($boardRecord);
-	}
+        // Permission check wrapper
+        if (!self::CheckPermissions($boardRecord['user_type'], $minRole, false)) {
+            Logger::warning("GetBoardData: User {$userId} lacks permission to access board {$boardId} (has {$boardRecord['user_type']}, requires {$minRole})");
+            throw new RuntimeException("Permission denied");
+        }
+
+        // Normalise / enrich the board record if needed
+        $formattedBoard = self::BoardRecordToData($boardRecord);
+        $formattedBoard['user_type'] = (int) $boardRecord['user_type'];
+
+        Logger::debug("GetBoardData: User {$userId} fetched board {$boardId} with role {$formattedBoard['user_type']}");
+
+        return $formattedBoard;
+    }
+
 
 	private static function UpdateBoardModifiedTime($boardID)
 	{

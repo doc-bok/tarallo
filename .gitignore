@@ -9,4 +9,4 @@ Thumbs.db
 /mariadb
 /data
 .idea/
-.env
+source/php/.env

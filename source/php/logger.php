@@ -28,7 +28,7 @@ class Logger
     {
         $threshold = self::logLevel()->severity();
         if ($level->severity() <= $threshold && $threshold !== 0) {
-            error_log("[{$level->value}] {$message}");
+            error_log("[$level->value] $message");
         }
     }
 
