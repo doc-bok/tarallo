@@ -250,172 +250,194 @@ class API
         ];
     }
 
-	public static function Login($request)
-	{
-		if (self::IsUserLoggedIn())
-		{
-			self::LogoutInternal();
-		}
+    /**
+     * Logs a user into the application.
+     * @param array $request The request parameters.
+     * @return string[]|true[] The result of the login attempt.
+     */
+    public static function Login(array $request): array
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
 
-		$userQuery = "SELECT * FROM tarallo_users WHERE username = :username";
-		DB::setParam("username", $request["username"]);
-		$userRecord = DB::fetchRowWithStoredParams($userQuery);
-					
-		if (!$userRecord) 
-		{
-			goto failed_login;
-		}		
+        // Force logout if already logged in
+        if (self::IsUserLoggedIn()) {
+            Logger::info("Login: Existing session detected, logging out first");
+            self::LogoutInternal();
+        }
 
-		if (strlen($userRecord["password"]) == 0) 
-		{
-			// first login, accept and save the specified password
-			$passwordHash = password_hash($request["password"], PASSWORD_DEFAULT);
-			$setPasswordQuery = "UPDATE tarallo_users SET password = :passwordHash WHERE username = :username";
-			DB::setParam("username", $request["username"]);
-			DB::setParam("passwordHash", $passwordHash);
-			DB::queryWithStoredParams($setPasswordQuery);
+        $username = trim($request['username'] ?? '');
+        $password = $request['password'] ?? '';
 
-			// update the record query so that the newly created password will be verified
-			DB::setParam("username", $request["username"]);
-			$userRecord = DB::fetchRowWithStoredParams($userQuery);
-		} 
-		
-		if (!password_verify($request["password"], $userRecord["password"])) 
-		{
-			// wrong password (or new password not correctly added to the DB)
-			goto failed_login;
-		}
+        if ($username === '' || $password === '') {
+            Logger::warning("Login: Missing username or password");
+            http_response_code(400);
+            return ['error' => 'Missing username or password'];
+        }
 
-		// ===== successful login!
+        // Look up user
+        $userRecord = DB::fetchRow(
+            "SELECT * FROM tarallo_users WHERE username = :username",
+            ['username' => $username]
+        );
 
-		// update session
-		$_SESSION["logged_in"] = true;
-		$_SESSION["user_id"] = $userRecord["id"];
-		$_SESSION["username"] = $userRecord["username"];
-		$_SESSION["display_name"] = $userRecord["display_name"];
-		$_SESSION["is_admin"] = $userRecord["is_admin"];
+        if (!$userRecord) {
+            Logger::warning("Login failed: Unknown username '$username'");
+            http_response_code(401);
+            return ['error' => 'Invalid username or password'];
+        }
 
-		// update last login time in db
-		$updateLoginTimeQuery = "UPDATE tarallo_users SET last_access_time = :last_access_time WHERE id = :user_id";
-		DB::setParam("last_access_time", time());
-		DB::setParam("user_id", $userRecord["id"]);
-		DB::queryWithStoredParams($updateLoginTimeQuery);
+        // First login: password is empty
+        if (strlen($userRecord['password']) === 0) {
+            Logger::info("Login: First login for '$username', setting password");
+            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
-		// response
-		$response = array();
-		return $response;
+            $ok = DB::query(
+                "UPDATE tarallo_users SET password = :passwordHash WHERE username = :username",
+                ['passwordHash' => $passwordHash, 'username' => $username]
+            );
+            if (!$ok) {
+                Logger::error("Login: Failed to set initial password for '$username'");
+                http_response_code(500);
+                return ['error' => 'Internal error setting first password'];
+            }
 
-		// ===== failed login
-		failed_login:
-		http_response_code(401);
-		exit("Invalid username or password!");
-	}
+            // Refresh record
+            $userRecord['password'] = $passwordHash;
+        }
 
-	public static function Register($request)
-	{
-		$settings = self::GetDBSettings();
+        if (!password_verify($password, $userRecord['password'])) {
+            Logger::warning("Login failed: Wrong password for '$username'");
+            http_response_code(401);
+            return ['error' => 'Invalid username or password'];
+        }
 
-		if (!$settings["registration_enabled"])
-		{
-			http_response_code(403);
-			exit("Account creation is disabled on this server!");
-		}
+        // Successful login → update session
+        $_SESSION['logged_in']    = true;
+        $_SESSION['user_id']      = $userRecord['id'];
+        $_SESSION['username']     = $userRecord['username'];
+        $_SESSION['display_name'] = $userRecord['display_name'];
+        $_SESSION['is_admin']     = (bool) $userRecord['is_admin'];
 
-		if (self::IsUserLoggedIn())
-		{
-			self::LogoutInternal();
-		}
+        // Update last access time
+        DB::query(
+            "UPDATE tarallo_users SET last_access_time = :t WHERE id = :id",
+            ['t' => time(), 'id' => $userRecord['id']]
+        );
 
-		// validate username
-		if (strlen($request["username"]) < 5)
-		{
-			http_response_code(400);
-			exit("Username is too short!");
-		}
-		if (!preg_match("/^[A-Za-z0-9]*$/", $request["username"]))
-		{
-			http_response_code(400);
-			exit("Username must be alpha-numeric and cannot contain spaces!");
-		}
+        Logger::info("Login successful for '$username' (user_id {$userRecord['id']})");
 
-		// validate display name
-		$cleanDisplayName = trim($request["display_name"]);
-		if (strlen($cleanDisplayName) < 3)
-		{
-			http_response_code(400);
-			exit("Display name is too short!");
-		}
-		if (!preg_match("/^[A-Za-z0-9\s]*$/", $cleanDisplayName))
-		{
-			http_response_code(400);
-			exit("Display name must be alpha-numeric.");
-		}
+        return ['success' => true];
+    }
 
-		// validate password
-		if (strlen($request["password"]) < 5)
-		{
-			http_response_code(400);
-			exit("The password must be at least 5 char long!");
-		}
+    /**
+     * Register a new user.
+     * @param array $request The request parameters.
+     * @return array|string[] The result of the register attempt.
+     */
+    public static function Register(array $request): array
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
 
-		// check if the specified username already exists
-		if (self::UsernameExists($request["username"])) 
-		{
-			http_response_code(400);
-			exit("Username already in use! Try another one.");
-		}
+        $settings = self::GetDBSettings();
+        if (empty($settings['registration_enabled'])) {
+            Logger::warning("Register: Registration disabled");
+            http_response_code(403);
+            return ['error' => 'Account creation disabled on this server'];
+        }
 
-		// add the new user record to the DB
-		$userID = self::AddUserInternal($request["username"], $request["password"], $cleanDisplayName);
-		if (!$userID) 
-		{
-			http_response_code(500);
-			exit("Internal server error while creating the new user.");
-		}
+        if (self::IsUserLoggedIn()) {
+            Logger::info("Register: Existing session detected, logging out first");
+            self::LogoutInternal();
+        }
 
-		// add initial permissions (if any is defined)
-		DB::setParam("user_id", self::USERID_ONREGISTER);
-		$initialPermissions = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_permissions where user_id = :user_id");
-		$initialPermissionCount = count($initialPermissions);
-		if ($initialPermissionCount)
-		{
-			$addPermsQuery = "INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES ";
-			$recordPlaceholders = "(?, ?, ?)";
-			$firstInitialPermission = true;
-			// foreach permission...
-			for ($i = 0; $i < $initialPermissionCount; $i++) 
-			{
-				$curPermissions = $initialPermissions[$i];
+        $username     = trim($request['username'] ?? '');
+        $displayName  = trim($request['display_name'] ?? '');
+        $password     = $request['password'] ?? '';
 
-				// skip blocked initial permissions 
-				if ($curPermissions["user_type"] == self::USERTYPE_Blocked)
-					continue;
+        // Username validation
+        if (strlen($username) < 5) {
+            http_response_code(400);
+            return ['error' => 'Username is too short'];
+        }
+        if (!preg_match('/^[A-Za-z0-9]+$/', $username)) {
+            http_response_code(400);
+            return ['error' => 'Username must be alphanumeric and contain no spaces'];
+        }
+        // Display name validation
+        if (strlen($displayName) < 3) {
+            http_response_code(400);
+            return ['error' => 'Display name is too short'];
+        }
+        if (!preg_match('/^[A-Za-z0-9\s]+$/', $displayName)) {
+            http_response_code(400);
+            return ['error' => 'Display name must be alphanumeric'];
+        }
+        // Password validation
+        if (strlen($password) < 5) {
+            http_response_code(400);
+            return ['error' => 'Password must be at least 5 characters'];
+        }
 
-				// add query parameters
-				DB::$QUERY_PARAMS[] = $userID;
-				DB::$QUERY_PARAMS[] = $curPermissions["board_id"];
-				DB::$QUERY_PARAMS[] = $curPermissions["user_type"];
+        // Prevent duplicate username
+        if (self::UsernameExists($username)) {
+            http_response_code(400);
+            return ['error' => 'Username already in use'];
+        }
 
-				// add query format
-				$addPermsQuery .= (!$firstInitialPermission ? ", " : "") . $recordPlaceholders;
-				$firstInitialPermission = false;
-			}
+        // Create user
+        $userID = self::AddUserInternal($username, $password, $displayName);
+        if (!$userID) {
+            Logger::error("Register: Failed to create user '$username'");
+            http_response_code(500);
+            return ['error' => 'Internal server error while creating user'];
+        }
 
-			// add all the initial permissions
-			DB::queryWithStoredParams($addPermsQuery);
-		}
+        Logger::info("Register: Created new user '$username' with ID $userID");
 
-		$response = $settings;
-		$response["username"] = $request["username"];
-		return $response;
-	}
+        // Apply initial permissions
+        $initialPerms = DB::fetchTable(
+            "SELECT * FROM tarallo_permissions WHERE user_id = :id",
+            ['id' => self::USERID_ONREGISTER]
+        );
+        foreach ($initialPerms as $perm) {
+            if ($perm['user_type'] == self::USERTYPE_Blocked) continue;
+            DB::query(
+                "INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:uid, :bid, :ut)",
+                ['uid' => $userID, 'bid' => $perm['board_id'], 'ut' => $perm['user_type']]
+            );
+        }
 
-	public static function Logout($request)
-	{
-		self::LogoutInternal();
-		$response = array();
-		return $response;
-	}
+        return [
+            'success'  => true,
+            'username' => $username
+        ];
+    }
+
+    /**
+     * Logs a user out of the session.
+     * @param array $request The request parameters.
+     * @return true[] The result of the logout attempt.
+     */
+    public static function Logout(array $request): array
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+
+        if (self::IsUserLoggedIn()) {
+            Logger::info("Logout: User {$_SESSION['username']} (ID {$_SESSION['user_id']}) logging out");
+        } else {
+            Logger::debug("Logout: No user currently logged in");
+        }
+
+        self::LogoutInternal();
+        return ['success' => true];
+    }
+
 
 	public static function OpenCard($request)
 	{
@@ -2263,7 +2285,7 @@ class API
      * @return array
      * @throws RuntimeException
      */
-    public static function GetBoardData(
+    private static function GetBoardData(
         int $boardId,
         int $minRole = self::USERTYPE_None,
         bool $includeCardLists = false,
@@ -2294,13 +2316,13 @@ class API
         ]);
 
         if (!$boardRecord) {
-            Logger::warning("GetBoardData: Board $boardId not found or no permissions for user {$userId}");
+            Logger::warning("GetBoardData: Board $boardId not found or no permissions for user $userID");
             throw new RuntimeException("Board not found or access denied");
         }
 
         // Check minimum required role
         if (!self::CheckPermissions($boardRecord['user_type'], $minRole, false)) {
-            Logger::warning("GetBoardData: User {$userId} has insufficient permissions for board $boardId");
+            Logger::warning("GetBoardData: User $userID has insufficient permissions for board $boardId");
             throw new RuntimeException("Permission denied");
         }
 
@@ -2326,7 +2348,7 @@ class API
             $boardData['cards'] = array_map([self::class, 'CardRecordToData'], $cardRecords);
         }
 
-        Logger::debug("GetBoardData: User {$userId} fetched board $boardId with role {$boardData['user_type']}" .
+        Logger::debug("GetBoardData: User $userID fetched board $boardId with role {$boardData['user_type']}" .
             ($includeCardLists ? ', with card lists' : '') .
             ($includeCards ? ', with cards' : ''));
 
@@ -2496,15 +2518,51 @@ class API
 		return false;
 	}
 
-	private static function IsUserLoggedIn()
-	{
-		return isset($_SESSION["user_id"]);
-	}
+    /**
+     * Checks to see if a user is logged in.
+     * @return bool TRUE if a user is logged into the session.
+     */
+    private static function IsUserLoggedIn(): bool
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+        return !empty($_SESSION['user_id']) && is_numeric($_SESSION['user_id']);
+    }
 
-	private static function LogoutInternal()
-	{
-		session_destroy();
-	}
+    /**
+     * Logs a user out of the current session.
+     */
+    private static function LogoutInternal(): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+
+        // Clear all session variables
+        $_SESSION = [];
+
+        // Delete the session cookie (if any)
+        if (ini_get("session.use_cookies")) {
+            $params = session_get_cookie_params();
+            setcookie(
+                session_name(),
+                '',
+                time() - 42000,
+                $params["path"],
+                $params["domain"],
+                $params["secure"],
+                $params["httponly"]
+            );
+        }
+
+        // Destroy the session file
+        session_destroy();
+
+        // Regenerate session ID after logout (good practice)
+        session_start();
+        session_regenerate_id(true);
+    }
 
 	private static function CleanBoardTitle($title)
 	{
