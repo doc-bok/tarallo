@@ -581,31 +581,43 @@ class API
             return ['error' => 'Invalid or missing board_id / deleted_card_id'];
         }
 
-        // Permission check
+        // Get board data with cards, forcing at least Member role
         try {
-            self::GetBoardData($boardId, self::USERTYPE_Member);
+            $boardData = self::GetBoardData($boardId, self::USERTYPE_Member, false, true);
         } catch (RuntimeException $e) {
-            Logger::warning("DeleteCard: User $userId tried to delete card $cardId in board $boardId without permission");
             http_response_code(403);
             return ['error' => 'Access denied'];
+        }
+
+        // Make sure the card is actually in this board
+        $cardRecord = null;
+        foreach ($boardData['cards'] as $c) {
+            if ((int) $c['id'] === $cardId) {
+                $cardRecord = $c;
+                break;
+            }
+        }
+        if (!$cardRecord) {
+            http_response_code(404);
+            return ['error' => 'Card not found in the specified board'];
         }
 
         try {
             $deletedCard = self::DeleteCardInternal($boardId, $cardId, true);
             self::UpdateBoardModifiedTime($boardId);
-        } catch (RuntimeException $e) {
-            http_response_code(400);
-            return ['error' => $e->getMessage()];
         } catch (Throwable $e) {
-            Logger::error("DeleteCard: Unexpected failure deleting card $cardId - " . $e->getMessage());
+            Logger::error("DeleteCard: Failed to delete card $cardId in board $boardId for user $userId: " . $e->getMessage());
             http_response_code(500);
             return ['error' => 'Error deleting card'];
         }
 
         Logger::info("DeleteCard: User $userId deleted card $cardId from board $boardId");
-        return ['success' => true, 'deleted_card' => self::CardRecordToData($deletedCard)];
-    }
 
+        return [
+            'success' => true,
+            'deleted_card' => self::CardRecordToData($deletedCard)
+        ];
+    }
 
 	public static function MoveCard($request)
 	{
@@ -1958,22 +1970,19 @@ class API
      */
     private static function DeleteCardInternal(int $boardID, int $cardID, bool $deleteAttachments = true): array
     {
-        // Fetch card
+        // Fetch the card record (no extra permission checks, caller already did that)
         $cardRecord = DB::fetchRow(
             "SELECT * FROM tarallo_cards WHERE id = :id",
             ['id' => $cardID]
         );
 
         if (!$cardRecord) {
-            throw new RuntimeException("Card not found");
-        }
-        if ((int)$cardRecord['board_id'] !== $boardID) {
-            throw new RuntimeException("Card is not in the specified board");
+            throw new RuntimeException("Card does not exist");
         }
 
         DB::beginTransaction();
         try {
-            // Link previous card to next
+            // Relink previous card to skip this one
             if (!empty($cardRecord['prev_card_id'])) {
                 DB::query(
                     "UPDATE tarallo_cards
@@ -1986,7 +1995,7 @@ class API
                 );
             }
 
-            // Link next card to previous
+            // Relink next card to skip this one
             if (!empty($cardRecord['next_card_id'])) {
                 DB::query(
                     "UPDATE tarallo_cards
@@ -1999,13 +2008,7 @@ class API
                 );
             }
 
-            // Delete the card
-            DB::query(
-                "DELETE FROM tarallo_cards WHERE id = :id",
-                ['id' => $cardID]
-            );
-
-            // Delete attachments
+            // Delete attachments if requested
             if ($deleteAttachments) {
                 $attachments = DB::fetchTable(
                     "SELECT * FROM tarallo_attachments WHERE card_id = :id",
@@ -2020,13 +2023,19 @@ class API
                 );
             }
 
+            // Finally delete the card itself
+            DB::query(
+                "DELETE FROM tarallo_cards WHERE id = :id",
+                ['id' => $cardID]
+            );
+
             DB::commit();
         } catch (Throwable $e) {
             DB::rollBack();
             throw $e;
         }
 
-        return $cardRecord;
+        return $cardRecord; // Return original record for logging/response
     }
 
     /**
