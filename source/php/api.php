@@ -882,26 +882,69 @@ class API
         return self::CardRecordToData($cardRecord);
     }
 
+    /**
+     * Updates a card's content.
+     * @param array $request The request parameters.
+     * @return array The updated card data.
+     */
+    public static function UpdateCardContent(array $request): array
+    {
+        self::EnsureSession();
 
-	public static function UpdateCardContent($request)
-	{
-		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"], self::USERTYPE_Member);
+        $userId    = $_SESSION['user_id'] ?? null;
+        $boardId   = isset($request['board_id']) ? (int)$request['board_id'] : 0;
+        $cardId    = isset($request['id']) ? (int)$request['id'] : 0;
+        $newContent = $request['content'] ?? ''; // allow empty string but still check type
 
-		// query and validate card id
-		$cardRecord = self::GetCardData($request["board_id"], $request["id"]);
+        // === Basic validation ===
+        if (!$userId) {
+            http_response_code(401);
+            return ['error' => 'Not logged in'];
+        }
 
-		// update the content
-		$titleUpdateQuery = "UPDATE tarallo_cards SET content = :content WHERE id = :id";
-		DB::setParam("content", $request["content"]);
-		DB::setParam("id", $request["id"]);
-		DB::queryWithStoredParams($titleUpdateQuery);
+        if ($boardId <= 0 || $cardId <= 0) {
+            http_response_code(400);
+            return ['error' => 'Missing or invalid parameters'];
+        }
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+        // === Permission check ===
+        try {
+            self::GetBoardData($boardId, self::USERTYPE_Member);
+        } catch (\RuntimeException $e) {
+            Logger::warning("UpdateCardContent: User $userId tried to edit card $cardId on board $boardId without permission");
+            http_response_code(403);
+            return ['error' => 'Access denied'];
+        }
 
-		$cardRecord["content"] = $request["content"];
-		return self::CardRecordToData($cardRecord);
-	}
+        // === Card ownership check ===
+        try {
+            $cardRecord = self::GetCardData($boardId, $cardId);
+        } catch (RuntimeException $e) {
+            http_response_code(404);
+            return ['error' => 'Card not found in this board'];
+        }
+
+        // === Perform update ===
+        try {
+            DB::query(
+                "UPDATE tarallo_cards SET content = :content WHERE id = :id",
+                ['content' => $newContent, 'id' => $cardId]
+            );
+            self::UpdateBoardModifiedTime($boardId);
+        } catch (Throwable $e) {
+            Logger::error("UpdateCardContent: DB error on card $cardId (board $boardId) - " . $e->getMessage());
+            http_response_code(500);
+            return ['error' => 'Failed to update card content'];
+        }
+
+        // === Update local record to reflect change ===
+        $cardRecord['content'] = $newContent;
+
+        Logger::info("UpdateCardContent: User $userId updated content of card $cardId in board $boardId");
+
+        return self::CardRecordToData($cardRecord);
+    }
+
 
 	public static function UpdateCardFlags($request)
 	{
