@@ -526,7 +526,7 @@ class Board
      * @throws InvalidArgumentException On invalid input.
      * @throws RuntimeException On DB error.
      */
-    public static function ReopenBoard(array $request): array
+    public static function reopenBoard(array $request): array
     {
         if (!isset($request['id']) || !is_numeric($request['id'])) {
             throw new InvalidArgumentException("Missing or invalid board ID.");
@@ -561,4 +561,75 @@ class Board
         return $boardData;
     }
 
+    /**
+     * Permanently delete a closed board and all related data/files.
+     * @param array $request Must contain 'id' (int board ID)
+     * @return array Deleted board data
+     * @throws InvalidArgumentException On invalid params
+     * @throws RuntimeException On permission issues or DB/file errors
+     */
+    public static function deleteBoard(array $request): array
+    {
+        // Validate input
+        if (!isset($request['id']) || !is_numeric($request['id'])) {
+            throw new InvalidArgumentException("Missing or invalid board ID.");
+        }
+        $boardID = (int)$request['id'];
+        if ($boardID <= 0) {
+            throw new InvalidArgumentException("Invalid board ID: $boardID");
+        }
+
+        // Permission: only owner/admin can delete boards
+        $boardData = Board::GetBoardData($boardID /* , Permission::USERTYPE_Owner */);
+
+        // Must be closed before deletion
+        if (empty($boardData['closed'])) {
+            throw new RuntimeException("Cannot delete an open board.", 400);
+        }
+
+        // Get attachments before DB deletion so we can delete files
+        $attachments = DB::fetchTable(
+            "SELECT * FROM tarallo_attachments WHERE board_id = :board_id",
+            ['board_id' => $boardID]
+        );
+
+        try {
+            DB::beginTransaction();
+
+            // Delete dependent records first (avoids orphan FKs)
+            DB::query("DELETE FROM tarallo_cards WHERE board_id = :board_id", ['board_id' => $boardID]);
+            DB::query("DELETE FROM tarallo_cardlists WHERE board_id = :board_id", ['board_id' => $boardID]);
+            DB::query("DELETE FROM tarallo_attachments WHERE board_id = :board_id", ['board_id' => $boardID]);
+            DB::query("DELETE FROM tarallo_permissions WHERE board_id = :board_id", ['board_id' => $boardID]);
+
+            // Finally delete the board record
+            DB::query("DELETE FROM tarallo_boards WHERE id = :board_id", ['board_id' => $boardID]);
+
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Logger::error("deleteBoard: Failed to delete board $boardID - " . $e->getMessage());
+            throw new RuntimeException("Failed to delete board data.");
+        }
+
+        // Delete attachment files now that rows are gone
+        foreach ($attachments as $att) {
+            try {
+                Attachment::deleteAttachmentFiles($att);
+            } catch (Throwable $t) {
+                Logger::warning("deleteBoard: Failed to delete attachment file for ID {$att['id']} - " . $t->getMessage());
+            }
+        }
+
+        // Remove board directory
+        try {
+            File::deleteDir(Board::getBoardContentDir($boardID));
+        } catch (Throwable $t) {
+            Logger::warning("deleteBoard: Failed to delete board directory for board $boardID - " . $t->getMessage());
+        }
+
+        Logger::info("Board $boardID deleted.");
+
+        return $boardData;
+    }
 }

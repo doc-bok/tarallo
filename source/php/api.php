@@ -174,62 +174,9 @@ class API
 		return Board::reopenBoard($request);
 	}
 
-	public static function DeleteBoard($request)
+	public static function DeleteBoard(array $request): array
 	{
-		// query and validate board id
-		$boardData = Board::GetBoardData($request["id"]);
-
-		// make sure the board is closed before deleting
-		if (!$boardData["closed"])
-		{
-			http_response_code(400);
-			exit("Cannot delete an open board.");
-		}
-
-		$boardID = $request["id"];
-
-		// save attachment records before deleting them
-		DB::setParam("board_id", $boardID);
-		$attachments = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_attachments WHERE board_id = :board_id");
-
-		// delete all the records from the board
-		try
-		{
-			DB::beginTransaction();
-
-			// delete board record
-			DB::setParam("board_id", $boardID);
-			DB::queryWithStoredParams("DELETE FROM tarallo_boards WHERE id = :board_id");
-
-			// delete cardlists
-			DB::setParam("board_id", $boardID);
-			DB::queryWithStoredParams("DELETE FROM tarallo_cardlists WHERE board_id = :board_id");
-
-			// delete cards
-			DB::setParam("board_id", $boardID);
-			DB::queryWithStoredParams("DELETE FROM tarallo_cards WHERE board_id = :board_id");
-
-			// delete attachments
-			DB::setParam("board_id", $boardID);
-			DB::queryWithStoredParams("DELETE FROM tarallo_attachments WHERE board_id = :board_id");
-
-			// delete permissions
-			DB::setParam("board_id", $boardID);
-			DB::queryWithStoredParams("DELETE FROM tarallo_permissions WHERE board_id = :board_id");
-
-			DB::commit();
-		}
-		catch(Exception $e)
-		{
-			DB::rollBack();
-			throw $e;
-		}
-
-		// delete all board files
-		$boardDir = Board::getBoardContentDir($boardID);
-		File::deleteDir($boardDir);
-
-		return $boardData;
+		return Board::deleteBoard($request);
 	}
 
 	public static function ImportBoard($request)
