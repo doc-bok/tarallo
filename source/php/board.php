@@ -355,7 +355,7 @@ class Board
      * @param string $title Raw title.
      * @return string Safe, truncated title (max 64 chars).
      */
-    private static function cleanBoardTitle(string $title): string
+    public static function cleanBoardTitle(string $title): string
     {
         $title = trim($title);
 
@@ -369,4 +369,107 @@ class Board
         return mb_substr($title, 0, 64);
     }
 
+    /**
+     * Public API entry point for creating a new board.
+     * @param array $request Must contain 'title', optional 'label_names', 'label_colors', 'background_guid'
+     * @return array Newly created board data
+     * @throws RuntimeException On user not logged in or DB error
+     */
+    public static function createNewBoard(array $request): array
+    {
+        if (!Session::isUserLoggedIn()) {
+            throw new RuntimeException(
+                "Cannot create a new board without being logged in.",
+                403
+            );
+        }
+
+        if (!isset($request['title']) || trim($request['title']) === '') {
+            throw new InvalidArgumentException("Board title is required.");
+        }
+
+        $labelNames   = $request['label_names']  ?? '';
+        $labelColors  = $request['label_colors'] ?? '';
+        $background   = $request['background_guid'] ?? null;
+
+        $newBoardID = self::createNewBoardInternal(
+            $request['title'],
+            $labelNames,
+            $labelColors,
+            $background
+        );
+
+        return Board::GetBoardData($newBoardID);
+    }
+
+    /**
+     * Internal helper to insert a new board and assign the current user as owner.
+     * @param string      $title
+     * @param string      $labelNames
+     * @param string      $labelColors
+     * @param string|null $backgroundGUID
+     * @return int Board ID
+     * @throws RuntimeException On DB errors
+     */
+    public static function createNewBoardInternal(
+        string $title,
+        string $labelNames = '',
+        string $labelColors = '',
+        ?string $backgroundGUID = null
+    ): int {
+        $cleanTitle = Board::CleanBoardTitle($title);
+        if ($cleanTitle === '') {
+            throw new InvalidArgumentException("Board title cannot be empty after cleaning.");
+        }
+
+        $userId = $_SESSION['user_id'] ?? null;
+        if (!$userId || !is_numeric($userId)) {
+            throw new RuntimeException("Invalid or missing user session.");
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Insert board record
+            $newBoardID = DB::insert(
+                "INSERT INTO tarallo_boards 
+                (title, label_names, label_colors, last_modified_time, background_guid)
+             VALUES
+                (:title, :label_names, :label_colors, :last_modified_time, :background_guid)",
+                [
+                    'title'              => $cleanTitle,
+                    'label_names'        => $labelNames,
+                    'label_colors'       => $labelColors,
+                    'last_modified_time' => time(),
+                    'background_guid'    => $backgroundGUID
+                ]
+            );
+
+            if (!$newBoardID) {
+                throw new RuntimeException("Failed to insert new board.");
+            }
+
+            // Assign owner permission to the creator
+            DB::query(
+                "INSERT INTO tarallo_permissions (user_id, board_id, user_type)
+             VALUES (:user_id, :board_id, :user_type)",
+                [
+                    'user_id'  => (int)$userId,
+                    'board_id' => (int)$newBoardID,
+                    'user_type'=> Permission::USERTYPE_Owner
+                ]
+            );
+
+            DB::commit();
+
+            Logger::info("Board '$cleanTitle' [ID $newBoardID] created by user $userId");
+
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Logger::error("createNewBoardInternal: Failed to create board '$title' - " . $e->getMessage());
+            throw new RuntimeException("Failed to create board.");
+        }
+
+        return (int)$newBoardID;
+    }
 }

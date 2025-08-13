@@ -161,17 +161,7 @@ class API
 
 	public static function CreateNewBoard($request)
 	{
-		if (!Session::isUserLoggedIn())
-		{
-			http_response_code(403);
-			exit("Cannot create a new board without being logged in.");
-		}
-
-		// create the new board
-		$newBoardID = self::CreateNewBoardInternal($request["title"]);
-
-		// re-query and return the new board data
-		return Board::GetBoardData((int)$newBoardID);
+        return Board::createNewBoard($request);
 	}
 
 	public static function CloseBoard($request)
@@ -313,7 +303,7 @@ class API
 			DB::beginTransaction();
 
 			// create a new board with the exported data
-			$newBoardID = self::CreateNewBoardInternal($boardExportData["title"], $boardExportData["label_names"], $boardExportData["label_colors"], $boardExportData["background_guid"]);
+			$newBoardID = Board::createNewBoardInternal($boardExportData["title"], $boardExportData["label_names"], $boardExportData["label_colors"], $boardExportData["background_guid"]);
 
 			// add cardlists to db
 			{
@@ -446,7 +436,7 @@ class API
 		$trello = $request["trello_export"];
 
 		// create the new board
-		$newBoardID = self::CreateNewBoardInternal($trello["name"]);
+		$newBoardID = Board::createNewBoardInternal($trello["name"]);
 
 		// add labels to the board
 		$labelNames = array();
@@ -1027,41 +1017,6 @@ class API
 		DB::setParam("label_colors", $labelColorsString);
 		DB::setParam("board_id", $boardID);
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET label_names = :label_names, label_colors = :label_colors WHERE id = :board_id");
-	}
-
-	private static function CreateNewBoardInternal($title, $labelNames = "", $labelColors = "", $backgroundGUID = null)
-	{
-		try
-		{
-			DB::beginTransaction();
-		
-			// create a new board record
-			$createBoardQuery = "INSERT INTO tarallo_boards (title, label_names, label_colors, last_modified_time, background_guid)";
-			$createBoardQuery .= " VALUES (:title, :label_names, :label_colors, :last_modified_time, :background_guid)";
-			DB::setParam("title", Board::CleanBoardTitle($title));
-			DB::setParam("label_names", $labelNames);
-			DB::setParam("label_colors", $labelColors);
-			DB::setParam("last_modified_time", time());
-			DB::setParam("background_guid", $backgroundGUID);
-			$newBoardID = DB::insertWithStoredParams($createBoardQuery);
-
-			// create the owner permission record
-			$createBoardQuery = "INSERT INTO tarallo_permissions (user_id, board_id, user_type)";
-			$createBoardQuery .= " VALUES (:user_id, :board_id, :user_type)";
-			DB::setParam("user_id", $_SESSION["user_id"]);
-			DB::setParam("board_id", $newBoardID);
-			DB::setParam("user_type", Permission::USERTYPE_Owner);
-			DB::queryWithStoredParams($createBoardQuery);
-		
-			DB::commit();
-		}
-		catch(Exception $e)
-		{
-			DB::rollBack();
-			throw $e;
-		}
-
-		return $newBoardID;
 	}
 
 	private static function CleanLabelName($name)
