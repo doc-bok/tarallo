@@ -1042,4 +1042,107 @@ class Board
         return ($posA < $posB) ? -1 : 1;
     }
 
+    /**
+     * Export a board's DB data and files as a downloadable ZIP.
+     *
+     * @param array $request Must contain 'board_id' (int)
+     * @throws InvalidArgumentException if the arguments aren't valid
+     * @throws RuntimeException if there is an error reading from the database
+     * @throws Throwable for any other errors
+     */
+    public static function ExportBoard(array $request): void
+    {
+        // --- Feature gating ---
+        if (!($_SESSION['is_admin'] ?? false) && !DB::getDBSetting('board_export_enabled')) {
+            throw new RuntimeException("Board export is disabled on this server", 403);
+        }
+
+        // --- Input validation ---
+        if (!isset($request['board_id']) || !is_numeric($request['board_id'])) {
+            throw new InvalidArgumentException("Missing or invalid board_id");
+        }
+        $boardID = (int)$request['board_id'];
+        if ($boardID <= 0) {
+            throw new InvalidArgumentException("Invalid board ID");
+        }
+
+        // --- Access control ---
+        $boardData = Board::GetBoardData($boardID, Permission::USERTYPE_Moderator);
+
+        // --- Prepare export ZIP ---
+        $exportPath = Board::TEMP_EXPORT_PATH . '/export_' . uniqid('', true) . '.zip';
+        File::prepareDir(dirname($exportPath));
+
+        $zip = new ZipArchive();
+        if ($zip->open(File::ftpDir($exportPath), ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException("Export failed: zip creation error with path $exportPath", 500);
+        }
+
+        try {
+            // --- Create board data array ---
+            $boardExportData = DB::fetchRow(
+                "SELECT * FROM tarallo_boards WHERE id = :id",
+                ['id' => $boardID]
+            );
+            $boardExportData['cardlists'] = DB::fetchTable(
+                "SELECT * FROM tarallo_cardlists WHERE board_id = :board_id",
+                ['board_id' => $boardID]
+            );
+            $boardExportData['cards'] = DB::fetchTable(
+                "SELECT * FROM tarallo_cards WHERE board_id = :board_id",
+                ['board_id' => $boardID]
+            );
+            $boardExportData['attachments'] = DB::fetchTable(
+                "SELECT * FROM tarallo_attachments WHERE board_id = :board_id",
+                ['board_id' => $boardID]
+            );
+            $boardExportData['db_version'] = DB::getDBSetting("db_version");
+
+            // --- Add db.json to ZIP ---
+            $jsonData = json_encode($boardExportData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            if ($jsonData === false) {
+                throw new RuntimeException("Failed to encode board export JSON");
+            }
+            if (!$zip->addFromString("db.json", $jsonData)) {
+                throw new RuntimeException("Export failed: could not add db.json to zip");
+            }
+
+            // --- Add board files to ZIP ---
+            $boardBaseDir = File::ftpDir("boards/$boardID/");
+            if (is_dir($boardBaseDir)) {
+                $iterator = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($boardBaseDir, FilesystemIterator::SKIP_DOTS)
+                );
+                foreach ($iterator as $filePath => $fileInfo) {
+                    if ($fileInfo->isFile()) {
+                        // Security: ensure path is inside base dir
+                        if (!str_starts_with(realpath($filePath), realpath($boardBaseDir))) {
+                            Logger::warning("ExportBoard: Skipping file outside board dir: $filePath");
+                            continue;
+                        }
+                        $zipPath = ltrim(str_replace($boardBaseDir, '', $filePath), '/\\');
+                        if (!$zip->addFile($filePath, $zipPath)) {
+                            throw new RuntimeException("Failed to add file: $zipPath");
+                        }
+                    }
+                }
+            }
+
+            // --- Finish ZIP ---
+            $zip->close();
+        } catch (Throwable $e) {
+            $zip->close();
+            File::deleteFile($exportPath);
+            Logger::error("ExportBoard: Failed for board $boardID - " . $e->getMessage());
+            throw $e;
+        }
+
+        // --- Send file as download ---
+        $downloadName = "export - " . preg_replace('/[^\w\- ]+/u', '', strtolower($boardData['title'])) .
+            " " . date("Y-m-d H-i-s") . ".zip";
+        File::outputFile($exportPath, File::getMimeType('zip'), $downloadName, true);
+
+        // Optionally clean up immediately after download if outputFile streams
+        //File::deleteFile($exportPath);
+    }
 }

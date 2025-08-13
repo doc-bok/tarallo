@@ -220,82 +220,9 @@ class API
 		return Permission::requestBoardAccess($request);
 	}
 
-	public static function ExportBoard($request)
+	public static function ExportBoard(array $request): void
 	{
-		if (!$_SESSION["is_admin"] && !DB::getDBSetting("board_export_enabled"))
-		{
-			http_response_code(403);
-			exit("Board export is disabled on this server!");
-		}
-
-		// query and validate board id and access level
-		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Moderator);
-		$boardId = $boardData["id"];
-
-		// create a zip for the export
-		$exportPath = Board::TEMP_EXPORT_PATH;
-		File::prepareDir($exportPath);
-		$exportZip = new ZipArchive();
-
-		if (!$exportZip->open(File::ftpDir($exportPath), ZipArchive::CREATE | ZipArchive::OVERWRITE))
-		{
-			http_response_code(500);
-			exit("Export failed: zip creation error.");
-		}
-
-		// create a board data struct
-		DB::setParam("id", $boardId);
-		$boardExportData = DB::fetchRowWithStoredParams("SELECT * FROM tarallo_boards WHERE id = :id");
-		DB::setParam("board_id", $boardId);
-		$boardExportData["cardlists"] = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_cardlists WHERE board_id = :board_id");
-		DB::setParam("board_id", $boardId);
-		$boardExportData["cards"] = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_cards WHERE board_id = :board_id");
-		DB::setParam("board_id", $boardId);
-		$boardExportData["attachments"] = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_attachments WHERE board_id = :board_id");
-		$boardExportData["db_version"] = DB::getDBSetting("db_version");
-
-		// add the data struct to the zip as json
-		$exportDataJsonPath = "temp/export.json";
-		File::writeToFile($exportDataJsonPath, json_encode($boardExportData));
-		if (!$exportZip->addFile(File::ftpDir($exportDataJsonPath), "db.json"))
-		{
-			http_response_code(500);
-			exit("Export failed: failed to add db data.");
-		}
-
-		// add the whole board folder (attachments + background)
-		$boardBaseDir = File::ftpDir("boards/$boardId/");
-		$dirIterator = new RecursiveDirectoryIterator($boardBaseDir);
-		$fileIterator = new RecursiveIteratorIterator($dirIterator, RecursiveIteratorIterator::SELF_FIRST);
-
-		foreach ($fileIterator as $file) {
-			if ($file->isDir())
-				continue;
-
-			$absFilePath = $file->getRealPath();
-			$zippedFilePath = str_replace($boardBaseDir, '', $absFilePath);
-			if (!$exportZip->addFile($absFilePath, $zippedFilePath))
-			{
-				http_response_code(500);
-				exit("Export failed: failed to add attachments.");
-			}
-		}
-
-		// finalize the zip file
-		if ($exportZip->status != ZIPARCHIVE::ER_OK)
-		{
-			http_response_code(500);
-			exit("Export failed: zip status error.");
-		}
-		if (!$exportZip->close())
-		{
-			http_response_code(500);
-			exit("Export failed: cannot close zip file.");
-		}
-
-		//output zip file as download
-		$downloadName =  "export - " . strtolower($boardData["title"]) . " " . date("Y-m-d H-i-s")  . ".zip";
-		File::outputFile($exportPath, File::getMimeType("zip"), $downloadName, true);
+		Board::exportBoard($request);
 	}
 
 	public static function UploadChunk($request)
