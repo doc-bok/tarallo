@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/account.php';
 require_once __DIR__ . '/board.php';
+require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/permission.php';
 
 class Page
@@ -106,7 +108,7 @@ class Page
             }
         }
 
-        $settings = DB::GetDBSettings();
+        $settings = DB::getDBSettings();
 
         return [
             'page_name'    => 'BoardList',
@@ -115,6 +117,42 @@ class Page
                 'background_url'   => self::DEFAULT_BG,
                 'background_tiled' => true,
                 'display_name'     => $displayName
+            ])
+        ];
+    }
+
+    /**
+     * Get the page for a logged-out user based on the request.
+     * @return array Data for the page to display.
+     */
+    public static function getLoggedOutPage(): array
+    {
+        $settings = DB::getDBSettings();
+
+        // Apply DB updates if needed
+        if (DB::applyDBUpdates($settings['db_version'])) {
+            Logger::info("Database updates applied, refreshing settings cache");
+            $settings = DB::getDBSettings();
+        }
+
+        if (!empty($settings['perform_first_startup'])) {
+            Logger::info("First startup detected — creating admin account");
+            $adminAccount = Account::createNewAdminAccount();
+            DB::setDBSetting('perform_first_startup', 0);
+
+            return [
+                'page_name' => 'FirstStartup',
+                'page_content' => array_merge($settings, [
+                    'admin_user' => $adminAccount['username'],
+                    'admin_pass' => $adminAccount['password']
+                ])
+            ];
+        }
+
+        return [
+            'page_name' => 'Login',
+            'page_content' => array_merge($settings, [
+                'background_img_url' => Board::DEFAULT_BG
             ])
         ];
     }

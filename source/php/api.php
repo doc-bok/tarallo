@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/account.php';
 require_once __DIR__ . '/attachment.php';
 require_once __DIR__ . '/board.php';
 require_once __DIR__ . '/card.php';
@@ -47,43 +48,6 @@ class API
 	const userId_MIN = self::userId_ONREGISTER; // this should be the minimun special user ID
 
     /**
-     * Get the page for a logged-out user based on the request.
-     * @param array $request The request parameters.
-     * @return array Data for the page to display.
-     */
-    private static function getLoggedOutPage(array $request): array
-    {
-        $settings = DB::GetDBSettings();
-
-        // Apply DB updates if needed
-        if (self::ApplyDBUpdates($settings['db_version'])) {
-            Logger::info("Database updates applied, refreshing settings cache");
-            $settings = DB::GetDBSettings();
-        }
-
-        if (!empty($settings['perform_first_startup'])) {
-            Logger::info("First startup detected — creating admin account");
-            $adminAccount = self::CreateNewAdminAccount();
-            self::SetDBSetting('perform_first_startup', 0);
-
-            return [
-                'page_name' => 'FirstStartup',
-                'page_content' => array_merge($settings, [
-                    'admin_user' => $adminAccount['username'],
-                    'admin_pass' => $adminAccount['password']
-                ])
-            ];
-        }
-
-        return [
-            'page_name' => 'Login',
-            'page_content' => array_merge($settings, [
-                'background_img_url' => Board::DEFAULT_BG
-            ])
-        ];
-    }
-
-    /**
      * Request the page that should be displayed for the current state.
      * @param array $request The request parameters.
      * @return array Data for the page to display.
@@ -100,7 +64,7 @@ class API
             }
 
             // Logged out flow
-            return self::getLoggedOutPage($request);
+            return Page::getLoggedOutPage();
 
         } catch (Throwable $e) {
             Logger::error("GetCurrentPage: Unhandled exception - " . $e->getMessage());
@@ -148,7 +112,7 @@ class API
             }
         }
 
-        $settings = DB::GetDBSettings();
+        $settings = DB::getDBSettings();
 
         return [
             'page_name'    => 'BoardList',
@@ -254,7 +218,7 @@ class API
     {
         Session::EnsureSession();
 
-        $settings = DB::GetDBSettings();
+        $settings = DB::getDBSettings();
         if (empty($settings['registration_enabled'])) {
             Logger::warning("Register: Registration disabled");
             http_response_code(403);
@@ -301,7 +265,7 @@ class API
         }
 
         // Create user
-        $userId = self::AddUserInternal($username, $password, $displayName);
+        $userId = Account::addUserInternal($username, $password, $displayName);
         if (!$userId) {
             Logger::error("Register: Failed to create user '$username'");
             http_response_code(500);
@@ -2121,31 +2085,6 @@ class API
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET label_names = :label_names, label_colors = :label_colors WHERE id = :board_id");
 	}
 
-	private static function ApplyDBUpdates($dbVersion)
-	{
-		$anyUpdateApplied = false;
-		$cleanVersion = (int)str_replace("1-", "", $dbVersion); // clean old version format
-
-		// check if new updates are available and apply them
-		do
-		{
-			// check if the next version patch file exists
-			$nextVersion = $cleanVersion + 1;
-			$dbUpdatePatch = "dbpatch/update_{$cleanVersion}_to_{$nextVersion}.sql";
-			
-			// try applying this patch
-			if (!DB::TryApplyingDBPatch($dbUpdatePatch))
-				break; // not available, db is up to date!
-
-			// check the next version
-			$cleanVersion = $nextVersion;
-			$anyUpdateApplied = true;
-
-		} while(true);
-
-		return $anyUpdateApplied;
-	}
-
 	private static function DeleteAttachmentFiles($attachmentRecord)
 	{
 		$attachmentPath = self::GetAttachmentFilePathFromRecord($attachmentRecord);
@@ -2667,13 +2606,6 @@ class API
 		return DB::fetchOneWithStoredParams("SELECT value FROM tarallo_settings WHERE name = :name");
 	}
 
-	private static function SetDBSetting($name, $value)
-	{
-		DB::setParam("name", $name);
-		DB::setParam("value", $value);
-		return DB::queryWithStoredParams("UPDATE tarallo_settings SET value = :value WHERE name = :name");
-	}
-
 	private static function UsernameExists($username) 
 	{
 		// check if the specified username already exists
@@ -2681,50 +2613,6 @@ class API
 		DB::setParam("username", $username);
 
 		return DB::fetchOneWithStoredParams($userQuery);
-	}
-
-	private static function AddUserInternal($username, $password, $displayName, $isAdmin = false)
-	{
-		// add the new user record to the DB
-		$passwordHash = password_hash($password, PASSWORD_DEFAULT);
-		$addUserQuery = "INSERT INTO tarallo_users (username, password, display_name, register_time, last_access_time, is_admin)";
-		$addUserQuery .= " VALUES(:username, :password, :display_name, :register_time, 0, :is_admin)";
-		DB::setParam("username", $username);
-		DB::setParam("password", $passwordHash);
-		DB::setParam("display_name", $displayName);
-		DB::setParam("register_time", time());
-		DB::setParam("is_admin", $isAdmin ? 1 : 0);
-		$userId = DB::insertWithStoredParams($addUserQuery);
-		return $userId;
-	}
-
-	private static function CreateNewAdminAccount()
-	{
-		$account = array();
-		$account["username"] = "admin";
-
-		// find the first available admin* account name
-		{
-			$userQuery = "SELECT username FROM tarallo_users where username LIKE 'admin%'";
-			$usedAdminNames = DB::fetchArrayWithStoredParams($userQuery, "username");
-			for ($i = 0; in_array($account["username"], $usedAdminNames); $account["username"] = "admin" . ++$i) ;
-		}
-
-		// generate a random password for it
-		{
-			$passBytes = openssl_random_pseudo_bytes(24);
-			$account["password"] = rtrim(strtr(base64_encode($passBytes), '+/', '-_'), '=');
-		}
-	
-		// add the new user record to the DB
-		$account["id"] = self::AddUserInternal($account["username"], $account["password"], "Admin", true);
-		if (!$account["id"])
-		{
-			http_response_code(500);
-			exit("Failed to create admin account (DB error).");
-		}
-
-		return $account;
 	}
 }
 

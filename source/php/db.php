@@ -434,7 +434,7 @@ class DB {
             Logger::warning("Database not initialised — attempting init");
             Session::LogoutInternal();
 
-            if (!self::TryApplyingDBPatch(self::INIT_DB_PATCH)) {
+            if (!self::tryApplyingDBPatch(self::INIT_DB_PATCH)) {
                 Logger::error("DB init failed - corrupted or missing patch");
                 throw new RuntimeException("Database initialisation failed or DB is corrupted");
             }
@@ -446,7 +446,7 @@ class DB {
      * @param string $sqlFilePath
      * @return array { success: bool, message: string }
      */
-    public static function TryApplyingDBPatch(string $sqlFilePath): array
+    public static function tryApplyingDBPatch(string $sqlFilePath): array
     {
         // Check that the patch file exists and is readable
         if (!File::fileExists($sqlFilePath)) {
@@ -489,7 +489,7 @@ class DB {
      * Fetch all settings from the database as an associative array.
      * @return array<string,string>  Key/value pairs of settings.
      */
-    public static function GetDBSettings(): array
+    public static function getDBSettings(): array
     {
         static $settingsCache = null;
 
@@ -511,6 +511,95 @@ class DB {
         $settingsCache = $rows;
 
         return $settingsCache;
+    }
+
+    /**
+     * Apply sequential DB update patches starting from a given version.
+     * @param int|string $dbVersion Current DB schema version (e.g. "1-45" or 45).
+     * @return bool                 True if one or more updates were applied, false otherwise.
+     */
+    public static function applyDBUpdates(int|string $dbVersion): bool
+    {
+        $anyUpdateApplied = false;
+
+        // Sanitize and normalize version (handles "1-123" legacy format)
+        $cleanVersion = (int) str_replace('1-', '', (string) $dbVersion);
+        if ($cleanVersion < 0) {
+            Logger::error("ApplyDBUpdates: Invalid starting version '$dbVersion'");
+            return false;
+        }
+
+        // Define the patch directory (prefer from config)
+        $patchDir = defined('DB_PATCH_DIR') ? DB_PATCH_DIR : __DIR__ . '/dbpatch';
+
+        Logger::info("ApplyDBUpdates: Starting from version $cleanVersion");
+
+        while (true) {
+            $nextVersion = $cleanVersion + 1;
+            $patchFile   = "$patchDir/update_{$cleanVersion}_to_$nextVersion.sql";
+
+            if (!File::fileExists($patchFile)) {
+                Logger::info("ApplyDBUpdates: No patch file for $cleanVersion → $nextVersion, DB is up-to-date.");
+                break;
+            }
+
+            try {
+                Logger::info("ApplyDBUpdates: Applying patch $patchFile");
+                $result = self::tryApplyingDBPatch($patchFile);
+
+                if (!$result['success'] ?? !$result) {
+                    Logger::warning("ApplyDBUpdates: Failed to apply $patchFile - " . ($result['message'] ?? 'Unknown error'));
+                    break; // stop upgrading on first failure
+                }
+
+                $cleanVersion     = $nextVersion;
+                $anyUpdateApplied = true;
+
+            } catch (Throwable $e) {
+                Logger::error("ApplyDBUpdates: Exception applying $patchFile - " . $e->getMessage());
+                break; // stop updates; leave DB in known last applied state
+            }
+        }
+
+        return $anyUpdateApplied;
+    }
+
+    /**
+     * Update a named DB setting's value.
+     * @param string $name   Setting name (must exist in tarallo_settings)
+     * @param mixed  $value  New value (will be cast to string in DB)
+     * @return bool          True if a row was updated, false if setting not found or unchanged.
+     * @throws RuntimeException On invalid input or DB error.
+     */
+    public static function setDBSetting(string $name, mixed $value): bool
+    {
+        $name = trim($name);
+        if ($name === '') {
+            throw new RuntimeException("Setting name cannot be empty.");
+        }
+
+        try {
+            $rowsAffected = DB::query(
+                "UPDATE tarallo_settings 
+             SET value = :value
+             WHERE name = :name",
+                [
+                    'name'  => $name,
+                    'value' => (string)$value
+                ]
+            );
+        } catch (Throwable $e) {
+            Logger::error("SetDBSetting: Failed to set '$name' - " . $e->getMessage());
+            throw new RuntimeException("Database error updating setting '$name'");
+        }
+
+        $updated = ($rowsAffected > 0);
+
+        Logger::info(
+            "SetDBSetting: Setting '$name' " . ($updated ? "updated to '$value'" : "not changed/found")
+        );
+
+        return $updated;
     }
 
 
@@ -559,11 +648,5 @@ class DB {
         $params = self::$QUERY_PARAMS;
         self::$QUERY_PARAMS = [];
         return self::fetchRow($sql, $params);
-    }
-
-    public static function fetchArrayWithStoredParams(string $sql, string $fieldName): array {
-        $params = self::$QUERY_PARAMS;
-        self::$QUERY_PARAMS = [];
-        return self::fetchColumn($sql, $fieldName, $params);
     }
 }
