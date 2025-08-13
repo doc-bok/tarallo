@@ -691,20 +691,6 @@ class DB {
         return self::query($sql, $params);
     }
 
-    public static function insertWithStoredParams(string $sql): string
-    {
-        $params = self::$QUERY_PARAMS;
-        self::$QUERY_PARAMS = [];
-        return self::insert($sql, $params);
-    }
-
-    public static function fetchOneWithStoredParams(string $sql): mixed
-    {
-        $params = self::$QUERY_PARAMS;
-        self::$QUERY_PARAMS = [];
-        return self::fetchOne($sql, $params);
-    }
-
     public static function fetchTableWithStoredParams(string $sql): array
     {
         $params = self::$QUERY_PARAMS;

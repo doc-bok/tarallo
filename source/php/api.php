@@ -41,7 +41,6 @@ echo json_encode($response);
 class API
 {
 	const MAX_LABEL_COUNT = 24;
-	const MAX_LABEL_FIELD_LEN = 400;
 
     public static function GetCurrentPage(array $request): array
     {
@@ -183,178 +182,9 @@ class API
 		return Board::importBoard();
 	}
 
-	public static function ImportFromTrello($request) 
+	public static function ImportFromTrello(array $request): array
 	{
-		if (!$_SESSION["is_admin"] && !DB::getDBSetting("trello_import_enabled"))
-		{
-			http_response_code(403);
-			exit("Importing boards from Trello is disabled on this server!");
-		}
-
-		if (!Session::isUserLoggedIn())
-		{
-			http_response_code(403);
-			exit("Cannot create a new board without being logged in.");
-		}
-
-		// check the next available card id
-		$nextCardID = DB::fetchOneWithStoredParams("SELECT MAX(id) FROM tarallo_cards") + 1;
-
-		$trello = $request["trello_export"];
-
-		// create the new board
-		$newBoardID = Board::createNewBoardInternal($trello["name"]);
-
-		// add labels to the board
-		$labelNames = array();
-		$labelColors = array();
-		foreach ($trello["labelNames"] as $key => $value) 
-		{
-			if (strlen($value) > 0)
-			{
-				$labelNames[] = self::CleanLabelName($value);
-				$labelColors[] = Label::DEFAULT_LABEL_COLORS[count($labelColors) % count(Label::DEFAULT_LABEL_COLORS)];
-			}
-		}
-		if (count($labelNames) > 0)
-		{
-			self::UpdateBoardLabelsInternal($newBoardID, $labelNames, $labelColors);
-		}
-
-		// prerare cards and lists data
-		$trelloLists = $trello["lists"];
-		$cardlistCount = count($trelloLists);
-		$trelloCards = $trello["cards"];
-		$cardCount = count($trelloCards);
-		$prevCardlistID = 0;
-		$clistCount = count($trello["checklists"]);
-
-		// foreach list...
-		for ($iList = 0; $iList < $cardlistCount; $iList++) 
-		{
-			$curTrelloList = $trelloLists[$iList];
-
-			if ($curTrelloList["closed"])
-				continue; // skip archived trello lists
-
-			// create the list
-			$newCardlistData = CardList::addNewCardListInternal($newBoardID, $prevCardlistID, $curTrelloList["name"]);
-			$newCardlistID = $newCardlistData["id"];
-
-
-			// collect the trello cards for this list
-			$curTrelloCards = array();
-			$curTrelloListID = $curTrelloList["id"];
-			for ($iCard = 0; $iCard < $cardCount; $iCard++) 
-			{
-				if ($trelloCards[$iCard]["closed"] || // card is archived (not supported, just discard)
-					($trelloCards[$iCard]["idList"] !== $curTrelloListID)) // the card is from another list
-				{
-					continue; 
-				}
-
-				$curTrelloCards[] = $trelloCards[$iCard];
-			}
-
-			$listCardCount = count($curTrelloCards);
-			
-			if ($listCardCount > 0)
-			{
-				// sort cards in this list
-				usort($curTrelloCards, [API::class, "CompareTrelloSortedItems"]);
-
-				// prepare a query to add all the cards for this list
-				$addCardsQuery = "INSERT INTO tarallo_cards (id, title, content, prev_card_id, next_card_id, cardlist_id, board_id, cover_attachment_id, last_moved_time, label_mask) VALUES ";
-				$recordPlaceholders = "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-				// foreach card...
-				for ($iCard = 0; $iCard < $listCardCount; $iCard++) 
-				{
-					$curTrelloCard = $curTrelloCards[$iCard];
-
-					// convert due date to last moved time
-					$lastMovedTime = 0;
-					if (strlen($curTrelloCard["due"]) > 0)
-					{
-						$trelloDueDate = DateTime::createFromFormat("Y-m-d*H:i:s.v+", $curTrelloCard["due"]);
-						if ($trelloDueDate)
-							$lastMovedTime = $trelloDueDate->getTimestamp();
-					}
-
-					// convert card labels into a mask
-					$labelMask = 0;
-					foreach($curTrelloCard["labels"] as $trelloCardLabel)
-					{
-						$labelIndex = array_search($trelloCardLabel["name"], $labelNames);
-						if ($labelIndex !== false)
-							$labelMask += 1 << $labelIndex;
-					}
-
-					//convert all checklists to markup
-					$clistContent = "";
-					$clistCardCount = count($curTrelloCard["idChecklists"]);
-					for ($iCardChk = 0; $iCardChk < $clistCardCount; $iCardChk++)
-					{
-						$chkGUID = $curTrelloCard["idChecklists"][$iCardChk];
-
-						$cardChk = false;
-						for($iChk = 0; $iChk < $clistCount; $iChk++)
-						{
-							if ($trello["checklists"][$iChk]["id"] === $chkGUID)
-							{
-								$cardChk = $trello["checklists"][$iChk];
-								break;
-							}
-						}
-
-						if (!$cardChk)
-							continue; // checklist reference not found in the trello export?
-
-						// sort checklist items
-						usort($cardChk["checkItems"], [API::class, "CompareTrelloSortedItems"]);
-
-						// convert checklist to markup
-						$clistContent .= "\n## " . $cardChk["name"]; // title
-						$chkItemsCount = count($cardChk["checkItems"]);
-						for ($iItem = 0; $iItem < $chkItemsCount; $iItem++)
-						{
-							$chkItem = $cardChk["checkItems"][$iItem];
-							$checkedStr = $chkItem["state"] == "complete" ? "x" : " ";
-							$clistContent .= "\n- [$checkedStr] " . $chkItem["name"]; // item
-						}
-
-						// checklist termination
-						$clistContent .= "\n";
-					}
-
-					// add query parameters
-					DB::$QUERY_PARAMS[] = $nextCardID; // id
-					DB::$QUERY_PARAMS[] = $curTrelloCard["name"]; // title
-					DB::$QUERY_PARAMS[] = $curTrelloCard["desc"] . $clistContent; // content
-					DB::$QUERY_PARAMS[] = $iCard == 0 ? 0 : ($nextCardID - 1); // prev_card_id
-					DB::$QUERY_PARAMS[] = $iCard == ($listCardCount - 1) ? 0 : ($nextCardID + 1);// next_card_id
-					DB::$QUERY_PARAMS[] = $newCardlistID;// cardlist_id
-					DB::$QUERY_PARAMS[] = $newBoardID;// board_id
-					DB::$QUERY_PARAMS[] = 0;// cover_attachment_id
-					DB::$QUERY_PARAMS[] = $lastMovedTime; // last_moved_time
-					DB::$QUERY_PARAMS[] = $labelMask;// label_mask
-
-					// add query format
-					$addCardsQuery .= ($iCard > 0 ? ", " : "") . $recordPlaceholders;
-
-					$nextCardID++;
-
-				} // end foreach card
-
-				// add all the cards for this list to the DB
-				DB::queryWithStoredParams($addCardsQuery);
-			}
-
-			$prevCardlistID = $newCardlistID;
-
-		} // end foreach list
-
-		// re-query and return the new board data
-		return Board::GetBoardData((int)$newBoardID);
+		return Board::importFromTrello($request);
 	}
 
 	public static function CreateBoardLabel($request)
@@ -395,7 +225,7 @@ class API
 		$boardLabelColors[$labelIndex] = $newLabelColor;
 
 		// update the board
-		self::UpdateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
+		Label::updateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
 		DB::updateBoardModifiedTime($request["board_id"]);
 
 		// return the updated labels
@@ -424,11 +254,11 @@ class API
 
 		// update the label name and color
 		$labelIndex = $request["index"];
-		$boardLabelNames[$labelIndex] = self::CleanLabelName($request["name"]);
+		$boardLabelNames[$labelIndex] = Label::CleanLabelName($request["name"]);
 		$boardLabelColors[$labelIndex] = $request["color"];
 
 		// update the board
-		self::UpdateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
+		Label::updateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
 		DB::updateBoardModifiedTime($request["board_id"]);
 
 		// return the updated label
@@ -469,7 +299,7 @@ class API
 		}
 
 		// update the board
-		self::UpdateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
+		Label::updateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
 		DB::updateBoardModifiedTime($request["board_id"]);
 
 		// remove the label flag from all the cards of this board
@@ -767,29 +597,6 @@ class API
 		$response = array();
 		$response["size"] = filesize(File::ftpDir($destFilePath));
 		return $response;
-	}
-
-	private static function UpdateBoardLabelsInternal($boardID, $labelNames, $labelColors)
-	{
-		$labelsString = implode(",", $labelNames);
-		$labelColorsString = implode(",", $labelColors);
-
-		if (strlen($labelsString) >= self::MAX_LABEL_FIELD_LEN || strlen($labelColorsString) >= self::MAX_LABEL_FIELD_LEN)
-		{
-			http_response_code(400);
-			exit("The label configuration cannot be saved.");
-		}
-
-		DB::setParam("label_names", $labelsString);
-		DB::setParam("label_colors", $labelColorsString);
-		DB::setParam("board_id", $boardID);
-		DB::queryWithStoredParams("UPDATE tarallo_boards SET label_names = :label_names, label_colors = :label_colors WHERE id = :board_id");
-	}
-
-	private static function CleanLabelName($name)
-	{
-		$name = str_replace(',', ' ', $name);
-		return substr($name, 0, 32);
 	}
 
 	private static function CompareTrelloSortedItems($a, $b)

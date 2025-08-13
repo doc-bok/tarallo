@@ -869,4 +869,158 @@ class Board
         File::deleteFile(self::TEMP_EXPORT_PATH);
     }
 
+    /**
+     * Import a board from Trello
+     * @param array $request The request parameters
+     * @return array The newly created board
+     */
+    public static function importFromTrello(array $request): array
+    {
+        // Feature flag & permission check
+        if (!($_SESSION['is_admin'] ?? false) && !DB::getDBSetting('trello_import_enabled')) {
+            throw new RuntimeException("Trello import disabled", 403);
+        }
+        if (!Session::isUserLoggedIn()) {
+            throw new RuntimeException("Must be logged in to import board", 403);
+        }
+
+        if (empty($request['trello_export']) || !is_array($request['trello_export'])) {
+            throw new InvalidArgumentException("Missing or invalid Trello export data");
+        }
+        $trello = $request['trello_export'];
+
+        // Validate required top-level keys
+        foreach (['name', 'labelNames', 'lists', 'cards', 'checklists'] as $key) {
+            if (!isset($trello[$key])) {
+                throw new InvalidArgumentException("Trello export missing key: $key");
+            }
+        }
+
+        // Prepare DB
+        $nextCardID = (int) DB::fetchOne("SELECT MAX(id) FROM tarallo_cards") + 1;
+
+        DB::beginTransaction();
+        try {
+            // 1. Create board
+            $newBoardID = Board::createNewBoardInternal((string) $trello['name']);
+
+            // 2. Prepare & add labels
+            $labelNames = [];
+            $labelColors = [];
+            foreach ($trello['labelNames'] as $val) {
+                $val = trim((string)$val);
+                if ($val !== '') {
+                    $labelNames[] = Label::CleanLabelName($val);
+                    $labelColors[] = Label::DEFAULT_LABEL_COLORS[count($labelColors) % count(Label::DEFAULT_LABEL_COLORS)];
+                }
+            }
+            if ($labelNames) {
+                Label::UpdateBoardLabelsInternal($newBoardID, $labelNames, $labelColors);
+            }
+
+            // 3. Iterate lists
+            $prevCardlistID = 0;
+            foreach ($trello['lists'] as $trelloList) {
+                if (!empty($trelloList['closed'])) {
+                    continue; // skip archived
+                }
+
+                $newListData = CardList::addNewCardListInternal(
+                    $newBoardID,
+                    $prevCardlistID,
+                    trim((string)$trelloList['name'])
+                );
+                $newCardlistID = $newListData['id'];
+
+                // Filter cards for this list & skip archived
+                $cardsForList = array_filter($trello['cards'], function ($c) use ($trelloList) {
+                    return !$c['closed'] && $c['idList'] === $trelloList['id'];
+                });
+
+                if ($cardsForList) {
+                    usort($cardsForList, [API::class, 'CompareTrelloSortedItems']);
+                    self::bulkInsertCardsFromTrello($cardsForList, $newCardlistID, $newBoardID, $labelNames, $nextCardID, $trello['checklists']);
+                }
+
+                $prevCardlistID = $newCardlistID;
+            }
+
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Logger::error("Trello import failed: " . $e->getMessage());
+            throw new RuntimeException("Board import from Trello failed");
+        }
+
+        return Board::GetBoardData($newBoardID);
+    }
+
+    /**
+     * Insert cards from Trello in bulk
+     * @param array $cards The cards to add
+     * @param int $listID The card list ID
+     * @param int $boardID The board ID
+     * @param array $labelNames The label names
+     * @param int $nextCardID The next card ID
+     * @param array $allChecklists The checklists
+     */
+    private static function bulkInsertCardsFromTrello(array $cards, int $listID, int $boardID, array $labelNames, int &$nextCardID, array $allChecklists): void
+    {
+        $placeholders = [];
+        $params = [];
+
+        $lastIndex = count($cards) - 1;
+        foreach (array_values($cards) as $i => $card) {
+            // Last moved time from due date
+            $lastMovedTime = 0;
+            if (!empty($card['due'])) {
+                $due = DateTime::createFromFormat("Y-m-d*H:i:s.v+", $card['due']);
+                if ($due) $lastMovedTime = $due->getTimestamp();
+            }
+
+            // Label mask
+            $labelMask = 0;
+            foreach ($card['labels'] ?? [] as $label) {
+                $idx = array_search($label['name'], $labelNames, true);
+                if ($idx !== false) {
+                    $labelMask |= (1 << $idx);
+                }
+            }
+
+            // Checklist content markdown
+            $clistContent = '';
+            foreach ($card['idChecklists'] ?? [] as $chkId) {
+                $chkData = array_values(array_filter($allChecklists, fn($c) => $c['id'] === $chkId))[0] ?? null;
+                if (!$chkData) continue;
+
+                usort($chkData['checkItems'], [API::class, 'CompareTrelloSortedItems']);
+                $clistContent .= "\n## " . $chkData['name'];
+                foreach ($chkData['checkItems'] as $item) {
+                    $clistContent .= "\n- [" . ($item['state'] === 'complete' ? 'x' : ' ') . "] " . $item['name'];
+                }
+                $clistContent .= "\n";
+            }
+
+            // Params for one row
+            $placeholders[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+            $params[] = $nextCardID;                                  // id
+            $params[] = trim((string)$card['name']);                  // title
+            $params[] = $card['desc'] . $clistContent;        // content
+            $params[] = $i === 0 ? 0 : ($nextCardID - 1);              // prev
+            $params[] = $i === $lastIndex ? 0 : ($nextCardID + 1);     // next
+            $params[] = $listID;                                      // cardlist_id
+            $params[] = $boardID;                                     // board_id
+            $params[] = 0;                                            // cover_attachment_id
+            $params[] = $lastMovedTime;
+            $params[] = $labelMask;
+
+            $nextCardID++;
+        }
+
+        DB::query(
+            "INSERT INTO tarallo_cards (id, title, content, prev_card_id, next_card_id, cardlist_id, board_id, cover_attachment_id, last_moved_time, label_mask) VALUES " .
+            implode(',', $placeholders),
+            $params
+        );
+    }
 }
