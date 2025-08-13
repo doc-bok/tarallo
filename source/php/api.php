@@ -2,11 +2,18 @@
 
 declare(strict_types=1);
 
-require_once 'config.php';
-require_once 'db.php';
-require_once 'file.php';
-require_once 'json.php';
-require_once 'utils.php';
+require_once __DIR__ . '/attachment.php';
+require_once __DIR__ . '/board.php';
+require_once __DIR__ . '/card.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/file.php';
+require_once __DIR__ . '/json.php';
+require_once __DIR__ . '/label.php';
+require_once __DIR__ . '/page.php';
+require_once __DIR__ . '/permission.php';
+require_once __DIR__ . '/session.php';
+require_once __DIR__ . '/utils.php';
 
 // page initialization
 header('Content-Type: application/json; charset=utf-8');
@@ -16,7 +23,7 @@ session_start(['cookie_samesite' => 'Strict',]);
 $request = Json::decodePostJSON(); // params posted as json
 $request = array_merge($request == null ? array() : $request, $_GET); // params added to the url
 
-// check the the api call name has been specified
+// check the api call name has been specified
 // and it's a valid API call
 if (!isset($request['OP']) || !method_exists("API", $request['OP'])) {
 	http_response_code(400);
@@ -31,61 +38,13 @@ echo json_encode($response);
 // contains all the tarallo api calls
 class API
 {
-	const DEFAULT_BG = "images/tarallo-bg.jpg";
-	const DEFAULT_BOARDTILE_BG = "images/boardtile-bg.jpg";
-	const DEFAULT_LABEL_COLORS = array("red", "orange", "yellow", "green", "cyan", "azure", "blue", "purple", "pink", "grey");
 	const MAX_LABEL_COUNT = 24;
 	const MAX_LABEL_FIELD_LEN = 400;
 	const TEMP_EXPORT_PATH = "temp/export.zip";
 
-	// user types for the permission table
-	const USERTYPE_Owner = 0; // full-control of the board
-	const USERTYPE_Moderator = 2; // full-control of the board, except a few functionalities like board permanent deletion
-	const USERTYPE_Member = 6; // full-control of the cards but no access to board layout and options
-	const USERTYPE_Observer = 8; // read-only access to the board
-	const USERTYPE_Guest = 9; // no access, but user requested to join the board
-	const USERTYPE_Blocked = 10; // no access (blocked by a board moderator)
-	const USERTYPE_None = 11; // no access (no record on db)
-
 	// special user IDs
 	const userId_ONREGISTER = -1; // if a permission record on the permission table has this user_id, the permission will be copied to any new registered user
 	const userId_MIN = self::userId_ONREGISTER; // this should be the minimun special user ID
-
-    const INIT_DB_PATCH = "dbpatch/init_db.sql";
-
-    /**
-     * Check if the database exists and initialise it if it isn't.
-     */
-    private static function initDatabaseIfNeeded(): void
-    {
-        $dbExists = ((int) DB::fetchOne(
-                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'tarallo_settings'"
-            )) > 0;
-
-        if (!$dbExists) {
-            Logger::warning("Database not initialised — attempting init");
-            self::LogoutInternal();
-
-            if (!self::TryApplyingDBPatch(self::INIT_DB_PATCH)) {
-                Logger::error("DB init failed - corrupted or missing patch");
-                throw new RuntimeException("Database initialisation failed or DB is corrupted");
-            }
-        }
-    }
-
-    /**
-     * Get the page for a logged-in user based on the request.
-     * @param array $request The request parameters.
-     * @return array Data for the page to display.
-     */
-    private static function getLoggedInPage(array $request): array
-    {
-        if (isset($request['board_id'])) {
-            return self::GetBoardPage($request);
-        }
-
-        return self::getBoardListPage();
-    }
 
     /**
      * Get the page for a logged-out user based on the request.
@@ -94,12 +53,12 @@ class API
      */
     private static function getLoggedOutPage(array $request): array
     {
-        $settings = self::GetDBSettings();
+        $settings = DB::GetDBSettings();
 
         // Apply DB updates if needed
         if (self::ApplyDBUpdates($settings['db_version'])) {
             Logger::info("Database updates applied, refreshing settings cache");
-            $settings = self::GetDBSettings();
+            $settings = DB::GetDBSettings();
         }
 
         if (!empty($settings['perform_first_startup'])) {
@@ -119,7 +78,7 @@ class API
         return [
             'page_name' => 'Login',
             'page_content' => array_merge($settings, [
-                'background_img_url' => self::DEFAULT_BG
+                'background_img_url' => Board::DEFAULT_BG
             ])
         ];
     }
@@ -133,11 +92,11 @@ class API
     {
         try {
             // Ensure DB exists or initialise
-            self::initDatabaseIfNeeded();
+            DB::initDatabaseIfNeeded();
 
             // Logged in?
             if (isset($_SESSION['logged_in'])) {
-                return self::getLoggedInPage($request);
+                return Page::getLoggedInPage($request);
             }
 
             // Logged out flow
@@ -159,7 +118,7 @@ class API
      */
     public static function GetBoardListPage(): array
     {
-        self::EnsureSession();
+        Session::EnsureSession();
 
         if (empty($_SESSION['user_id'])) {
             Logger::error("GetBoardListPage: No user_id in session");
@@ -182,71 +141,29 @@ class API
         foreach ($results as $boardId) {
             try {
                 // Use GetBoardData to enforce permissions and formatting
-                $board = self::GetBoardData((int)$boardId, self::USERTYPE_Observer);
+                $board = Board::GetBoardData((int)$boardId, Permission::USERTYPE_Observer);
                 $boardList[] = $board;
             } catch (RuntimeException $e) {
                 Logger::debug("GetBoardListPage: Skipping board $boardId - " . $e->getMessage());
             }
         }
 
-        $settings = self::GetDBSettings();
+        $settings = DB::GetDBSettings();
 
         return [
             'page_name'    => 'BoardList',
             'page_content' => array_merge($settings, [
                 'boards'           => $boardList,
-                'background_url'   => self::DEFAULT_BG,
+                'background_url'   => Board::DEFAULT_BG,
                 'background_tiled' => true,
                 'display_name'     => $displayName
             ])
         ];
     }
-
-    /**
-     * Get the page for a single board.
-     * @param array $request The request parameters.
-     * @return array The page content.
-     */
+    
     public static function GetBoardPage(array $request): array
     {
-        if (empty($request['board_id'])) {
-            Logger::error("GetBoardPage: Missing 'board_id'");
-            http_response_code(400);
-            return [
-                'page_name'    => 'Error',
-                'page_content' => ['message' => 'board_id parameter is missing']
-            ];
-        }
-
-        $boardId     = (int) $request['board_id'];
-        $displayName = $_SESSION['display_name'] ?? 'Unknown';
-
-        try {
-            $boardData = self::GetBoardData($boardId, self::USERTYPE_None, true, true);
-        } catch (\RuntimeException $e) {
-            return [
-                'page_name'    => 'UnaccessibleBoard',
-                'page_content' => [
-                    'id'               => $boardId,
-                    'display_name'     => $displayName,
-                    'access_requested' => false
-                ]
-            ];
-        }
-
-        $boardData['display_name'] = $displayName;
-
-        if (!empty($boardData['closed'])) {
-            return [
-                'page_name'    => 'ClosedBoard',
-                'page_content' => $boardData
-            ];
-        }
-
-        return [
-            'page_name'    => 'Board',
-            'page_content' => $boardData
-        ];
+        return Page::getBoardPage($request);
     }
 
     /**
@@ -256,12 +173,12 @@ class API
      */
     public static function Login(array $request): array
     {
-        self::EnsureSession();
+        Session::EnsureSession();
 
         // Force logout if already logged in
         if (self::IsUserLoggedIn()) {
             Logger::info("Login: Existing session detected, logging out first");
-            self::LogoutInternal();
+            Session::LogoutInternal();
         }
 
         $username = trim($request['username'] ?? '');
@@ -335,9 +252,9 @@ class API
      */
     public static function Register(array $request): array
     {
-        self::EnsureSession();
+        Session::EnsureSession();
 
-        $settings = self::GetDBSettings();
+        $settings = DB::GetDBSettings();
         if (empty($settings['registration_enabled'])) {
             Logger::warning("Register: Registration disabled");
             http_response_code(403);
@@ -346,7 +263,7 @@ class API
 
         if (self::IsUserLoggedIn()) {
             Logger::info("Register: Existing session detected, logging out first");
-            self::LogoutInternal();
+            Session::LogoutInternal();
         }
 
         $username     = trim($request['username'] ?? '');
@@ -399,7 +316,7 @@ class API
             ['id' => self::userId_ONREGISTER]
         );
         foreach ($initialPerms as $perm) {
-            if ($perm['user_type'] == self::USERTYPE_Blocked) continue;
+            if ($perm['user_type'] == Permission::USERTYPE_Blocked) continue;
             DB::query(
                 "INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:uid, :bid, :ut)",
                 ['uid' => $userId, 'bid' => $perm['board_id'], 'ut' => $perm['user_type']]
@@ -419,7 +336,7 @@ class API
      */
     public static function Logout(array $request): array
     {
-        self::EnsureSession();
+        Session::EnsureSession();
 
         if (self::IsUserLoggedIn()) {
             Logger::info("Logout: User {$_SESSION['username']} (ID {$_SESSION['user_id']}) logging out");
@@ -427,7 +344,7 @@ class API
             Logger::debug("Logout: No user currently logged in");
         }
 
-        self::LogoutInternal();
+        Session::LogoutInternal();
         return ['success' => true];
     }
 
@@ -438,7 +355,7 @@ class API
      */
     public static function OpenCard(array $request): array
     {
-        self::EnsureSession();
+        Session::EnsureSession();
 
         $userId = $_SESSION['user_id'] ?? null;
         $cardId = isset($request['id']) ? (int) $request['id'] : 0;
@@ -463,9 +380,9 @@ class API
         }
 
         try {
-            $boardData = self::GetBoardData(
+            $boardData = Board::GetBoardData(
                 (int) $boardRow['board_id'],
-                self::USERTYPE_Observer,
+                Permission::USERTYPE_Observer,
                 false,  // no lists
                 true,   // include cards
                 true,   // include card content
@@ -494,7 +411,7 @@ class API
      */
     public static function AddNewCard(array $request): array
     {
-        self::EnsureSession();
+        Session::EnsureSession();
 
         $userId = $_SESSION['user_id'] ?? null;
         if (!$userId) {
@@ -513,7 +430,7 @@ class API
 
         // Check board permission
         try {
-            self::GetBoardData($boardId, self::USERTYPE_Member);
+            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
         } catch (RuntimeException $e) {
             Logger::warning("AddNewCard: Board $boardId not accessible to $userId");
             http_response_code(403);
@@ -555,7 +472,7 @@ class API
 
         self::UpdateBoardModifiedTime($boardId);
 
-        return self::CardRecordToData($newCardRecord);
+        return Card::cardRecordToData($newCardRecord);
     }
 
     /**
@@ -565,7 +482,7 @@ class API
      */
     public static function DeleteCard(array $request): array
     {
-        self::EnsureSession();
+        Session::EnsureSession();
 
         $userId = $_SESSION['user_id'] ?? null;
         if (!$userId) {
@@ -583,7 +500,7 @@ class API
 
         // Get board data with cards, forcing at least Member role
         try {
-            $boardData = self::GetBoardData($boardId, self::USERTYPE_Member, false, true);
+            $boardData = Board::GetBoardData($boardId, Permission::USERTYPE_Member, false, true);
         } catch (RuntimeException $e) {
             http_response_code(403);
             return ['error' => 'Access denied'];
@@ -615,19 +532,19 @@ class API
 
         return [
             'success' => true,
-            'deleted_card' => self::CardRecordToData($deletedCard)
+            'deleted_card' => Card::cardRecordToData($deletedCard)
         ];
     }
 
     /**
      * Move a card from one place to another.
-     * @param $request The request parameters.
-     * @return array|null The result of the operation.
+     * @param array $request The request parameters.
+     * @return array The result of the operation.
      * @throws Exception If the database fails to update.
      */
     public static function MoveCard(array $request): array
     {
-        self::EnsureSession();
+        Session::EnsureSession();
 
         $userId = $_SESSION['user_id'] ?? null;
         if (!$userId) {
@@ -647,7 +564,7 @@ class API
 
         // Get board data with cards to verify membership & card presence
         try {
-            $boardData = self::GetBoardData($boardId, self::USERTYPE_Member, false, true, true);
+            $boardData = Board::GetBoardData($boardId, Permission::USERTYPE_Member, false, true, true);
         } catch (RuntimeException) {
             Logger::warning("MoveCard: User $userId permission denied on board $movedCardId");
             http_response_code(403);
@@ -718,7 +635,7 @@ class API
 
         Logger::info("MoveCard: User $userId moved card $movedCardId to list $destCardlistId in board $movedCardId");
 
-        return self::CardRecordToData($newCard);
+        return Card::cardRecordToData($newCard);
     }
 
     /**
@@ -728,7 +645,7 @@ class API
      */
     public static function MoveCardList(array $request): array
     {
-        self::EnsureSession();
+        Session::EnsureSession();
 
         $userId       = $_SESSION['user_id'] ?? null;
         $boardId      = isset($request['board_id']) ? (int) $request['board_id'] : 0;
@@ -747,7 +664,7 @@ class API
 
         // Permission + board existence check
         try {
-            self::GetBoardData($boardId, self::USERTYPE_Moderator);
+            Board::GetBoardData($boardId, Permission::USERTYPE_Moderator);
         } catch (RuntimeException) {
             Logger::warning("MoveCardList: User $userId tried to move list $listId in board $boardId without permission");
             http_response_code(403);
@@ -825,7 +742,7 @@ class API
      */
     public static function UpdateCardTitle(array $request): array
     {
-        self::EnsureSession();
+        Session::EnsureSession();
 
         $userId = $_SESSION['user_id'] ?? null;
         $boardId = isset($request['board_id']) ? (int) $request['board_id'] : 0;
@@ -845,7 +762,7 @@ class API
 
         // Check board membership
         try {
-            self::GetBoardData($boardId, self::USERTYPE_Member);
+            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
         } catch (RuntimeException $e) {
             Logger::warning("UpdateCardTitle: User $userId attempted without permission on board $boardId");
             http_response_code(403);
@@ -879,7 +796,7 @@ class API
 
         Logger::info("UpdateCardTitle: User $userId updated title of card $cardId in board $boardId");
 
-        return self::CardRecordToData($cardRecord);
+        return Card::cardRecordToData($cardRecord);
     }
 
     /**
@@ -889,7 +806,7 @@ class API
      */
     public static function UpdateCardContent(array $request): array
     {
-        self::EnsureSession();
+        Session::EnsureSession();
 
         $userId    = $_SESSION['user_id'] ?? null;
         $boardId   = isset($request['board_id']) ? (int)$request['board_id'] : 0;
@@ -909,7 +826,7 @@ class API
 
         // === Permission check ===
         try {
-            self::GetBoardData($boardId, self::USERTYPE_Member);
+            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
         } catch (\RuntimeException $e) {
             Logger::warning("UpdateCardContent: User $userId tried to edit card $cardId on board $boardId without permission");
             http_response_code(403);
@@ -942,99 +859,205 @@ class API
 
         Logger::info("UpdateCardContent: User $userId updated content of card $cardId in board $boardId");
 
-        return self::CardRecordToData($cardRecord);
+        return Card::cardRecordToData($cardRecord);
     }
 
+    /**
+     * Updates a card's flags.
+     * @param array $request The request parameters.
+     * @return array The updated card data.
+     */
+    public static function UpdateCardFlags(array $request): array
+    {
+        Session::EnsureSession();
 
-	public static function UpdateCardFlags($request)
-	{
-		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"], self::USERTYPE_Member);
+        $userId  = $_SESSION['user_id'] ?? null;
+        $boardId = isset($request['board_id']) ? (int)$request['board_id'] : 0;
+        $cardId  = isset($request['id']) ? (int)$request['id'] : 0;
 
-		// query and validate card id
-		$cardRecord = self::GetCardData($request["board_id"], $request["id"]);
+        if (!$userId) {
+            http_response_code(401);
+            return ['error' => 'Not logged in'];
+        }
 
-		// calculate the flag mask
-		$cardFlagList = self::CardFlagMaskToList($cardRecord["flags"]);
-		if (isset($request["locked"]))
-			$cardFlagList["locked"] = $request["locked"];
-		$cardRecord["flags"] = self::CardFlagListToMask($cardFlagList);
+        if ($boardId <= 0 || $cardId <= 0) {
+            http_response_code(400);
+            return ['error' => 'Missing or invalid parameters'];
+        }
 
-		// update the flags in the db
-		$flagsUpdateQuery = "UPDATE tarallo_cards SET flags = :flags WHERE id = :id";
-		DB::setParam("flags", $cardRecord["flags"]);
-		DB::setParam("id", $request["id"]);
-		DB::queryWithStoredParams($flagsUpdateQuery);
+        // Permission check
+        try {
+            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
+        } catch (RuntimeException $e) {
+            Logger::warning("UpdateCardFlags: User $userId tried to update flags on card $cardId in board $boardId without permission");
+            http_response_code(403);
+            return ['error' => 'Access denied'];
+        }
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+        // Card existence/ownership check
+        try {
+            $cardRecord = self::GetCardData($boardId, $cardId);
+        } catch (RuntimeException $e) {
+            http_response_code(404);
+            return ['error' => 'Card not found in this board'];
+        }
 
-		return self::CardRecordToData($cardRecord);
-	}
+        // Calculate new flag mask
+        $flagList = Card::cardFlagMaskToList($cardRecord['flags']);
+        if (array_key_exists('locked', $request)) {
+            $flagList['locked'] = (bool)$request['locked'];
+        }
+        $cardRecord['flags'] = self::CardFlagListToMask($flagList);
 
-	public static function UploadAttachment($request)
-	{
-		// check attachment size
-		$maxAttachmentSize = self::GetDBSetting("attachment_max_size_kb");
-		if ($maxAttachmentSize && (strlen($request["attachment"]) * 0.75 / 1024) > self::GetDBSetting("attachment_max_size_kb"))
-		{
-			http_response_code(400);
-			exit("Attachment is too big! Max size is $maxAttachmentSize kb");
-		}
+        // Update DB
+        try {
+            DB::query(
+                "UPDATE tarallo_cards SET flags = :flags WHERE id = :id",
+                ['flags' => $cardRecord['flags'], 'id' => $cardId]
+            );
+            self::UpdateBoardModifiedTime($boardId);
+        } catch (Throwable $e) {
+            Logger::error("UpdateCardFlags: DB error on card $cardId in board $boardId - " . $e->getMessage());
+            http_response_code(500);
+            return ['error' => 'Failed to update card flags'];
+        }
 
-		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"], self::USERTYPE_Member);
-		// query and validate card id
-		$cardRecord = self::GetCardData($request["board_id"], $request["card_id"]);
+        Logger::info("UpdateCardFlags: User $userId updated flags for card $cardId in board $boardId (new flags: {$cardRecord['flags']})");
 
-		// add attachment to the card in db
-		$addAttachmentQuery = "INSERT INTO tarallo_attachments (name, guid, extension, card_id, board_id)";
-		$addAttachmentQuery .= " VALUES (:name, :guid, :extension, :card_id, :board_id)";
-		$fileInfo = pathinfo($request["filename"]);
-		$extension = isset($fileInfo["extension"]) ? strtolower($fileInfo["extension"]) : "bin";
-		$guid = uniqid("", true);
-		DB::setParam("name", self::CleanAttachmentName($fileInfo["filename"]));
-		DB::setParam("guid", $guid);
-		DB::setParam("extension", $extension);
-		DB::setParam("card_id", $request["card_id"]);
-		DB::setParam("board_id", $request["board_id"]);
-		$attachmentID = DB::insertWithStoredParams($addAttachmentQuery);
-		
-		if (!$attachmentID) 
-		{
-			http_response_code(500);
-			exit("Failed to save the new attachment.");
-		}
+        return Card::cardRecordToData($cardRecord);
+    }
 
-		// save attachment to file
-		$filePath = self::GetAttachmentFilePath($request["board_id"], $guid, $extension);
-		$fileContent = base64_decode($request["attachment"]);
-		File::writeToFile($filePath, $fileContent);
+    /**
+     * Upload an attachment
+     * @param array $request The request parameters.
+     * @return array|string[]
+     */
+    public static function UploadAttachment(array $request): array
+    {
+        Session::EnsureSession();
 
-		// create a thumbnail
-		$thumbFilePath = self::GetThumbnailFilePath($request["board_id"], $guid);
-		Utils::createImageThumbnail($filePath, $thumbFilePath);
-		if (File::fileExists($thumbFilePath)) 
-		{
-			// a thumbnail has been created, set it at the card cover image
-			DB::setParam("attachment_id", $attachmentID);
-			DB::setParam("card_id", $cardRecord["id"]);
-			DB::queryWithStoredParams("UPDATE tarallo_cards SET cover_attachment_id = :attachment_id WHERE id = :card_id");
-		}
+        $userId = $_SESSION['user_id'] ?? null;
+        if (!$userId) {
+            http_response_code(401);
+            return ['error' => 'Not logged in'];
+        }
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+        // Validate required inputs
+        $boardId    = isset($request['board_id']) ? (int) $request['board_id'] : 0;
+        $cardId     = isset($request['card_id']) ? (int) $request['card_id'] : 0;
+        $filename   = trim($request['filename'] ?? '');
+        $attachment = $request['attachment'] ?? '';
 
-		// re-query added attachment and card and return their data
-		$attachmentRecord = self::GetAttachmentRecord($request["board_id"], $attachmentID);
-		$response = self::AttachmentRecordToData($attachmentRecord);
-		$cardRecord = self::GetCardData($request["board_id"], $request["card_id"]);
-		$response["card"] = self::CardRecordToData($cardRecord);
-		return $response;
-	}
+        if ($boardId <= 0 || $cardId <= 0 || $filename === '' || $attachment === '') {
+            http_response_code(400);
+            return ['error' => 'Missing or invalid parameters'];
+        }
+
+        // Check attachment size limit
+        $maxAttachmentSizeKB = (int) self::GetDBSetting('attachment_max_size_kb');
+        
+        // Base64 encoding inflates size ~33% (hence * 0.75 to reverse)
+        $attachmentSizeKB = (strlen($attachment) * 0.75) / 1024;
+        if ($maxAttachmentSizeKB > 0 && $attachmentSizeKB > $maxAttachmentSizeKB) {
+            http_response_code(400);
+            return ['error' => "Attachment is too big! Max size is {$maxAttachmentSizeKB} KB"];
+        }
+
+        // Permission check: require Member role on board
+        try {
+            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
+        } catch (RuntimeException) {
+            Logger::warning("UploadAttachment: User {$userId} no permission on board {$boardId}");
+            http_response_code(403);
+            return ['error' => 'Access denied'];
+        }
+
+        // Validate card belongs to board
+        try {
+            self::GetCardData($boardId, $cardId);
+        } catch (\RuntimeException) {
+            http_response_code(404);
+            return ['error' => 'Card not found in this board'];
+        }
+
+        // Prepare attachment metadata
+        $fileInfo = pathinfo($filename);
+        $name      = self::CleanAttachmentName($fileInfo['filename'] ?? '');
+        $extension = isset($fileInfo['extension']) ? strtolower($fileInfo['extension']) : 'bin';
+        $guid      = uniqid('', true);
+
+        // Insert attachment record in DB
+        $insertSql = "INSERT INTO tarallo_attachments (name, guid, extension, card_id, board_id)
+                  VALUES (:name, :guid, :extension, :card_id, :board_id)";
+        try {
+            $attachmentID = DB::insert($insertSql, [
+                'name'      => $name,
+                'guid'      => $guid,
+                'extension' => $extension,
+                'card_id'   => $cardId,
+                'board_id'  => $boardId
+            ]);
+            
+            if (!$attachmentID) {
+                Logger::error("UploadAttachment: Failed to insert attachment record for board $boardId");
+                http_response_code(500);
+                return ['error' => 'Failed to save new attachment'];
+            }
+        } catch (Throwable $e) {
+            Logger::error("UploadAttachment: Database error - " . $e->getMessage());
+            http_response_code(500);
+            return ['error' => 'Database error saving attachment'];
+        }
+
+        // Decode base64 content and save file
+        $filePath = self::GetAttachmentFilePath($boardId, $guid, $extension);
+        $fileContent = base64_decode($attachment);
+
+        if ($fileContent === false) {
+            http_response_code(400);
+            return ['error' => 'Invalid attachment base64 data'];
+        }
+
+        if (!File::writeToFile($filePath, $fileContent)) {
+            Logger::error("UploadAttachment: Failed to write file to {$filePath}");
+            http_response_code(500);
+            return ['error' => 'Failed to save attachment file'];
+        }
+
+        // Create thumbnail if possible
+        $thumbFilePath = self::GetThumbnailFilePath($boardId, $guid);
+        Utils::createImageThumbnail($filePath, $thumbFilePath);
+        if (File::fileExists($thumbFilePath)) {
+            try {
+                DB::query(
+                    "UPDATE tarallo_cards SET cover_attachment_id = :attachment_id WHERE id = :card_id",
+                    ['attachment_id' => $attachmentID, 'card_id' => $cardId]
+                );
+            } catch (\Throwable $e) {
+                Logger::error("UploadAttachment: Failed to set cover attachment - " . $e->getMessage());
+                // Not fatal; continue without failing the upload
+            }
+        }
+
+        self::UpdateBoardModifiedTime($boardId);
+
+        // Re-fetch attachment record and card data for response
+        $attachmentRecord = self::GetAttachmentRecord($boardId, $attachmentID);
+        $cardRecord = self::GetCardData($boardId, $cardId);
+
+        $response = Attachment::attachmentRecordToData($attachmentRecord);
+        $response['card'] = Card::cardRecordToData($cardRecord);
+
+        Logger::info("UploadAttachment: User $userId uploaded attachment $attachmentID to card $cardId in board $boardId");
+
+        return $response;
+    }
+
 
 	public static function UploadBackground($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"]);
+		$boardData = Board::GetBoardData($request["board_id"]);
 
 		// validate filename
 		$fileInfo = pathinfo($request["filename"]);
@@ -1047,16 +1070,16 @@ class API
 		// save new background to file
 		$extension = $fileInfo["extension"];
 		$guid = uniqid("", true). "#" . $extension;
-		$newBackgroundPath = self::GetBackgroundUrl($request["board_id"], $guid);
+		$newBackgroundPath = Board::getBackgroundUrl($request["board_id"], $guid);
 		$fileContent = base64_decode($request["background"]);
 		File::writeToFile($newBackgroundPath, $fileContent);
 
 		// save a thumbnail copy of it for board tiles
-		$newBackgroundThumbPath = self::GetBackgroundUrl($request["board_id"], $guid, true);
+		$newBackgroundThumbPath = Board::getBackgroundUrl($request["board_id"], $guid, true);
 		Utils::createImageThumbnail($newBackgroundPath, $newBackgroundThumbPath);
 
 		// delete old background files
-		if (stripos($boardData["background_url"], self::DEFAULT_BG) === false) 
+		if (stripos($boardData["background_url"], Board::DEFAULT_BG) === false) 
 		{
 			File::deleteFile($boardData["background_url"]);
 			File::deleteFile($boardData["background_thumb_url"]);
@@ -1078,7 +1101,7 @@ class API
 	public static function DeleteAttachment($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"], self::USERTYPE_Member);
+		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Member);
 
 		// query attachment
 		$attachmentRecord = self::GetAttachmentRecord($request["board_id"], $request["id"]);
@@ -1099,16 +1122,16 @@ class API
 		self::UpdateBoardModifiedTime($request["board_id"]);
 
 		// re-query added attachment and card and return their data
-		$response = self::AttachmentRecordToData($attachmentRecord);
+		$response = Attachment::attachmentRecordToData($attachmentRecord);
 		$cardRecord = self::GetCardData($attachmentRecord["board_id"], $attachmentRecord["card_id"]);
-		$response["card"] = self::CardRecordToData($cardRecord);
+		$response["card"] = Card::cardRecordToData($cardRecord);
 		return $response;
 	}
 
 	public static function UpdateAttachmentName($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"], self::USERTYPE_Member);
+		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Member);
 
 		// query attachment
 		$attachmentRecord = self::GetAttachmentRecord($request["board_id"], $request["id"]);
@@ -1124,14 +1147,14 @@ class API
 
 		// return the updated attachment data
 		$attachmentRecord["name"] = $filteredName;
-		$response = self::AttachmentRecordToData($attachmentRecord);
+		$response = Attachment::attachmentRecordToData($attachmentRecord);
 		return $response;
 	}
 
 	public static function ProxyAttachment($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"], self::USERTYPE_Observer);
+		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Observer);
 
 		// query attachment
 		$attachmentRecord = self::GetAttachmentRecord($request["board_id"], $request["id"]);
@@ -1156,7 +1179,7 @@ class API
 	public static function UpdateCardListName($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"]);
+		$boardData = Board::GetBoardData($request["board_id"]);
 
 		//query and validate cardlist id
 		$cardlistData = self::GetCardlistData($request["board_id"], $request["id"]);
@@ -1176,7 +1199,7 @@ class API
 	public static function AddCardList($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"]);
+		$boardData = Board::GetBoardData($request["board_id"]);
 
 		// insert the new cardlist
 		$newCardListData = self::AddNewCardListInternal($boardData["id"], $request["prev_list_id"], $request["name"]);
@@ -1189,7 +1212,7 @@ class API
 	public static function DeleteCardList($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"]);
+		$boardData = Board::GetBoardData($request["board_id"]);
 
 		//query and validate cardlist id
 		$cardListData = self::GetCardlistData($request["board_id"], $request["id"]);
@@ -1215,7 +1238,7 @@ class API
 	public static function UpdateBoardTitle($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"]);
+		$boardData = Board::GetBoardData($request["board_id"]);
 
 		// update the board title
 		DB::setParam("title", self::CleanBoardTitle($request["title"]));
@@ -1225,7 +1248,7 @@ class API
 		self::UpdateBoardModifiedTime($request["board_id"]);
 
 		// requery and return the board data
-		return self::GetBoardData($request["board_id"]);
+		return Board::GetBoardData($request["board_id"]);
 	}
 
 	public static function CreateNewBoard($request)
@@ -1240,13 +1263,13 @@ class API
 		$newBoardID = self::CreateNewBoardInternal($request["title"]);
 
 		// re-query and return the new board data
-		return self::GetBoardData($newBoardID);
+		return Board::GetBoardData((int)$newBoardID);
 	}
 
 	public static function CloseBoard($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["id"]);
+		$boardData = Board::GetBoardData($request["id"]);
 
 		// mark the board as closed
 		DB::setParam("id", $request["id"]);
@@ -1261,7 +1284,7 @@ class API
 	public static function ReopenBoard($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["id"]);
+		$boardData = Board::GetBoardData($request["id"]);
 
 		// mark the board as closed
 		DB::setParam("id", $request["id"]);
@@ -1276,7 +1299,7 @@ class API
 	public static function DeleteBoard($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["id"]);
+		$boardData = Board::GetBoardData($request["id"]);
 
 		// make sure the board is closed before deleting
 		if (!$boardData["closed"])
@@ -1325,7 +1348,7 @@ class API
 		}
 
 		// delete all board files
-		$boardDir = self::GetBoardContentDir($boardID);
+		$boardDir = Board::getBoardContentDir($boardID);
 		File::deleteDir($boardDir);
 
 		return $boardData;
@@ -1465,7 +1488,7 @@ class API
 			}
 
 			// unzip board content to board/ folder
-			$boardFolder = self::GetBoardContentDir($newBoardID);
+			$boardFolder = Board::getBoardContentDir($newBoardID);
 			if (!$exportZip->extractTo(File::ftpDir($boardFolder)))
 			{
 				DB::rollBack();
@@ -1492,7 +1515,7 @@ class API
 		}
 
 		// re-query and return the new board data
-		return self::GetBoardData($newBoardID);
+		return Board::GetBoardData((int)$newBoardID);
 	}
 
 	public static function ImportFromTrello($request) 
@@ -1525,7 +1548,7 @@ class API
 			if (strlen($value) > 0)
 			{
 				$labelNames[] = self::CleanLabelName($value);
-				$labelColors[] = self::DEFAULT_LABEL_COLORS[count($labelColors) % count(self::DEFAULT_LABEL_COLORS)];
+				$labelColors[] = Label::DEFAULT_LABEL_COLORS[count($labelColors) % count(Label::DEFAULT_LABEL_COLORS)];
 			}
 		}
 		if (count($labelNames) > 0)
@@ -1666,13 +1689,13 @@ class API
 		} // end foreach list
 
 		// re-query and return the new board data
-		return self::GetBoardData($newBoardID);
+		return Board::GetBoardData((int)$newBoardID);
 	}
 
 	public static function CreateBoardLabel($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"]);
+		$boardData = Board::GetBoardData($request["board_id"]);
 
 		// explode board label list
 		$boardLabelNames = array();
@@ -1702,7 +1725,7 @@ class API
 		}
 
 		// add a new label
-		$newLabelColor = self::DEFAULT_LABEL_COLORS[$labelIndex % count(self::DEFAULT_LABEL_COLORS)];
+		$newLabelColor = Label::DEFAULT_LABEL_COLORS[$labelIndex % count(Label::DEFAULT_LABEL_COLORS)];
 		$boardLabelNames[$labelIndex] = $newLabelColor;
 		$boardLabelColors[$labelIndex] = $newLabelColor;
 
@@ -1721,7 +1744,7 @@ class API
 	public static function UpdateBoardLabel($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"]);
+		$boardData = Board::GetBoardData($request["board_id"]);
 
 		// explode board label list
 		$boardLabelNames = explode(",", $boardData["label_names"]);
@@ -1754,7 +1777,7 @@ class API
 	public static function DeleteBoardLabel($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"]);
+		$boardData = Board::GetBoardData($request["board_id"]);
 
 		// explode board label list
 		$boardLabelNames = explode(",", $boardData["label_names"]);
@@ -1798,7 +1821,7 @@ class API
 	public static function SetCardLabel($request)
 	{
 		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"], self::USERTYPE_Member);
+		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Member);
 		
 
 		if (!isset($request["index"]) || !isset($request["active"]))
@@ -1848,7 +1871,7 @@ class API
 
 	public static function GetBoardPermissions($request) {
 		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"], self::USERTYPE_Moderator);
+		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Moderator);
 
 		// query permissions for this board
 		$boardPermissionsQuery = "SELECT tarallo_permissions.user_id, tarallo_users.display_name, tarallo_permissions.user_type";
@@ -1863,7 +1886,7 @@ class API
 
 	public static function SetUserPermission($request) {
 		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"], self::USERTYPE_Moderator);
+		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Moderator);
 		$isSpecialPermission = $request["user_id"] < 0;
 
 		if ($isSpecialPermission)
@@ -1942,9 +1965,9 @@ class API
 	public static function RequestBoardAccess($request)
 	{
 		// query and validate board id and access level
-		$boardData = self::GetBoardData($request["board_id"], self::USERTYPE_None);
+		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_None);
 
-		if ($boardData["user_type"] < self::USERTYPE_Guest) 
+		if ($boardData["user_type"] < Permission::USERTYPE_Guest) 
 		{
 			http_response_code(400);
 			exit("The user is already allowed to view this board!");
@@ -1952,10 +1975,10 @@ class API
 
 		DB::setParam("user_id", $_SESSION["user_id"]);
 		DB::setParam("board_id", $request["board_id"]);
-		DB::setParam("user_type", self::USERTYPE_Guest);
+		DB::setParam("user_type", Permission::USERTYPE_Guest);
 
 		// add new permission or update existing one
-		if ($boardData["user_type"] == self::USERTYPE_None)
+		if ($boardData["user_type"] == Permission::USERTYPE_None)
 			$guestPermissionQuery = "INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:user_id, :board_id, :user_type)";
 		else
 			$guestPermissionQuery = "UPDATE tarallo_permissions SET user_type = :user_type WHERE user_id = :user_id AND board_id = :board_id";
@@ -1977,8 +2000,8 @@ class API
 		}
 
 		// query and validate board id and access level
-		$boardData = self::GetBoardData($request["board_id"], self::USERTYPE_Moderator);
-		$boardID = $boardData["id"];
+		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Moderator);
+		$boardId = $boardData["id"];
 
 		// create a zip for the export
 		$exportPath = self::TEMP_EXPORT_PATH;
@@ -1992,13 +2015,13 @@ class API
 		}
 
 		// create a board data struct
-		DB::setParam("id", $boardID);
+		DB::setParam("id", $boardId);
 		$boardExportData = DB::fetchRowWithStoredParams("SELECT * FROM tarallo_boards WHERE id = :id");
-		DB::setParam("board_id", $boardID);
+		DB::setParam("board_id", $boardId);
 		$boardExportData["cardlists"] = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_cardlists WHERE board_id = :board_id");
-		DB::setParam("board_id", $boardID);
+		DB::setParam("board_id", $boardId);
 		$boardExportData["cards"] = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_cards WHERE board_id = :board_id");
-		DB::setParam("board_id", $boardID);
+		DB::setParam("board_id", $boardId);
 		$boardExportData["attachments"] = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_attachments WHERE board_id = :board_id");
 		$boardExportData["db_version"] = self::GetDBSetting("db_version");
 
@@ -2098,17 +2121,6 @@ class API
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET label_names = :label_names, label_colors = :label_colors WHERE id = :board_id");
 	}
 
-	private static function TryApplyingDBPatch($sqlFilePath) 
-	{
-		if (!File::fileExists($sqlFilePath))
-			return false;
-
-		// load sql patch file and execute it
-		$sql = File::readFileAsString($sqlFilePath);
-		DB::run($sql);
-		return true;
-	}
-
 	private static function ApplyDBUpdates($dbVersion)
 	{
 		$anyUpdateApplied = false;
@@ -2122,7 +2134,7 @@ class API
 			$dbUpdatePatch = "dbpatch/update_{$cleanVersion}_to_{$nextVersion}.sql";
 			
 			// try applying this patch
-			if (!self::TryApplyingDBPatch($dbUpdatePatch))
+			if (!DB::TryApplyingDBPatch($dbUpdatePatch))
 				break; // not available, db is up to date!
 
 			// check the next version
@@ -2491,7 +2503,7 @@ class API
 			$createBoardQuery .= " VALUES (:user_id, :board_id, :user_type)";
 			DB::setParam("user_id", $_SESSION["user_id"]);
 			DB::setParam("board_id", $newBoardID);
-			DB::setParam("user_type", self::USERTYPE_Owner);
+			DB::setParam("user_type", Permission::USERTYPE_Owner);
 			DB::queryWithStoredParams($createBoardQuery);
 		
 			DB::commit();
@@ -2505,35 +2517,6 @@ class API
 		return $newBoardID;
 	}
 
-	private static function CardRecordToData($cardRecord)
-	{
-		$card = array();
-		$card["title"] = $cardRecord["title"];
-		$card["cardlist_id"] = $cardRecord["cardlist_id"];
-		$card["id"] = $cardRecord["id"];
-		$card["prev_card_id"] = $cardRecord["prev_card_id"];
-		$card["next_card_id"] = $cardRecord["next_card_id"];
-		$card["cover_img_url"] = "";
-		if ($cardRecord["cover_attachment_id"] > 0)
-		{
-			$card["cover_img_url"] = self::GetThumbnailProxyUrl($cardRecord["board_id"], $cardRecord["cover_attachment_id"]);
-		}
-		$card["label_mask"] = $cardRecord["label_mask"];
-		if ($cardRecord["last_moved_time"] != 0) 
-		{
-			$card["last_moved_date"] = date("l, d M Y", $cardRecord["last_moved_time"]);
-		}
-		$card = array_merge($card, self::CardFlagMaskToList($cardRecord["flags"]));
-		return $card;
-	}
-
-	private static function CardFlagMaskToList($flagMask)
-	{
-		$flagList = array();
-		$flagList["locked"] = $flagMask & 0x001;
-		return $flagList;
-	}
-
 	private static function CardFlagListToMask($flagList)
 	{
 		$flagMask = 0;
@@ -2541,162 +2524,11 @@ class API
 		return $flagMask;
 	}
 
-	private static function AttachmentRecordToData($attachmentRecord)
-	{
-		$attachmentData = array();
-		$attachmentData["id"] = $attachmentRecord["id"];
-		$attachmentData["name"] = $attachmentRecord["name"];
-		$attachmentData["extension"] = $attachmentRecord["extension"];
-		$attachmentData["card_id"] = $attachmentRecord["card_id"];
-		$attachmentData["board_id"] = $attachmentRecord["board_id"];
-		$attachmentData["url"] = self::GetAttachmentProxyUrlFromRecord($attachmentRecord);
-		$attachmentData["thumbnail"] = self::GetThumbnailProxyUrlFromRecord($attachmentRecord);
-		return $attachmentData;
-	}
-
-	private static function BoardRecordToData($boardRecord)
-	{
-		$boardData = array();
-		$boardData["id"] = $boardRecord["id"];
-		$boardData["user_type"] = $boardRecord["user_type"];
-		$boardData["title"] = $boardRecord["title"];
-		$boardData["closed"] = $boardRecord["closed"];
-		$boardData["background_url"] = self::GetBackgroundUrl($boardRecord["id"], $boardRecord["background_guid"]);
-		$boardData["background_thumb_url"] = self::GetBackgroundUrl($boardRecord["id"], $boardRecord["background_guid"], true);
-		$boardData["background_tiled"] = $boardRecord["background_guid"] ? false : true; // only the default bg is tiled for now
-		$boardData["label_names"] = $boardRecord["label_names"];
-		$boardData["label_colors"] = $boardRecord["label_colors"];
-		$boardData["all_color_names"] = self::DEFAULT_LABEL_COLORS;
-		$boardData["last_modified_date"] = date("d M Y", $boardRecord["last_modified_time"]);
-		return $boardData;
-	}
-
-    /**
-     * Retrieves board data for the given board ID and user,
-     * including the user's permission level for that board.
-     * Optionally includes card lists and cards.
-     * @param int  $boardId
-     * @param int  $minRole          Minimum role constant to require.
-     * @param bool $includeCardLists Whether to include card lists.
-     * @param bool $includeCards     Whether to include cards.
-     * @return array
-     * @throws RuntimeException
-     */
-    private static function GetBoardData(
-        int $boardId,
-        int $minRole = self::USERTYPE_None,
-        bool $includeCardLists = false,
-        bool $includeCards = false,
-        bool $includeCardContent = false,
-        bool $includeAttachments = false
-    ): array {
-        self::EnsureSession();
-        
-        if (empty($_SESSION['user_id'])) {
-            Logger::error("GetBoardData: No user_id in session");
-            throw new RuntimeException("Not logged in");
-        }
-
-        $userId = (int) $_SESSION['user_id'];
-
-        // Base board data with user permissions
-        $sql = "
-        SELECT b.*, p.user_type
-        FROM tarallo_boards b
-        INNER JOIN tarallo_permissions p ON b.id = p.board_id
-        WHERE b.id = :board_id AND p.user_id = :user_id
-        LIMIT 1
-    ";
-        $boardRecord = DB::fetchRow($sql, [
-            'board_id' => $boardId,
-            'user_id'  => $userId
-        ]);
-
-        if (!$boardRecord) {
-            Logger::warning("GetBoardData: Board $boardId not found or no permissions for user $userId");
-            throw new RuntimeException("Board not found or access denied");
-        }
-
-        // Check minimum required role
-        if (!self::CheckPermissions($boardRecord['user_type'], $minRole, false)) {
-            Logger::warning("GetBoardData: User $userId has insufficient permissions for board $boardId");
-            throw new RuntimeException("Permission denied");
-        }
-
-        // Convert DB record to API-friendly structure
-        $boardData = self::BoardRecordToData($boardRecord);
-        $boardData['user_type'] = (int) $boardRecord['user_type'];
-
-        // Optionally pull card lists
-        if ($includeCardLists) {
-            $listSQL = "
-            SELECT id, name, prev_list_id, next_list_id
-            FROM tarallo_cardlists
-            WHERE board_id = :board_id
-            ORDER BY id ASC
-        ";
-            $boardData['cardlists'] = DB::fetchTable($listSQL, ['board_id' => $boardId], 'id');
-        }
-
-        // Optionally pull cards
-        if ($includeCards) {
-            $sql = "SELECT * FROM tarallo_cards WHERE board_id = :board_id ORDER BY id ASC";
-
-            $cardsRaw = DB::fetchTable($sql, ['board_id' => $boardId]);
-            $cards = array_map([self::class, 'CardRecordToData'], $cardsRaw);
-
-            // If content not included in CardRecordToData, append from raw
-            if ($includeCardContent && isset($cardsRaw[0]['content'])) {
-                foreach ($cards as $i => &$c) {
-                    $c['content'] = $cardsRaw[$i]['content'] ?? '';
-                }
-            }
-
-            // Optionally add attachments per card
-            if ($includeAttachments) {
-                foreach ($cards as &$card) {
-                    $attachments = DB::fetchTable(
-                        "SELECT * FROM tarallo_attachments WHERE card_id = :cid",
-                        ['cid' => $card['id']]
-                    );
-                    $card['attachmentList'] = array_map([self::class, 'AttachmentRecordToData'], $attachments);
-                }
-            }
-
-            $boardData['cards'] = $cards;
-        }
-
-        Logger::debug(
-            "GetBoardData: User $userId fetched board $boardId" .
-            ($includeCardLists ? ' + lists' : '') .
-            ($includeCards ? ' + cards' : '') .
-            ($includeCardContent ? ' + content' : '') .
-            ($includeAttachments ? ' + attachments' : '')
-        );
-
-        return $boardData;
-    }
-
-
 	private static function UpdateBoardModifiedTime($boardID)
 	{
 		DB::setParam("last_modified_time", time());
 		DB::setParam("board_id", $boardID);
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET last_modified_time = :last_modified_time WHERE id = :board_id");
-	}
-
-	private static function CheckPermissions($userType, $requestedUserType, $exitIfFailed = true)
-	{
-		if ($userType > $requestedUserType)
-		{
-			if ($exitIfFailed)
-			{
-				http_response_code(403);
-				exit("Missing permissions to perform the requested operation.");
-			}
-			return false;
-		}
-		return true;
 	}
 
 	private static function GetCardlistData($boardID, $cardlistID)
@@ -2764,14 +2596,9 @@ class API
 		return $attachmentRecord;
 	}
 
-	private static function GetBoardContentDir($boardID)
-	{
-		return "boards/$boardID/";
-	}
-
 	private static function GetAttachmentDir($boardID)
 	{
-		return self::GetBoardContentDir($boardID) . "a/";
+		return Board::getBoardContentDir($boardID) . "a/";
 	}
 
 	private static function GetAttachmentFilePath($boardID, $guid, $extension)
@@ -2784,28 +2611,6 @@ class API
 		return self::GetAttachmentFilePath($record["board_id"], $record["guid"], $record["extension"]);
 	}
 
-	private static function GetAttachmentProxyUrl($boardID, $attachmentID)
-	{
-		return "php/api.php?OP=ProxyAttachment&board_id=$boardID&id=$attachmentID";
-	}
-
-	private static function GetAttachmentProxyUrlFromRecord($record)
-	{
-		return self::GetAttachmentProxyUrl($record["board_id"], $record["id"]);
-	}
-
-	private static function GetBackgroundUrl($boardID, $guid, $thumbnail = false)
-	{
-		if ($guid) 
-		{
-			$guidElems = explode("#", $guid);
-			return self::GetBoardContentDir($boardID) . $guidElems[0] . ($thumbnail ? "-thumb." : ".") . $guidElems[1];
-		}
-		else
-		{
-			return $thumbnail ? self::DEFAULT_BOARDTILE_BG : self::DEFAULT_BG;
-		}
-	}
 
 	private static function GetThumbnailDir($boardID)
 	{
@@ -2822,75 +2627,14 @@ class API
 		return self::GetThumbnailFilePath($record["board_id"], $record["guid"]);
 	}
 
-	private static function GetThumbnailProxyUrl($boardID, $attachmentID)
-	{
-		return self::GetAttachmentProxyUrl($boardID, $attachmentID) . "&thumbnail=true";
-	}
-
-	private static function GetThumbnailProxyUrlFromRecord($record)
-	{
-		switch ($record["extension"])
-		{
-			case "jpg":
-			case "jpeg":
-			case "png":
-			case "gif":
-				return self::GetThumbnailProxyUrl($record["board_id"], $record["id"]);
-		}	
-		return false;
-	}
-
-    /**
-     * Ensures a PHP session is started.
-     * Call this at the start of any function that uses $_SESSION.
-     */
-    private static function EnsureSession(): void
-    {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
-    }
-
     /**
      * Checks to see if a user is logged in.
      * @return bool TRUE if a user is logged into the session.
      */
     private static function IsUserLoggedIn(): bool
     {
-        self::EnsureSession();
+        Session::EnsureSession();
         return !empty($_SESSION['user_id']) && is_numeric($_SESSION['user_id']);
-    }
-
-    /**
-     * Logs a user out of the current session.
-     */
-    private static function LogoutInternal(): void
-    {
-        self::EnsureSession();
-
-        // Clear all session variables
-        $_SESSION = [];
-
-        // Delete the session cookie (if any)
-        if (ini_get("session.use_cookies")) {
-            $params = session_get_cookie_params();
-            setcookie(
-                session_name(),
-                '',
-                time() - 42000,
-                $params["path"],
-                $params["domain"],
-                $params["secure"],
-                $params["httponly"]
-            );
-        }
-
-        // Destroy the session file
-        session_destroy();
-
-        // Regenerate session ID after logout (good practice)
-        session_start();
-        session_regenerate_id(true);
     }
 
 	private static function CleanBoardTitle($title)
@@ -2928,11 +2672,6 @@ class API
 		DB::setParam("name", $name);
 		DB::setParam("value", $value);
 		return DB::queryWithStoredParams("UPDATE tarallo_settings SET value = :value WHERE name = :name");
-	}
-
-	private static function GetDBSettings()
-	{
-		return DB::fetchAssocWithStoredParams("SELECT name, value FROM tarallo_settings", "name", "value");
 	}
 
 	private static function UsernameExists($username) 

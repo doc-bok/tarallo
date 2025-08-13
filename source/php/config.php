@@ -32,8 +32,8 @@ class Config {
             'DB_USERNAME' => $_ENV['TARALLO_DB_USERNAME'] ?? '',
             'DB_PASSWORD' => $_ENV['TARALLO_DB_PASSWORD'] ?? '',
             'DB_LOG_LEVEL' => $_ENV['TARALLO_DB_LOG_LEVEL'] ?? LogLevel::ERROR,
-            'DB_MAX_RETRIES'  => isset($_ENV['TARALLO_DB_MAX_RETRIES']) ? (int)$_ENV['DB_MAX_RETRIES'] : 3,
-            'DB_RETRY_DELAY_MS' => isset($_ENV['TARALLO_DB_RETRY_DELAY_MS']) ? (int)$_ENV['DB_RETRY_DELAY_MS'] : 500,
+            'DB_MAX_RETRIES'  => isset($_ENV['TARALLO_DB_MAX_RETRIES']) ? (int)$_ENV['TARALLO_DB_MAX_RETRIES'] : 3,
+            'DB_RETRY_DELAY_MS' => isset($_ENV['TARALLO_DB_RETRY_DELAY_MS']) ? (int)$_ENV['TARALLO_DB_RETRY_DELAY_MS'] : 500,
         ];
     }
 

@@ -10,3 +10,7 @@ Thumbs.db
 /data
 .idea/
 source/php/.env
+source/node_modules
+source/php/vendor
+source/php/composer.json
+source/php/composer.lock

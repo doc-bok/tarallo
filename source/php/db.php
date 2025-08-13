@@ -5,7 +5,9 @@ declare(strict_types=1);
 use Random\RandomException;
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/file.php';
 require_once __DIR__ . '/logger.php';
+require_once __DIR__ . '/session.php';
 
 class DatabaseConnectionException extends RuntimeException {}
 
@@ -30,6 +32,7 @@ class DatabaseConnectionException extends RuntimeException {}
  */
 
 class DB {
+    const INIT_DB_PATCH = "dbpatch/init_db.sql";
 
     private static ?PDO $db = NULL;
     private static int $transactionNesting = 0;
@@ -418,6 +421,98 @@ class DB {
         return $newIndex;
     }
 
+    /**
+     * Check if the database exists and initialise it if it isn't.
+     */
+    public static function initDatabaseIfNeeded(): void
+    {
+        $dbExists = ((int) self::fetchOne(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'tarallo_settings'"
+            )) > 0;
+
+        if (!$dbExists) {
+            Logger::warning("Database not initialised — attempting init");
+            Session::LogoutInternal();
+
+            if (!self::TryApplyingDBPatch(self::INIT_DB_PATCH)) {
+                Logger::error("DB init failed - corrupted or missing patch");
+                throw new RuntimeException("Database initialisation failed or DB is corrupted");
+            }
+        }
+    }
+
+    /**
+     * Attempt to apply a DB patch from an SQL file.
+     * @param string $sqlFilePath
+     * @return array { success: bool, message: string }
+     */
+    public static function TryApplyingDBPatch(string $sqlFilePath): array
+    {
+        // Check that the patch file exists and is readable
+        if (!File::fileExists($sqlFilePath)) {
+            Logger::warning("DB patch file not found: $sqlFilePath");
+            return ['success' => false, 'message' => 'Patch file not found'];
+        }
+
+        // Read patch content
+        $sql = File::readFileAsString($sqlFilePath);
+        if ($sql === '') {
+            Logger::warning("DB patch file is empty or unreadable: $sqlFilePath");
+            return ['success' => false, 'message' => 'Empty or unreadable patch file'];
+        }
+
+        // Sanity check that it contains something looking like SQL
+        if (stripos($sql, 'INSERT') === false &&
+            stripos($sql, 'UPDATE') === false &&
+            stripos($sql, 'CREATE') === false &&
+            stripos($sql, 'ALTER') === false) {
+            Logger::warning("DB patch file $sqlFilePath does not appear to contain SQL DML/DDL");
+            // Still continue with warning
+        }
+
+        try {
+            DB::beginTransaction();
+            DB::run($sql); // assumes DB::run can handle multi‑statement SQL
+            DB::commit();
+
+            Logger::info("Successfully applied DB patch from $sqlFilePath");
+            return ['success' => true, 'message' => 'Patch applied successfully'];
+
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Logger::error("Failed applying DB patch from $sqlFilePath: " . $e->getMessage());
+            return ['success' => false, 'message' => 'DB patch failed: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Fetch all settings from the database as an associative array.
+     * @return array<string,string>  Key/value pairs of settings.
+     */
+    public static function GetDBSettings(): array
+    {
+        static $settingsCache = null;
+
+        if ($settingsCache !== null) {
+            return $settingsCache;
+        }
+
+        try {
+            $rows = self::fetchAssoc(
+                "SELECT name, value FROM tarallo_settings",
+                'name',
+                'value'
+            );
+        } catch (Throwable $e) {
+            Logger::error("GetDBSettings: DB error - " . $e->getMessage());
+            return [];
+        }
+
+        $settingsCache = $rows;
+
+        return $settingsCache;
+    }
+
 
     // --- Legacy methods with stored params (for backward compatibility) ---
     
@@ -450,13 +545,6 @@ class DB {
         $params = self::$QUERY_PARAMS;
         self::$QUERY_PARAMS = [];
         return self::fetchOne($sql, $params);
-    }
-
-    public static function fetchAssocWithStoredParams(string $sql, string $keyName, string $valueName): array
-    {
-        $params = self::$QUERY_PARAMS;
-        self::$QUERY_PARAMS = [];
-        return self::fetchAssoc($sql, $keyName, $valueName, $params);
     }
 
     public static function fetchTableWithStoredParams(string $sql): array
