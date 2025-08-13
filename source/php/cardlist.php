@@ -269,4 +269,128 @@ class CardList
         return $cardlistData;
     }
 
+    /**
+     * Public entry point to add a new card list to a board.
+     * @param array $request Must contain 'board_id', 'prev_list_id', 'name'.
+     * @return array Newly inserted card list record.
+     * @throws InvalidArgumentException On invalid input.
+     * @throws RuntimeException On DB or linked-list errors.
+     */
+    public static function addCardList(array $request): array
+    {
+        foreach (['board_id', 'name', 'prev_list_id'] as $key) {
+            if (!array_key_exists($key, $request)) {
+                throw new InvalidArgumentException("Missing parameter: $key");
+            }
+        }
+
+        $boardID     = (int) $request['board_id'];
+        $prevListID  = (int) $request['prev_list_id'];
+        $name        = trim((string) $request['name']);
+
+        if ($boardID <= 0) {
+            throw new InvalidArgumentException("Invalid board ID");
+        }
+        if ($name === '') {
+            throw new InvalidArgumentException("Card list name cannot be empty");
+        }
+
+        // Permission & board check
+        Board::GetBoardData($boardID);
+
+        // Delegate to internal safe method
+        $newCardListData = self::addNewCardListInternal($boardID, $prevListID, $name);
+
+        DB::UpdateBoardModifiedTime($boardID);
+
+        return $newCardListData;
+    }
+
+    /**
+     * Internal logic for adding a new list to the DB and maintaining LL links.
+     * @param int    $boardID    The board to add the list to.
+     * @param int    $prevListID The previous list's ID (0 if adding at start).
+     * @param string $name       The list name.
+     * @return array Newly created card list record.
+     * @throws RuntimeException On failed DB insert or linked-list update.
+     */
+    public static function addNewCardListInternal(int $boardID, int $prevListID, string $name): array
+    {
+        try {
+            // Count how many lists exist in this board
+            $cardListCount = DB::fetchOne(
+                "SELECT COUNT(*) FROM tarallo_cardlists WHERE board_id = :board_id",
+                ['board_id' => $boardID]
+            );
+        } catch (Throwable $e) {
+            Logger::error("addNewCardListInternal: Failed counting lists for board $boardID - " . $e->getMessage());
+            throw new RuntimeException("Database error checking existing lists");
+        }
+
+        // If board is empty but prevListID given, it's invalid
+        if ($cardListCount == 0 && $prevListID > 0) {
+            throw new RuntimeException("The specified previous card list is not in the destination board", 400);
+        }
+
+        $nextListID = 0;
+
+        if ($cardListCount > 0) {
+            // Find the "next" after the intended prev
+            $nextCardListRecord = DB::fetchRow(
+                "SELECT id FROM tarallo_cardlists WHERE board_id = :board_id AND prev_list_id = :prev_list_id",
+                [
+                    'board_id'    => $boardID,
+                    'prev_list_id'=> $prevListID
+                ]
+            );
+
+            if ($prevListID > 0) {
+                $prevCardListRecord = DB::fetchRow(
+                    "SELECT id FROM tarallo_cardlists WHERE board_id = :board_id AND id = :prev_list_id",
+                    [
+                        'board_id'    => $boardID,
+                        'prev_list_id'=> $prevListID
+                    ]
+                );
+                if (!$prevCardListRecord) {
+                    throw new RuntimeException("Invalid previous card list ID", 400);
+                }
+            }
+
+            if ($nextCardListRecord) {
+                $nextListID = (int) $nextCardListRecord['id'];
+            }
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Insert new list
+            $newListID = DB::insert(
+                "INSERT INTO tarallo_cardlists (board_id, name, prev_list_id, next_list_id)
+             VALUES (:board_id, :name, :prev_list_id, :next_list_id)",
+                [
+                    'board_id'     => $boardID,
+                    'name'         => $name,
+                    'prev_list_id' => $prevListID,
+                    'next_list_id' => $nextListID
+                ]
+            );
+
+            if (!$newListID) {
+                throw new RuntimeException("Failed to insert new card list");
+            }
+
+            CardList::addCardListToLL((int)$newListID, $prevListID, $nextListID);
+
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Logger::error("addNewCardListInternal: Insert/LL update failed for board $boardID - " . $e->getMessage());
+            throw new RuntimeException("Failed to add card list");
+        }
+
+        return Card::GetCardlistData($boardID, (int)$newListID);
+    }
+
 }

@@ -144,17 +144,9 @@ class API
 		return CardList::updateCardListName($request);
 	}
 
-	public static function AddCardList($request)
+	public static function AddCardList(array $request): array
 	{
-		// query and validate board id
-		$boardData = Board::GetBoardData((int)$request["board_id"]);
-
-		// insert the new cardlist
-		$newCardListData = self::AddNewCardListInternal($boardData["id"], $request["prev_list_id"], $request["name"]);
-
-		DB::UpdateBoardModifiedTime((int)$request["board_id"]);
-
-		return $newCardListData;
+		return CardList::addCardList($request);
 	}
 
 	public static function DeleteCardList($request)
@@ -521,7 +513,7 @@ class API
 				continue; // skip archived trello lists
 
 			// create the list
-			$newCardlistData = self::AddNewCardListInternal($newBoardID, $prevCardlistID, $curTrelloList["name"]);
+			$newCardlistData = CardList::addNewCardListInternal($newBoardID, $prevCardlistID, $curTrelloList["name"]);
 			$newCardlistID = $newCardlistData["id"];
 
 
@@ -1092,81 +1084,6 @@ class API
 		}
 
 		return $cardListData;
-	}
-
-	private static function AddNewCardListInternal($boardID, $prevListID, $name) 
-	{
-		// count the cardlists in the destination board
-		$cardListCountQuery = "SELECT COUNT(*) FROM tarallo_cardlists WHERE board_id = :board_id";
-		DB::setParam("board_id", $boardID);
-		$cardListCount = DB::fetchOneWithStoredParams($cardListCountQuery);
-
-		if ($cardListCount == 0 && $prevListID > 0)
-		{
-			http_response_code(400);
-			exit("The specified previous card list is not in the destination board.");
-		}
-
-		$nextListID = 0;
-		if ($cardListCount > 0)
-		{
-			// board is not empty
-
-    		// query the cardlist that will be the next after the new one
-			$nextCardListQuery = "SELECT * FROM tarallo_cardlists WHERE board_id = :board_id AND prev_list_id = :prev_list_id";
-			DB::setParam("board_id", $boardID);
-			DB::setParam("prev_list_id", $prevListID);
-			$nextCardListRecord = DB::fetchRowWithStoredParams($nextCardListQuery);
-
-			// query prev card list data
-			$preCardListRecord = false;
-			if ($prevListID > 0)
-			{
-				$prevCardListQuery = "SELECT * FROM tarallo_cardlists WHERE board_id = :board_id AND id = :prev_list_id";
-				DB::setParam("board_id", $boardID);
-				DB::setParam("prev_list_id", $prevListID);
-				$prevCardListRecord = DB::fetchRowWithStoredParams($prevCardListQuery);
-
-				if (!$prevCardListRecord)
-				{
-					http_response_code(400);
-					exit("The specified previous card list id is invalid.");
-				}
-			}
-
-			if ($nextCardListRecord)
-			{
-				// found a list that will be next to the one that will be added
-				$nextListID = $nextCardListRecord["id"];
-			}
-		}
-
-		// perform queries to add the new list and update the others
-		try
-		{
-			DB::beginTransaction();
-
-			// add the new list with the specified name
-			$addCardListQuery = "INSERT INTO tarallo_cardlists (board_id, name, prev_list_id, next_list_id)";
-			$addCardListQuery .= " VALUES (:board_id, :name, :prev_list_id, :next_list_id)";
-			DB::setParam("board_id", $boardID);
-			DB::setParam("name", $name);
-			DB::setParam("prev_list_id", $prevListID);
-			DB::setParam("next_list_id", $nextListID);
-			$newListID = DB::insertWithStoredParams($addCardListQuery);
-
-			CardList::addCardListToLL((int)$newListID, (int)$prevListID, $nextListID);
-
-			DB::commit();
-		}
-		catch(Exception $e)
-		{
-			DB::rollBack();
-			throw $e;
-		}
-
-		// re-query the added list and return its data
-		return Card::GetCardlistData($boardID, (int)$newListID);
 	}
 
 	private static function CreateNewBoardInternal($title, $labelNames = "", $labelColors = "", $backgroundGUID = null)
