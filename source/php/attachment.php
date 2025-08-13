@@ -716,4 +716,70 @@ class Attachment
         return $response;
     }
 
+    /**
+     * Update the name of an existing attachment belonging to a board.
+     * @param array $request Must include 'board_id', 'id', and 'name'.
+     * @return array Updated attachment data.
+     * @throws InvalidArgumentException On invalid input.
+     * @throws RuntimeException On DB error.
+     */
+    public static function updateAttachmentName(array $request): array
+    {
+        // Validate request parameters
+        foreach (['board_id', 'id', 'name'] as $key) {
+            if (!isset($request[$key]) || $request[$key] === '') {
+                throw new InvalidArgumentException("Missing or invalid parameter: $key");
+            }
+        }
+
+        $boardID      = (int)$request['board_id'];
+        $attachmentID = (int)$request['id'];
+        $rawName      = (string)$request['name'];
+
+        if ($boardID <= 0 || $attachmentID <= 0) {
+            throw new InvalidArgumentException("Invalid board or attachment ID.");
+        }
+
+        // Permission and board validity check
+        Board::GetBoardData($boardID, Permission::USERTYPE_Member);
+
+        // Ensure the attachment exists and belongs to the board
+        $attachmentRecord = self::GetAttachmentRecord($boardID, $attachmentID);
+
+        // Clean and validate the new name
+        $filteredName = self::CleanAttachmentName($rawName);
+        if ($filteredName === '') {
+            throw new InvalidArgumentException("Attachment name cannot be empty after cleaning.");
+        }
+
+        // Perform the update
+        try {
+            $rows = DB::query(
+                "UPDATE tarallo_attachments SET name = :name WHERE id = :id",
+                [
+                    'name' => $filteredName,
+                    'id'   => $attachmentRecord['id']
+                ]
+            );
+
+            if ($rows < 1) {
+                Logger::warning(
+                    "updateAttachmentName: No DB rows updated for attachment $attachmentID on board $boardID"
+                );
+            }
+        } catch (Throwable $e) {
+            Logger::error(
+                "updateAttachmentName: Failed to update attachment $attachmentID on board $boardID - " . $e->getMessage()
+            );
+            throw new RuntimeException("Database error while updating attachment name.");
+        }
+
+        // Update the board modified time
+        DB::UpdateBoardModifiedTime($boardID);
+
+        // Return updated attachment data
+        $attachmentRecord['name'] = $filteredName;
+        return self::AttachmentRecordToData($attachmentRecord);
+    }
+
 }

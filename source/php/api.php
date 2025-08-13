@@ -131,25 +131,7 @@ class API
 
 	public static function UpdateAttachmentName($request)
 	{
-		// query and validate board id
-		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Member);
-
-		// query attachment
-		$attachmentRecord = Attachment::getAttachmentRecord($request["board_id"], $request["id"]);
-
-		// update attachment name
-		$filteredName = Attachment::cleanAttachmentName($request["name"]);
-
-		DB::setParam("id", $attachmentRecord["id"]);
-		DB::setParam("name", $filteredName);
-		DB::queryWithStoredParams("UPDATE tarallo_attachments SET name = :name WHERE id = :id");
-
-		DB::UpdateBoardModifiedTime($request["board_id"]);
-
-		// return the updated attachment data
-		$attachmentRecord["name"] = $filteredName;
-		$response = Attachment::attachmentRecordToData($attachmentRecord);
-		return $response;
+		return Attachment::updateAttachmentName($request);
 	}
 
 	public static function ProxyAttachment($request)
