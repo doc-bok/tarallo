@@ -721,56 +721,99 @@ class API
         return self::CardRecordToData($newCard);
     }
 
-	public static function MoveCardList($request)
-	{
-		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"], self::USERTYPE_Moderator);
+    /**
+     * Move a card list
+     * @param array $request The request parameters.
+     * @return string[] The result of the operation.
+     */
+    public static function MoveCardList(array $request): array
+    {
+        self::EnsureSession();
 
-		//query and validate cardlist id
-		$cardListData = self::GetCardlistData($request["board_id"], $request["moved_cardlist_id"]);
+        $userId       = $_SESSION['user_id'] ?? null;
+        $boardId      = isset($request['board_id']) ? (int) $request['board_id'] : 0;
+        $listId       = isset($request['moved_cardlist_id']) ? (int) $request['moved_cardlist_id'] : 0;
+        $newPrevList  = isset($request['new_prev_cardlist_id']) ? (int) $request['new_prev_cardlist_id'] : 0;
 
-		// query and validate the prev cardlist if any, and get the next list ID
-		$nextCardListID = 0;
-		if ($request["new_prev_cardlist_id"] > 0) 
-		{
-			$cardListPrevData = self::GetCardlistData($request["board_id"], $request["new_prev_cardlist_id"]);
-			$nextCardListID = $cardListPrevData["next_list_id"];
-		}
-		else
-		{
-			// query the first cardlist, that will be the next after the moved one
-			$nextCardListQuery = "SELECT * FROM tarallo_cardlists WHERE board_id = :board_id AND prev_list_id = 0";
-			DB::setParam("board_id", $boardData['id']);
-			$nextCardListRecord = DB::fetchRowWithStoredParams($nextCardListQuery);
-			$nextCardListID = $nextCardListRecord['id'];
-		}
+        if (!$userId) {
+            http_response_code(401);
+            return ['error' => 'Not logged in'];
+        }
+        if ($boardId <= 0 || $listId <= 0) {
+            http_response_code(400);
+            return ['error' => 'Invalid or missing board_id / moved_cardlist_id'];
+        }
 
-		// move the card list
-		try
-		{
-			DB::beginTransaction();
+        // Permission + board existence check
+        try {
+            self::GetBoardData($boardId, self::USERTYPE_Moderator);
+        } catch (RuntimeException) {
+            Logger::warning("MoveCardList: User $userId tried to move list $listId in board $boardId without permission");
+            http_response_code(403);
+            return ['error' => 'Access denied'];
+        }
 
-			// update cardlist linked list
-			self::RemoveCardListFromLL($cardListData);
-			DB::setParam("prev_list_id", $request["new_prev_cardlist_id"]);
-			DB::setParam("next_list_id", $nextCardListID);
-			DB::setParam("id", $request["moved_cardlist_id"]);
-			DB::queryWithStoredParams("UPDATE tarallo_cardlists SET prev_list_id = :prev_list_id, next_list_id = :next_list_id WHERE id = :id");
-			self::AddCardListToLL($request["moved_cardlist_id"], $request["new_prev_cardlist_id"], $nextCardListID);
+        // Source list must exist in this board
+        try {
+            $cardListData = self::GetCardlistData($boardId, $listId);
+        } catch (RuntimeException) {
+            http_response_code(404);
+            return ['error' => 'List not found in board'];
+        }
 
-			self::UpdateBoardModifiedTime($request["board_id"]);
+        // Determine ID of list that will follow the moved one
+        $nextCardListID = 0;
+        if ($newPrevList > 0) {
+            // New prev list must exist in this board
+            try {
+                $prevListData = self::GetCardlistData($boardId, $newPrevList);
+            } catch (\RuntimeException) {
+                http_response_code(400);
+                return ['error' => 'Invalid new_prev_cardlist_id'];
+            }
+            $nextCardListID = (int) $prevListData['next_list_id'];
+        } else {
+            // Find "first" cardlist in board as the next list
+            $nextRec = DB::fetchRow(
+                "SELECT id FROM tarallo_cardlists WHERE board_id = :bid AND prev_list_id = 0",
+                ['bid' => $boardId]
+            );
+            $nextCardListID = $nextRec ? (int) $nextRec['id'] : 0;
+        }
 
-			DB::commit();
-		}
-		catch(Exception $e)
-		{
-			DB::rollBack();
-			throw $e;
-		}
+        // Move operation in a transaction
+        try {
+            DB::beginTransaction();
 
-		// requery the list prepare the response
-        return self::GetCardlistData($request["board_id"], $request["moved_cardlist_id"]);
-	}
+            self::RemoveCardListFromLL($cardListData);
+
+            DB::query(
+                "UPDATE tarallo_cardlists
+             SET prev_list_id = :prev, next_list_id = :next
+             WHERE id = :id",
+                [
+                    'prev' => $newPrevList,
+                    'next' => $nextCardListID,
+                    'id'   => $listId
+                ]
+            );
+
+            self::AddCardListToLL($listId, $newPrevList, $nextCardListID);
+            self::UpdateBoardModifiedTime($boardId);
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Logger::error("MoveCardList: Failed moving list $listId in board $boardId - " . $e->getMessage());
+            http_response_code(500);
+            return ['error' => 'Move failed'];
+        }
+
+        Logger::info("MoveCardList: User $userId moved list $listId in board $boardId");
+
+        // Return fresh list data after move
+        return self::GetCardlistData($boardId, $listId);
+    }
 
 	public static function UpdateCardTitle($request)
 	{
