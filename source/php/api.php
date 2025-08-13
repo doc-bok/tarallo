@@ -619,58 +619,107 @@ class API
         ];
     }
 
-	public static function MoveCard($request)
-	{
-		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"], self::USERTYPE_Member);
+    /**
+     * Move a card from one place to another.
+     * @param $request The request parameters.
+     * @return array|null The result of the operation.
+     * @throws Exception If the database fails to update.
+     */
+    public static function MoveCard(array $request): array
+    {
+        self::EnsureSession();
 
-		//query and validate cardlist id
-		$cardlistData = self::GetCardlistData($request["board_id"], $request["dest_cardlist_id"]);
+        $userId = $_SESSION['user_id'] ?? null;
+        if (!$userId) {
+            http_response_code(401);
+            return ['error' => 'Not logged in'];
+        }
 
-		// move the card
-		try
-		{
-			DB::beginTransaction();
+        $boardId        = isset($request['board_id']) ? (int) $request['board_id'] : 0;
+        $movedCardId    = isset($request['moved_card_id']) ? (int) $request['moved_card_id'] : 0;
+        $destCardlistId = isset($request['dest_cardlist_id']) ? (int) $request['dest_cardlist_id'] : 0;
+        $newPrevCardId  = isset($request['new_prev_card_id']) ? (int) $request['new_prev_card_id'] : 0;
 
-			// delete the original card
-			$cardRecord = self::DeleteCardInternal($request["board_id"], $request["moved_card_id"], false);
+        if ($boardId <= 0 || $movedCardId <= 0 || $destCardlistId <= 0) {
+            http_response_code(400);
+            return ['error' => 'Missing or invalid parameters'];
+        }
 
-			// update last_move_time only if the card list is changing
-			$lastMovedTime = $cardRecord["cardlist_id"] != $request["dest_cardlist_id"] ? time() : $cardRecord["last_moved_time"];
+        // Get board data with cards to verify membership & card presence
+        try {
+            $boardData = self::GetBoardData($boardId, self::USERTYPE_Member, false, true, true);
+        } catch (RuntimeException) {
+            Logger::warning("MoveCard: User $userId permission denied on board $movedCardId");
+            http_response_code(403);
+            return ['error' => 'Access denied'];
+        }
 
-			// add the card at the new location
-			$newCardRecord = self::AddNewCardInternal(
-				$request["board_id"],
-				$request["dest_cardlist_id"],
-				$request["new_prev_card_id"],
-				$cardRecord["title"],
-				$cardRecord["content"],
-				$cardRecord["cover_attachment_id"],
-				$lastMovedTime,
-				$cardRecord["label_mask"],
-				$cardRecord["flags"]
-			);
+        // Find the card being moved
+        $cardRecord = null;
+        foreach ($boardData['cards'] as $c) {
+            if ((int)$c['id'] === $movedCardId) {
+                $cardRecord = $c;
+                break;
+            }
+        }
+        if (!$cardRecord) {
+            http_response_code(404);
+            return ['error' => 'Card not found in board'];
+        }
 
-			// update attachments card_id
-			$updateAttachmentsQuery = "UPDATE tarallo_attachments SET card_id = :new_card_id WHERE card_id = :old_card_id";
-			DB::setParam("new_card_id", $newCardRecord["id"]);
-			DB::setParam("old_card_id", $request["moved_card_id"]);
-			DB::queryWithStoredParams($updateAttachmentsQuery);
+        // Validate the destination cardlist
+        try {
+            self::GetCardlistData($boardId, $destCardlistId);
+        } catch (RuntimeException $e) {
+            http_response_code(400);
+            return ['error' => 'Destination cardlist invalid'];
+        }
 
-			self::UpdateBoardModifiedTime($request["board_id"]);
+        // Transaction: delete original, insert new at target
+        try {
+            DB::beginTransaction();
 
-			DB::commit();
-		}
-		catch(Exception $e)
-		{
-			DB::rollBack();
-			throw $e;
-		}
+            // Delete original card record (without deleting attachments)
+            $deletedCard = self::DeleteCardInternal($boardId, $movedCardId, false);
 
-		// prepare the response
-		$response = self::CardRecordToData($newCardRecord);
-		return $response;
-	}
+            // Preserve or update last moved time
+            $lastMovedTime = ($deletedCard['cardlist_id'] != $destCardlistId)
+                ? time()
+                : $deletedCard['last_moved_time'];
+
+            // Add card to new location
+            $newCard = self::AddNewCardInternal(
+                $boardId,
+                $destCardlistId,
+                $newPrevCardId,
+                $deletedCard['title'],
+                $deletedCard['content'],
+                $deletedCard['cover_attachment_id'],
+                $lastMovedTime,
+                $deletedCard['label_mask'],
+                $deletedCard['flags']
+            );
+
+            // Move attachments to new card_id
+            DB::query(
+                "UPDATE tarallo_attachments SET card_id = :new_id WHERE card_id = :old_id",
+                ['new_id' => $newCard['id'], 'old_id' => $movedCardId]
+            );
+
+            self::UpdateBoardModifiedTime($boardId);
+
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Logger::error("MoveCard: Failed to move card $movedCardId in board $movedCardId - {$e->getMessage()}");
+            http_response_code(500);
+            return ['error' => 'Card move failed'];
+        }
+
+        Logger::info("MoveCard: User $userId moved card $movedCardId to list $destCardlistId in board $movedCardId");
+
+        return self::CardRecordToData($newCard);
+    }
 
 	public static function MoveCardList($request)
 	{
@@ -720,8 +769,7 @@ class API
 		}
 
 		// requery the list prepare the response
-		$response = self::GetCardlistData($request["board_id"], $request["moved_cardlist_id"]);
-		return $response;
+        return self::GetCardlistData($request["board_id"], $request["moved_cardlist_id"]);
 	}
 
 	public static function UpdateCardTitle($request)
