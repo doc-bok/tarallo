@@ -4,6 +4,7 @@ class Label
 {
     const DEFAULT_LABEL_COLORS = array("red", "orange", "yellow", "green", "cyan", "azure", "blue", "purple", "pink", "grey");
     const MAX_LABEL_FIELD_LEN = 400;
+    const MAX_LABEL_COUNT = 24;
 
     /**
      * Sanitise and limit label name length.
@@ -49,18 +50,9 @@ class Label
         // Clean and validate label names
         $cleanNames = array_map([self::class, 'CleanLabelName'], $labelNames);
 
-        // Optional: validate label colours
-        $cleanColors = array_map(function ($color) {
-            $color = trim($color);
-            if (!preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
-                throw new InvalidArgumentException("Invalid label colour: $color");
-            }
-            return strtolower($color);
-        }, $labelColors);
-
         // Implode to storage strings
         $labelsString      = implode(',', $cleanNames);
-        $labelColorsString = implode(',', $cleanColors);
+        $labelColorsString = implode(',', $labelColors);
 
         // Length check (multibyte safe)
         if (mb_strlen($labelsString, 'UTF-8') >= self::MAX_LABEL_FIELD_LEN
@@ -90,4 +82,62 @@ class Label
         }
     }
 
+    /**
+     * Create a new label on a board in the first available slot.
+     * @param array $request Must contain 'board_id'
+     * @return array Updated label data (names, colours, index)
+     * @throws InvalidArgumentException On invalid board ID or exceeding label count.
+     * @throws RuntimeException On DB error.
+     */
+    public static function createBoardLabel(array $request): array
+    {
+        if (!isset($request['board_id']) || !is_numeric($request['board_id'])) {
+            throw new InvalidArgumentException("Missing or invalid board ID.");
+        }
+        $boardID = (int)$request['board_id'];
+        if ($boardID <= 0) {
+            throw new InvalidArgumentException("Invalid board ID: $boardID");
+        }
+
+        // Ensure user has rights to modify this board
+        $boardData = Board::GetBoardData($boardID /*, Permission::USERTYPE_Member */);
+
+        // Split label sets safely
+        $boardLabelNames  = $boardData['label_names'] !== '' ? explode(',', $boardData['label_names']) : [];
+        $boardLabelColors = $boardData['label_colors'] !== '' ? explode(',', $boardData['label_colors']) : [];
+
+        $labelCount = count($boardLabelNames);
+
+        // Find first empty label slot
+        $labelIndex = array_search('', $boardLabelNames, true);
+        if ($labelIndex === false) {
+            if ($labelCount >= self::MAX_LABEL_COUNT) {
+                throw new RuntimeException("Cannot create any more labels", 400);
+            }
+            // Add an empty label slot
+            $labelIndex = $labelCount;
+            $boardLabelNames[]  = '';
+            $boardLabelColors[] = '';
+        }
+
+        // Assign default colour; keep name empty
+        $newLabelColor = Label::DEFAULT_LABEL_COLORS[$labelIndex % count(Label::DEFAULT_LABEL_COLORS)];
+        $boardLabelNames[$labelIndex]  = '';  // Leave name blank until user renames
+        $boardLabelColors[$labelIndex] = $newLabelColor;
+
+        // Persist update
+        try {
+            Label::UpdateBoardLabelsInternal($boardID, $boardLabelNames, $boardLabelColors);
+            DB::UpdateBoardModifiedTime($boardID);
+        } catch (Throwable $e) {
+            Logger::error("createBoardLabel: Failed to add label to board $boardID - " . $e->getMessage());
+            throw new RuntimeException("Failed to create board label");
+        }
+
+        return [
+            'label_names'  => implode(',', $boardLabelNames),
+            'label_colors' => implode(',', $boardLabelColors),
+            'index'        => $labelIndex
+        ];
+    }
 }

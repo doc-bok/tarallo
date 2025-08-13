@@ -40,7 +40,6 @@ echo json_encode($response);
 // contains all the tarallo api calls
 class API
 {
-	const MAX_LABEL_COUNT = 24;
 
     public static function GetCurrentPage(array $request): array
     {
@@ -187,59 +186,15 @@ class API
 		return Board::importFromTrello($request);
 	}
 
-	public static function CreateBoardLabel($request)
+	public static function CreateBoardLabel(array $request): array
 	{
-		// query and validate board id
-		$boardData = Board::GetBoardData($request["board_id"]);
-
-		// explode board label list
-		$boardLabelNames = array();
-		$boardLabelColors = array();
-		if (strlen($boardData["label_names"]) > 0) 
-		{
-			$boardLabelNames = explode(",", $boardData["label_names"]);
-			$boardLabelColors = explode(",", $boardData["label_colors"]);
-		}
-		$labelCount = count($boardLabelNames);
-
-		// search for the first empty slot in the label mask if any
-		$labelIndex = array_search("", $boardLabelNames);
-		if ($labelIndex === false)
-		{
-			// check that the number of label is not exceeded
-			if ($labelCount >= self::MAX_LABEL_COUNT)
-			{
-				http_response_code(400);
-				exit("Cannot create any more labels!");
-			}
-
-			// no empty slot, add one
-			$labelIndex = $labelCount;
-			$boardLabelNames[] = "";
-			$boardLabelColors[] = "";
-		}
-
-		// add a new label
-		$newLabelColor = Label::DEFAULT_LABEL_COLORS[$labelIndex % count(Label::DEFAULT_LABEL_COLORS)];
-		$boardLabelNames[$labelIndex] = $newLabelColor;
-		$boardLabelColors[$labelIndex] = $newLabelColor;
-
-		// update the board
-		Label::updateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
-		DB::updateBoardModifiedTime($request["board_id"]);
-
-		// return the updated labels
-		$response = array();
-		$response["label_names"] = implode(",", $boardLabelNames);
-		$response["label_colors"] = implode(",", $boardLabelColors);
-		$response["index"] = $labelIndex;
-		return $response;
+        return Label::createBoardLabel($request);
 	}
 
 	public static function UpdateBoardLabel($request)
 	{
 		// query and validate board id
-		$boardData = Board::GetBoardData($request["board_id"]);
+		$boardData = Board::GetBoardData((int)$request["board_id"]);
 
 		// explode board label list
 		$boardLabelNames = explode(",", $boardData["label_names"]);
