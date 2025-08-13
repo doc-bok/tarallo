@@ -42,7 +42,6 @@ class API
 {
 	const MAX_LABEL_COUNT = 24;
 	const MAX_LABEL_FIELD_LEN = 400;
-	const TEMP_EXPORT_PATH = "temp/export.zip";
 
     public static function GetCurrentPage(array $request): array
     {
@@ -179,168 +178,9 @@ class API
 		return Board::deleteBoard($request);
 	}
 
-	public static function ImportBoard($request)
+	public static function ImportBoard(): array
 	{
-		if (!$_SESSION["is_admin"] && !DB::getDBSetting("board_import_enabled"))
-		{
-			http_response_code(403);
-			exit("Board import is disabled on this server!");
-		}
-
-		if (!Session::isUserLoggedIn())
-		{
-			http_response_code(403);
-			exit("Cannot create a new board without being logged in.");
-		}
-
-		// open the zip archive from the export
-		$exportPath = self::TEMP_EXPORT_PATH;
-		$exportZip = new ZipArchive();		
-		if (!$exportZip->open(File::ftpDir($exportPath)))
-		{
-			http_response_code(500);
-			exit("Import Failed: export zip not found.");
-		}
-
-		// unzip db content
-		$boardExportData = array();
-		{
-			$dbExportJson = $exportZip->getFromName("db.json");
-			if (!$dbExportJson)
-			{
-				http_response_code(400);
-				exit("Import Failed: invalid export file.");
-			}
-			$boardExportData = json_decode($dbExportJson, true);
-		}
-
-		// build new db indices
-		$nextCardlistID = DB::fetchOneWithStoredParams("SELECT MAX(id) FROM tarallo_cardlists") + 1;
-		$cardlistIndex = DB::rebuildDBIndex($boardExportData["cardlists"], "id", $nextCardlistID);
-		$cardlistIndex[0] = 0; // unlinked cardlist entry
-		$nextCardID = DB::fetchOneWithStoredParams("SELECT MAX(id) FROM tarallo_cards") + 1;
-		$cardIndex = DB::rebuildDBIndex($boardExportData["cards"], "id", $nextCardID);
-		$cardIndex[0] = 0; // no prev card id entry
-		$nextAttachmentID = DB::fetchOneWithStoredParams("SELECT MAX(id) FROM tarallo_attachments") + 1;
-		$attachIndex = DB::rebuildDBIndex($boardExportData["attachments"], "id", $nextAttachmentID);
-		$attachIndex[0] = 0; // card without cover attachment
-
-		try
-		{
-			DB::beginTransaction();
-
-			// create a new board with the exported data
-			$newBoardID = Board::createNewBoardInternal($boardExportData["title"], $boardExportData["label_names"], $boardExportData["label_colors"], $boardExportData["background_guid"]);
-
-			// add cardlists to db
-			{
-				// prepare a query to add all the cardlists
-				$addCardlistsQuery = "INSERT INTO tarallo_cardlists (id, board_id, name, prev_list_id, next_list_id) VALUES ";
-				$cardlistPlaceholders = "(?, ?, ?, ?, ?)";
-				// foreach cardlist
-				for ($i = 0; $i < count($boardExportData["cardlists"]); $i++) 
-				{
-					$curList = $boardExportData["cardlists"][$i];
-
-					// add query parameters
-					DB::$QUERY_PARAMS[] = $cardlistIndex[$curList["id"]]; // id
-					DB::$QUERY_PARAMS[] = $newBoardID;// board_id
-					DB::$QUERY_PARAMS[] = $curList["name"]; // name
-					DB::$QUERY_PARAMS[] = $cardlistIndex[$curList["prev_list_id"]]; // prev_list_id
-					DB::$QUERY_PARAMS[] = $cardlistIndex[$curList["next_list_id"]]; // next_list_id
-
-					// add query format
-					$addCardlistsQuery .= ($i > 0 ? ", " : "") . $cardlistPlaceholders;
-				}
-				// add all the cards for this list to the DB
-				DB::queryWithStoredParams($addCardlistsQuery);
-			}
-
-			// add cards to db
-			{
-				// prepare a query to add all the cards
-				$addCardsQuery = "INSERT INTO tarallo_cards (id, title, content, prev_card_id, next_card_id, cardlist_id, board_id, cover_attachment_id, last_moved_time, label_mask, flags) VALUES ";
-				$cardPlaceholders = "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-				// foreach card
-				for ($i = 0; $i < count($boardExportData["cards"]); $i++) 
-				{
-					$curCard = $boardExportData["cards"][$i];
-
-					// add query parameters
-					DB::$QUERY_PARAMS[] = $cardIndex[$curCard["id"]]; // id
-					DB::$QUERY_PARAMS[] = $curCard["title"]; // title
-					DB::$QUERY_PARAMS[] = $curCard["content"]; // content
-					DB::$QUERY_PARAMS[] = $cardIndex[$curCard["prev_card_id"]]; // prev_card_id
-					DB::$QUERY_PARAMS[] = $cardIndex[$curCard["next_card_id"]];// next_card_id
-					DB::$QUERY_PARAMS[] = $cardlistIndex[$curCard["cardlist_id"]];// cardlist_id
-					DB::$QUERY_PARAMS[] = $newBoardID;// board_id
-					DB::$QUERY_PARAMS[] = $attachIndex[$curCard["cover_attachment_id"]];// cover_attachment_id
-					DB::$QUERY_PARAMS[] = $curCard["last_moved_time"]; // last_moved_time
-					DB::$QUERY_PARAMS[] = $curCard["label_mask"];// label_mask
-					DB::$QUERY_PARAMS[] = $curCard["flags"];// flags
-
-					// add query format
-					$addCardsQuery .= ($i > 0 ? ", " : "") . $cardPlaceholders;
-				}
-				// add all the cards for this list to the DB
-				DB::queryWithStoredParams($addCardsQuery);
-			}
-
-			// add attachments
-			if (count($boardExportData["attachments"]) > 0)
-			{
-				// prepare a query to add all the attachments
-				$addAttachmentsQuery = "INSERT INTO tarallo_attachments (id, name, guid, extension, card_id, board_id) VALUES ";
-				$attachmentsPlaceholders = "(?, ?, ?, ?, ?, ?)";
-				// foreach cardlist
-				for ($i = 0; $i < count($boardExportData["attachments"]); $i++) 
-				{
-					$curAttachment = $boardExportData["attachments"][$i];
-
-					// add query parameters
-					DB::$QUERY_PARAMS[] = $attachIndex[$curAttachment["id"]]; // id
-					DB::$QUERY_PARAMS[] = $curAttachment["name"]; // name
-					DB::$QUERY_PARAMS[] = $curAttachment["guid"]; // guid
-					DB::$QUERY_PARAMS[] = $curAttachment["extension"]; // extension
-					DB::$QUERY_PARAMS[] = $cardIndex[$curAttachment["card_id"]]; // card_id
-					DB::$QUERY_PARAMS[] = $newBoardID;// board_id
-
-					// add query format
-					$addAttachmentsQuery .= ($i > 0 ? ", " : "") . $attachmentsPlaceholders;
-				}
-				// add all the cards for this list to the DB
-				DB::queryWithStoredParams($addAttachmentsQuery);
-			}
-
-			// unzip board content to board/ folder
-			$boardFolder = Board::getBoardContentDir($newBoardID);
-			if (!$exportZip->extractTo(File::ftpDir($boardFolder)))
-			{
-				DB::rollBack();
-				http_response_code(500);
-				exit("Import Failed: extraction failed.");
-			}
-			if (!$exportZip->close())
-			{
-				DB::rollBack();
-				http_response_code(500);
-				exit("Import failed: cannot close zip file.");
-			}
-
-			// clean temp files
-			File::deleteFile($boardFolder . "db.json");
-			File::deleteFile($exportPath);
-
-			DB::commit();
-		}
-		catch(Exception $e)
-		{
-			DB::rollBack();
-			throw $e;
-		}
-
-		// re-query and return the new board data
-		return Board::GetBoardData((int)$newBoardID);
+		return Board::importBoard();
 	}
 
 	public static function ImportFromTrello($request) 
@@ -829,7 +669,7 @@ class API
 		$boardId = $boardData["id"];
 
 		// create a zip for the export
-		$exportPath = self::TEMP_EXPORT_PATH;
+		$exportPath = Board::TEMP_EXPORT_PATH;
 		File::prepareDir($exportPath);
 		$exportZip = new ZipArchive();
 
@@ -911,7 +751,7 @@ class API
 					http_response_code(403);
 					exit("Board import is disabled on this server! (upload)");
 				}
-				$destFilePath = self::TEMP_EXPORT_PATH;
+				$destFilePath = Board::TEMP_EXPORT_PATH;
 				break;
 			default:
 				http_response_code(400);

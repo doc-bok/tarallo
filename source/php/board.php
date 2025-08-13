@@ -12,6 +12,7 @@ class Board
     const BOARD_CONTENT_BASE = "boards";
     const DEFAULT_BG = "images/tarallo-bg.jpg";
     const DEFAULT_BOARDTILE_BG = "images/boardtile-bg.jpg";
+    const TEMP_EXPORT_PATH = "temp/export.zip";
 
     /**
      * Retrieves board data for the given board ID and user,
@@ -632,4 +633,240 @@ class Board
 
         return $boardData;
     }
+
+    /**
+     * Import a board previously exported
+     * @return array The newly created board
+     */
+    public static function importBoard(): array
+    {
+        self::assertImportAllowed();
+
+        if (!Session::isUserLoggedIn()) {
+            throw new RuntimeException("Must be logged in to import a board", 403);
+        }
+
+        $zip = self::openExportZip();
+
+        $boardExportData = self::loadExportMetadata($zip);
+        self::validateExportSchema($boardExportData);
+
+        // Build ID mapping for new DB inserts
+        $cardlistIndex = self::buildNewIds('tarallo_cardlists', $boardExportData['cardlists']);
+        $cardIndex     = self::buildNewIds('tarallo_cards', $boardExportData['cards']);
+        $attachIndex   = self::buildNewIds('tarallo_attachments', $boardExportData['attachments']);
+
+        try {
+            DB::beginTransaction();
+
+            // Create new board record
+            $newBoardID = Board::createNewBoardInternal(
+                $boardExportData['title'],
+                $boardExportData['label_names'],
+                $boardExportData['label_colors'],
+                $boardExportData['background_guid']
+            );
+
+            self::insertCardlists($boardExportData['cardlists'], $cardlistIndex, $newBoardID);
+            self::insertCards($boardExportData['cards'], $cardIndex, $cardlistIndex, $attachIndex, $newBoardID);
+            self::insertAttachments($boardExportData['attachments'], $attachIndex, $cardIndex, $newBoardID);
+
+            // Extract files now
+            self::extractBoardFiles($zip, $newBoardID);
+
+            DB::commit();
+
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Logger::error("Board import failed: " . $e->getMessage());
+            throw new RuntimeException("Board import failed: {$e->getMessage()}", 500);
+        }
+
+        return Board::GetBoardData($newBoardID);
+    }
+
+    /**
+     * Check the user is allowed to import a board
+     */
+    private static function assertImportAllowed(): void
+    {
+        if (!($_SESSION['is_admin'] ?? false)
+            && !DB::getDBSetting('board_import_enabled')) {
+            throw new RuntimeException("Board import is disabled on this server", 403);
+        }
+    }
+
+    /**
+     * Open the zip fil from a previous export
+     * @return ZipArchive The opened zip archive
+     */
+    private static function openExportZip(): ZipArchive
+    {
+        $zip = new ZipArchive();
+        $path = File::ftpDir(self::TEMP_EXPORT_PATH);
+
+        if ($zip->open($path) !== true) {
+            throw new RuntimeException("Export zip not found", 500);
+        }
+
+        // ZIP Slip prevention
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $entry = $zip->getNameIndex($i);
+            if (str_contains($entry, '..') || str_starts_with($entry, '/')) {
+                $zip->close();
+                throw new RuntimeException("Unsafe file path in archive", 400);
+            }
+        }
+        return $zip;
+    }
+
+    /**
+     * Load the metadata from the export file
+     * @param ZipArchive $zip The opened zip archive
+     * @return array The metadata
+     */
+    private static function loadExportMetadata(ZipArchive $zip): array
+    {
+        $dbExportJson = $zip->getFromName('db.json');
+        if ($dbExportJson === false) {
+            throw new RuntimeException("Invalid export file: missing db.json", 400);
+        }
+
+        $data = json_decode($dbExportJson, true);
+        if (!is_array($data)) {
+            throw new RuntimeException("Invalid db.json content", 400);
+        }
+        return $data;
+    }
+
+    /**
+     * Validate the export uses the correct schema
+     * @param array $data The export data
+     */
+    private static function validateExportSchema(array $data): void
+    {
+        foreach (['title', 'label_names', 'label_colors', 'background_guid', 'cardlists', 'cards', 'attachments'] as $key) {
+            if (!array_key_exists($key, $data)) {
+                throw new RuntimeException("Export data missing: $key", 400);
+            }
+        }
+    }
+
+    /**
+     * Set up new IDs for the import
+     * @param string $table The table to import to
+     * @param array $entities The entities to write
+     * @return array The entities mapped to their new IDs
+     */
+    private static function buildNewIds(string $table, array $entities): array
+    {
+        $maxId = (int) DB::fetchOne("SELECT MAX(id) FROM $table") + 1;
+        $map = DB::rebuildDBIndex($entities, 'id', $maxId);
+        $map[0] = 0; // for unlinked placeholders
+        return $map;
+    }
+
+    /**
+     * Insert the card lists
+     * @param array $lists The cardlists to insert
+     * @param array $idMap The map of IDs
+     * @param int $boardID The board's ID
+     */
+    private static function insertCardlists(array $lists, array $idMap, int $boardID): void
+    {
+        if (!$lists) return;
+        $placeholders = [];
+        $params = [];
+        foreach ($lists as $list) {
+            $placeholders[] = '(?, ?, ?, ?, ?)';
+            $params[] = $idMap[$list['id']];
+            $params[] = $boardID;
+            $params[] = $list['name'];
+            $params[] = $idMap[$list['prev_list_id']];
+            $params[] = $idMap[$list['next_list_id']];
+        }
+        DB::query(
+            "INSERT INTO tarallo_cardlists (id, board_id, name, prev_list_id, next_list_id) VALUES " . implode(',', $placeholders),
+            $params
+        );
+    }
+
+    /**
+     * Insert the cards
+     * @param array $cards The cards to insert
+     * @param array $cardMap The map to card IDs
+     * @param array $listMap The map to list IDs
+     * @param array $attachMap The map to attachment IDs
+     * @param int $boardID The board ID
+     */
+    private static function insertCards(array $cards, array $cardMap, array $listMap, array $attachMap, int $boardID): void
+    {
+        if (!$cards) return;
+        $placeholders = [];
+        $params = [];
+        foreach ($cards as $card) {
+            $placeholders[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+            $params[] = $cardMap[$card['id']];
+            $params[] = $card['title'];
+            $params[] = $card['content'];
+            $params[] = $cardMap[$card['prev_card_id']];
+            $params[] = $cardMap[$card['next_card_id']];
+            $params[] = $listMap[$card['cardlist_id']];
+            $params[] = $boardID;
+            $params[] = $attachMap[$card['cover_attachment_id']];
+            $params[] = $card['last_moved_time'];
+            $params[] = $card['label_mask'];
+            $params[] = $card['flags'];
+        }
+        DB::query(
+            "INSERT INTO tarallo_cards (id, title, content, prev_card_id, next_card_id, cardlist_id, board_id, cover_attachment_id, last_moved_time, label_mask, flags) VALUES " .
+            implode(',', $placeholders),
+            $params
+        );
+    }
+
+    /**
+     * Insert the attachments
+     * @param array $attachments The attachments to insert
+     * @param array $attachMap The map to attachment IDs
+     * @param array $cardMap The map to card IDs
+     * @param int $boardID The board ID
+     */
+    private static function insertAttachments(array $attachments, array $attachMap, array $cardMap, int $boardID): void
+    {
+        if (!$attachments) return;
+        $placeholders = [];
+        $params = [];
+        foreach ($attachments as $att) {
+            $placeholders[] = '(?, ?, ?, ?, ?, ?)';
+            $params[] = $attachMap[$att['id']];
+            $params[] = $att['name'];
+            $params[] = $att['guid'];
+            $params[] = $att['extension'];
+            $params[] = $cardMap[$att['card_id']];
+            $params[] = $boardID;
+        }
+        DB::query(
+            "INSERT INTO tarallo_attachments (id, name, guid, extension, card_id, board_id) VALUES " .
+            implode(',', $placeholders),
+            $params
+        );
+    }
+
+    /**
+     * Read the files for the specified board from the zip archive
+     * @param ZipArchive $zip The opened zip archive
+     * @param int $boardID The board ID
+     */
+    private static function extractBoardFiles(ZipArchive $zip, int $boardID): void
+    {
+        $boardFolder = Board::getBoardContentDir($boardID);
+        if (!$zip->extractTo(File::ftpDir($boardFolder))) {
+            throw new RuntimeException("Extraction failed", 500);
+        }
+        $zip->close();
+        File::deleteFile($boardFolder . "db.json");
+        File::deleteFile(self::TEMP_EXPORT_PATH);
+    }
+
 }
