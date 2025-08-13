@@ -263,7 +263,7 @@ class Attachment
      * @return string       Filesystem path to the thumbnail image.
      * @throws InvalidArgumentException if required data is missing or invalid.
      */
-    private static function getThumbnailFilePathFromRecord(array $record): string
+    public static function getThumbnailFilePathFromRecord(array $record): string
     {
         foreach (['board_id', 'guid'] as $key) {
             if (!isset($record[$key]) || $record[$key] === '') {

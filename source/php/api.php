@@ -6,6 +6,7 @@ require_once __DIR__ . '/account.php';
 require_once __DIR__ . '/attachment.php';
 require_once __DIR__ . '/board.php';
 require_once __DIR__ . '/card.php';
+require_once __DIR__ . '/cardlist.php';
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/file.php';
@@ -88,203 +89,14 @@ class API
         return Card::deleteCard($request);
     }
 
-    /**
-     * Move a card from one place to another.
-     * @param array $request The request parameters.
-     * @return array The result of the operation.
-     * @throws Exception If the database fails to update.
-     */
     public static function MoveCard(array $request): array
     {
-        Session::ensureSession();
-
-        $userId = $_SESSION['user_id'] ?? null;
-        if (!$userId) {
-            http_response_code(401);
-            return ['error' => 'Not logged in'];
-        }
-
-        $boardId        = isset($request['board_id']) ? (int) $request['board_id'] : 0;
-        $movedCardId    = isset($request['moved_card_id']) ? (int) $request['moved_card_id'] : 0;
-        $destCardlistId = isset($request['dest_cardlist_id']) ? (int) $request['dest_cardlist_id'] : 0;
-        $newPrevCardId  = isset($request['new_prev_card_id']) ? (int) $request['new_prev_card_id'] : 0;
-
-        if ($boardId <= 0 || $movedCardId <= 0 || $destCardlistId <= 0) {
-            http_response_code(400);
-            return ['error' => 'Missing or invalid parameters'];
-        }
-
-        // Get board data with cards to verify membership & card presence
-        try {
-            $boardData = Board::GetBoardData($boardId, Permission::USERTYPE_Member, false, true, true);
-        } catch (RuntimeException) {
-            Logger::warning("MoveCard: User $userId permission denied on board $movedCardId");
-            http_response_code(403);
-            return ['error' => 'Access denied'];
-        }
-
-        // Find the card being moved
-        $cardRecord = null;
-        foreach ($boardData['cards'] as $c) {
-            if ((int)$c['id'] === $movedCardId) {
-                $cardRecord = $c;
-                break;
-            }
-        }
-        if (!$cardRecord) {
-            http_response_code(404);
-            return ['error' => 'Card not found in board'];
-        }
-
-        // Validate the destination cardlist
-        try {
-            Card::GetCardlistData($boardId, $destCardlistId);
-        } catch (RuntimeException $e) {
-            http_response_code(400);
-            return ['error' => 'Destination cardlist invalid'];
-        }
-
-        // Transaction: delete original, insert new at target
-        try {
-            DB::beginTransaction();
-
-            // Delete original card record (without deleting attachments)
-            $deletedCard = Card::deleteCardInternal($boardId, $movedCardId, false);
-
-            // Preserve or update last moved time
-            $lastMovedTime = ($deletedCard['cardlist_id'] != $destCardlistId)
-                ? time()
-                : $deletedCard['last_moved_time'];
-
-            // Add card to new location
-            $newCard = Card::AddNewCardInternal(
-                $boardId,
-                $destCardlistId,
-                $newPrevCardId,
-                $deletedCard['title'],
-                $deletedCard['content'],
-                $deletedCard['cover_attachment_id'],
-                $lastMovedTime,
-                $deletedCard['label_mask'],
-                $deletedCard['flags']
-            );
-
-            // Move attachments to new card_id
-            DB::query(
-                "UPDATE tarallo_attachments SET card_id = :new_id WHERE card_id = :old_id",
-                ['new_id' => $newCard['id'], 'old_id' => $movedCardId]
-            );
-
-            DB::UpdateBoardModifiedTime($boardId);
-
-            DB::commit();
-        } catch (Throwable $e) {
-            DB::rollBack();
-            Logger::error("MoveCard: Failed to move card $movedCardId in board $movedCardId - {$e->getMessage()}");
-            http_response_code(500);
-            return ['error' => 'Card move failed'];
-        }
-
-        Logger::info("MoveCard: User $userId moved card $movedCardId to list $destCardlistId in board $movedCardId");
-
-        return Card::cardRecordToData($newCard);
+        return Card::moveCard($request);
     }
 
-    /**
-     * Move a card list
-     * @param array $request The request parameters.
-     * @return string[] The result of the operation.
-     */
     public static function MoveCardList(array $request): array
     {
-        Session::ensureSession();
-
-        $userId       = $_SESSION['user_id'] ?? null;
-        $boardId      = isset($request['board_id']) ? (int) $request['board_id'] : 0;
-        $listId       = isset($request['moved_cardlist_id']) ? (int) $request['moved_cardlist_id'] : 0;
-        $newPrevList  = isset($request['new_prev_cardlist_id']) ? (int) $request['new_prev_cardlist_id'] : 0;
-
-        if (!$userId) {
-            http_response_code(401);
-            return ['error' => 'Not logged in'];
-        }
-
-        if ($boardId <= 0 || $listId <= 0) {
-            http_response_code(400);
-            return ['error' => 'Invalid or missing board_id / moved_cardlist_id'];
-        }
-
-        // Permission + board existence check
-        try {
-            Board::GetBoardData($boardId, Permission::USERTYPE_Moderator);
-        } catch (RuntimeException) {
-            Logger::warning("MoveCardList: User $userId tried to move list $listId in board $boardId without permission");
-            http_response_code(403);
-            return ['error' => 'Access denied'];
-        }
-
-        // Source list must exist in this board
-        try {
-            $cardListData = Card::GetCardlistData($boardId, $listId);
-        } catch (RuntimeException) {
-            http_response_code(404);
-            return ['error' => 'List not found in board'];
-        }
-
-        // Determine ID of list that will follow the moved one
-        $nextCardListID = 0;
-        if ($newPrevList > 0) {
-            // New prev list must exist in this board
-            try {
-                $prevListData = Card::GetCardlistData($boardId, $newPrevList);
-            } catch (\RuntimeException) {
-                http_response_code(400);
-                return ['error' => 'Invalid new_prev_cardlist_id'];
-            }
-
-            $nextCardListID = (int) $prevListData['next_list_id'];
-        } else {
-            // Find "first" cardlist in board as the next list
-            $nextRec = DB::fetchRow(
-                "SELECT id FROM tarallo_cardlists WHERE board_id = :bid AND prev_list_id = 0",
-                ['bid' => $boardId]
-            );
-
-            $nextCardListID = $nextRec ? (int) $nextRec['id'] : 0;
-        }
-
-        // Move operation in a transaction
-        try {
-            DB::beginTransaction();
-
-            self::RemoveCardListFromLL($cardListData);
-
-            DB::query(
-                "UPDATE tarallo_cardlists
-             SET prev_list_id = :prev, next_list_id = :next
-             WHERE id = :id",
-                [
-                    'prev' => $newPrevList,
-                    'next' => $nextCardListID,
-                    'id'   => $listId
-                ]
-            );
-
-            self::AddCardListToLL($listId, $newPrevList, $nextCardListID);
-            DB::UpdateBoardModifiedTime($boardId);
-
-            DB::commit();
-        } catch (Throwable $e) {
-            DB::rollBack();
-            Logger::error("MoveCardList: Failed moving list $listId in board $boardId - " . $e->getMessage());
-            http_response_code(500);
-            return ['error' => 'Move failed'];
-        }
-
-        Logger::info("MoveCardList: User $userId moved list $listId in board $boardId");
-
-        // Return fresh list data after move
-        return Card::GetCardlistData($boardId, $listId);
+        return CardList::moveCardList($request);
     }
 
     /**
@@ -714,7 +526,7 @@ class API
 		// output just the file (or its thumbnail)
 		if (isset($request["thumbnail"]))
 		{
-			$attachmentPath = self::GetThumbnailFilePathFromRecord($attachmentRecord);
+			$attachmentPath = Attachment::GetThumbnailFilePathFromRecord($attachmentRecord);
 		}
 		if (!isset($request["thumbnail"]) || !File::fileExists($attachmentPath))
 		{
@@ -731,17 +543,17 @@ class API
 	public static function UpdateCardListName($request)
 	{
 		// query and validate board id
-		$boardData = Board::GetBoardData($request["board_id"]);
+		$boardData = Board::GetBoardData((int)$request["board_id"]);
 
 		//query and validate cardlist id
-		$cardlistData = Card::GetCardlistData($request["board_id"], $request["id"]);
+		$cardlistData = Card::GetCardlistData((int)$request["board_id"], $request["id"]);
 
 		// update the cardlist name
 		DB::setParam("name", $request["name"]);
 		DB::setParam("id", $request["id"]);
 		DB::queryWithStoredParams("UPDATE tarallo_cardlists SET name = :name WHERE id = :id");
 
-		DB::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime((int)$request["board_id"]);
 
 		// return the cardlist data
 		$cardlistData["name"] = $request["name"];
@@ -751,12 +563,12 @@ class API
 	public static function AddCardList($request)
 	{
 		// query and validate board id
-		$boardData = Board::GetBoardData($request["board_id"]);
+		$boardData = Board::GetBoardData((int)$request["board_id"]);
 
 		// insert the new cardlist
 		$newCardListData = self::AddNewCardListInternal($boardData["id"], $request["prev_list_id"], $request["name"]);
 
-		DB::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime((int)$request["board_id"]);
 
 		return $newCardListData;
 	}
@@ -827,7 +639,7 @@ class API
 		DB::setParam("id", $request["id"]);
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET closed = 1 WHERE id = :id");
 
-		DB::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["id"]);
 
 		$boardData["closed"] = 1;
 		return $boardData;
@@ -1673,27 +1485,6 @@ class API
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET label_names = :label_names, label_colors = :label_colors WHERE id = :board_id");
 	}
 
-	private static function RemoveCardListFromLL($cardListData)
-	{
-		// re-link previous list
-		if ($cardListData["prev_list_id"] > 0)
-		{
-			$prevCardLinkQuery = "UPDATE tarallo_cardlists SET next_list_id = :next_list_id WHERE id = :prev_list_id";
-			DB::setParam("prev_list_id", $cardListData["prev_list_id"]);
-			DB::setParam("next_list_id", $cardListData["next_list_id"]);
-			DB::queryWithStoredParams($prevCardLinkQuery);
-		}
-
-		// re-link the next list
-		if ($cardListData["next_list_id"] > 0)
-		{
-			$nextCardLinkQuery = "UPDATE tarallo_cardlists SET prev_list_id = :prev_list_id WHERE id = :next_list_id";
-			DB::setParam("prev_list_id", $cardListData["prev_list_id"]);
-			DB::setParam("next_list_id", $cardListData["next_list_id"]);
-			DB::queryWithStoredParams($nextCardLinkQuery);
-		}
-	}
-
 	private static function DeleteCardListInternal($cardListData)
 	{
 		// delete the list
@@ -1701,7 +1492,7 @@ class API
 		{
 			DB::beginTransaction();
 
-			self::RemoveCardListFromLL($cardListData);
+			CardList::removeCardListFromLL($cardListData);
 
 			// delete the list
 			$deletionQuery = "DELETE FROM tarallo_cardlists WHERE id = :id";
@@ -1717,25 +1508,6 @@ class API
 		}
 
 		return $cardListData;
-	}
-
-	private static function AddCardListToLL($newListID, $prevListID, $nextListID)
-	{
-		if ($nextListID > 0)
-		{
-			// update the next card list by linking it to the new one
-			DB::setParam("new_id", $newListID);
-			DB::setParam("next_list_id", $nextListID);
-			DB::queryWithStoredParams("UPDATE tarallo_cardlists SET prev_list_id = :new_id WHERE id = :next_list_id");
-		}
-
-		if ($prevListID > 0)
-		{
-			// update the prev card by linking it to the new one
-			DB::setParam("new_id", $newListID);
-			DB::setParam("prev_list_id", $prevListID);
-			DB::queryWithStoredParams("UPDATE tarallo_cardlists SET next_list_id = :new_id WHERE id = :prev_list_id");
-		}
 	}
 
 	private static function AddNewCardListInternal($boardID, $prevListID, $name) 
@@ -1799,7 +1571,7 @@ class API
 			DB::setParam("next_list_id", $nextListID);
 			$newListID = DB::insertWithStoredParams($addCardListQuery);
 
-			self::AddCardListToLL($newListID, $prevListID, $nextListID);
+			CardList::addCardListToLL((int)$newListID, (int)$prevListID, $nextListID);
 
 			DB::commit();
 		}
@@ -1810,7 +1582,7 @@ class API
 		}
 
 		// re-query the added list and return its data
-		return Card::GetCardlistData($boardID, $newListID);
+		return Card::GetCardlistData($boardID, (int)$newListID);
 	}
 
 	private static function CreateNewBoardInternal($title, $labelNames = "", $labelColors = "", $backgroundGUID = null)
