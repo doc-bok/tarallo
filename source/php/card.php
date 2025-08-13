@@ -6,7 +6,11 @@ require_once __DIR__ . '/attachment.php';
 
 class Card
 {
-    private const CARD_FLAG_LOCKED = 0x001;
+    private const CARD_FLAGS = [
+        'locked'   => 0x001,
+        // 'archived' => 0x002,
+        // 'urgent'   => 0x004,
+    ];
 
     /**
      * Convert a raw DB card record into an API-friendly array.
@@ -53,17 +57,15 @@ class Card
     }
 
     /**
-     * Convert a card's flag bitmask into an associative list of booleans.
+     * Convert a bitmask into an associative array of boolean flags.
      * @param int $flagMask Bitmask representing card flags.
-     * @return array<string,bool>  Array keyed by flag name, each true/false.
+     * @return array<string,bool> e.g. ['locked' => true, 'archived' => false]
      */
-    public static function cardFlagMaskToList(int $flagMask): array
+    private static function CardFlagMaskToList(int $flagMask): array
     {
-        return [
-            'locked' => (bool) ($flagMask & self::CARD_FLAG_LOCKED),
-            // Add future flags here:
-            // 'archived' => (bool) ($flagMask & self::CARD_FLAG_ARCHIVED),
-        ];
+        return array_map(function ($bit) use ($flagMask) {
+            return (bool)($flagMask & $bit);
+        }, self::CARD_FLAGS);
     }
 
     /**
@@ -735,4 +737,88 @@ class Card
 
         return self::cardRecordToData($cardRecord);
     }
+
+    /**
+     * Updates a card's flags.
+     * @param array $request The request parameters.
+     * @return array The updated card data.
+     */
+    public static function updateCardFlags(array $request): array
+    {
+        Session::ensureSession();
+
+        $userId  = $_SESSION['user_id'] ?? null;
+        $boardId = isset($request['board_id']) ? (int)$request['board_id'] : 0;
+        $cardId  = isset($request['id']) ? (int)$request['id'] : 0;
+
+        if (!$userId) {
+            http_response_code(401);
+            return ['error' => 'Not logged in'];
+        }
+
+        if ($boardId <= 0 || $cardId <= 0) {
+            http_response_code(400);
+            return ['error' => 'Missing or invalid parameters'];
+        }
+
+        // Permission check
+        try {
+            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
+        } catch (RuntimeException) {
+            Logger::warning("UpdateCardFlags: User $userId tried to update flags on card $cardId in board $boardId without permission");
+            http_response_code(403);
+            return ['error' => 'Access denied'];
+        }
+
+        // Card existence/ownership check
+        try {
+            $cardRecord = Card::getCardData($boardId, $cardId);
+        } catch (RuntimeException) {
+            http_response_code(404);
+            return ['error' => 'Card not found in this board'];
+        }
+
+        // Calculate new flag mask
+        $flagList = Card::cardFlagMaskToList($cardRecord['flags']);
+        if (array_key_exists('locked', $request)) {
+            $flagList['locked'] = (bool)$request['locked'];
+        }
+        $cardRecord['flags'] = self::CardFlagListToMask($flagList);
+
+        // Update DB
+        try {
+            DB::query(
+                "UPDATE tarallo_cards SET flags = :flags WHERE id = :id",
+                ['flags' => $cardRecord['flags'], 'id' => $cardId]
+            );
+            DB::UpdateBoardModifiedTime($boardId);
+        } catch (Throwable $e) {
+            Logger::error("UpdateCardFlags: DB error on card $cardId in board $boardId - " . $e->getMessage());
+            http_response_code(500);
+            return ['error' => 'Failed to update card flags'];
+        }
+
+        Logger::info("UpdateCardFlags: User $userId updated flags for card $cardId in board $boardId (new flags: {$cardRecord['flags']})");
+
+        return Card::cardRecordToData($cardRecord);
+    }
+
+    /**
+     * Convert a list of boolean flags into a combined bitmask.
+     * @param array<string,bool|int> $flagList e.g. ['locked' => true]
+     * @return int Bitmask representing the flags.
+     */
+    private static function CardFlagListToMask(array $flagList): int
+    {
+        $mask = 0;
+
+        foreach (self::CARD_FLAGS as $name => $bit) {
+            if (!empty($flagList[$name])) {
+                $mask |= $bit;
+            }
+        }
+
+        return $mask;
+    }
+
 }

@@ -109,69 +109,9 @@ class API
         return Card::updateCardContent($request);
     }
 
-    /**
-     * Updates a card's flags.
-     * @param array $request The request parameters.
-     * @return array The updated card data.
-     */
     public static function UpdateCardFlags(array $request): array
     {
-        Session::ensureSession();
-
-        $userId  = $_SESSION['user_id'] ?? null;
-        $boardId = isset($request['board_id']) ? (int)$request['board_id'] : 0;
-        $cardId  = isset($request['id']) ? (int)$request['id'] : 0;
-
-        if (!$userId) {
-            http_response_code(401);
-            return ['error' => 'Not logged in'];
-        }
-
-        if ($boardId <= 0 || $cardId <= 0) {
-            http_response_code(400);
-            return ['error' => 'Missing or invalid parameters'];
-        }
-
-        // Permission check
-        try {
-            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
-        } catch (RuntimeException $e) {
-            Logger::warning("UpdateCardFlags: User $userId tried to update flags on card $cardId in board $boardId without permission");
-            http_response_code(403);
-            return ['error' => 'Access denied'];
-        }
-
-        // Card existence/ownership check
-        try {
-            $cardRecord = Card::getCardData($boardId, $cardId);
-        } catch (RuntimeException $e) {
-            http_response_code(404);
-            return ['error' => 'Card not found in this board'];
-        }
-
-        // Calculate new flag mask
-        $flagList = Card::cardFlagMaskToList($cardRecord['flags']);
-        if (array_key_exists('locked', $request)) {
-            $flagList['locked'] = (bool)$request['locked'];
-        }
-        $cardRecord['flags'] = self::CardFlagListToMask($flagList);
-
-        // Update DB
-        try {
-            DB::query(
-                "UPDATE tarallo_cards SET flags = :flags WHERE id = :id",
-                ['flags' => $cardRecord['flags'], 'id' => $cardId]
-            );
-            DB::UpdateBoardModifiedTime($boardId);
-        } catch (Throwable $e) {
-            Logger::error("UpdateCardFlags: DB error on card $cardId in board $boardId - " . $e->getMessage());
-            http_response_code(500);
-            return ['error' => 'Failed to update card flags'];
-        }
-
-        Logger::info("UpdateCardFlags: User $userId updated flags for card $cardId in board $boardId (new flags: {$cardRecord['flags']})");
-
-        return Card::cardRecordToData($cardRecord);
+        return Card::updateCardFlags($request);
     }
 
     /**
@@ -1502,15 +1442,6 @@ class API
 
 		return $newBoardID;
 	}
-
-	private static function CardFlagListToMask($flagList)
-	{
-		$flagMask = 0;
-		$flagMask += $flagList["locked"] ? 1 : 0;
-		return $flagMask;
-	}
-
-
 
 	private static function GetAttachmentRecord($boardID, $attachmentID)
 	{
