@@ -572,4 +572,105 @@ class Card
 
         return self::cardRecordToData($newCard);
     }
+
+    /**
+     * Update a card's title.
+     * @param array $request The request parameters.
+     * @return string[] The updated card data.
+     */
+    public static function updateCardTitle(array $request): array
+    {
+        Session::ensureSession();
+
+        $userId = $_SESSION['user_id'] ?? null;
+        $boardId = isset($request['board_id']) ? (int) $request['board_id'] : 0;
+        $cardId  = isset($request['id']) ? (int) $request['id'] : 0;
+        $newTitle = trim($request['title'] ?? '');
+
+        // Basic validation
+        if (!$userId) {
+            http_response_code(401);
+            return ['error' => 'Not logged in'];
+        }
+
+        if ($boardId <= 0 || $cardId <= 0 || $newTitle === '') {
+            http_response_code(400);
+            return ['error' => 'Missing or invalid parameters'];
+        }
+
+        // Check board membership
+        try {
+            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
+        } catch (RuntimeException) {
+            Logger::warning("UpdateCardTitle: User $userId attempted without permission on board $boardId");
+            http_response_code(403);
+            return ['error' => 'Access denied'];
+        }
+
+        // Check that the card belongs to this board
+        try {
+            $cardRecord = self::getCardData($boardId, $cardId);
+        } catch (RuntimeException) {
+            http_response_code(404);
+            return ['error' => 'Card not found in this board'];
+        }
+
+        // Update title
+        try {
+            DB::query(
+                "UPDATE tarallo_cards SET title = :title WHERE id = :id",
+                ['title' => $newTitle, 'id' => $cardId]
+            );
+
+            DB::UpdateBoardModifiedTime($boardId);
+        } catch (Throwable $e) {
+            Logger::error("UpdateCardTitle: DB error updating card $cardId in board $boardId - " . $e->getMessage());
+            http_response_code(500);
+            return ['error' => 'Failed to update card title'];
+        }
+
+        // Update local record to reflect change
+        $cardRecord['title'] = $newTitle;
+
+        Logger::info("UpdateCardTitle: User $userId updated title of card $cardId in board $boardId");
+
+        return Card::cardRecordToData($cardRecord);
+    }
+
+    /**
+     * Retrieve a card row from the DB, validating it belongs to the given board.
+     * @param int $boardID The board ID to validate against.
+     * @param int $cardID  The card ID to retrieve.
+     * @return array       The card's DB row.
+     * @throws RuntimeException If not found or not part of the board.
+     */
+    public static function getCardData(int $boardID, int $cardID): array
+    {
+        if ($boardID <= 0 || $cardID <= 0) {
+            throw new RuntimeException("Invalid board or card ID");
+        }
+
+        try {
+            $cardData = DB::fetchRow(
+                "SELECT * FROM tarallo_cards WHERE id = :card_id",
+                ['card_id' => $cardID]
+            );
+        } catch (Throwable $e) {
+            Logger::error("GetCardData: DB error reading card $cardID - " . $e->getMessage());
+            throw new RuntimeException("Database error while fetching card.");
+        }
+
+        if (!$cardData) {
+            // Card doesn't exist
+            throw new RuntimeException("Card not found", 404);
+        }
+
+        if ((int)$cardData['board_id'] !== $boardID) {
+            // Card is from another board
+            throw new RuntimeException("Card not part of specified board", 400);
+        }
+
+        return $cardData;
+    }
+
 }

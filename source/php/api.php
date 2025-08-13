@@ -99,68 +99,9 @@ class API
         return CardList::moveCardList($request);
     }
 
-    /**
-     * Update a card's title.
-     * @param array $request The request parameters.
-     * @return string[] The updated card data.
-     */
     public static function UpdateCardTitle(array $request): array
     {
-        Session::ensureSession();
-
-        $userId = $_SESSION['user_id'] ?? null;
-        $boardId = isset($request['board_id']) ? (int) $request['board_id'] : 0;
-        $cardId  = isset($request['id']) ? (int) $request['id'] : 0;
-        $newTitle = trim($request['title'] ?? '');
-
-        // Basic validation
-        if (!$userId) {
-            http_response_code(401);
-            return ['error' => 'Not logged in'];
-        }
-
-        if ($boardId <= 0 || $cardId <= 0 || $newTitle === '') {
-            http_response_code(400);
-            return ['error' => 'Missing or invalid parameters'];
-        }
-
-        // Check board membership
-        try {
-            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
-        } catch (RuntimeException $e) {
-            Logger::warning("UpdateCardTitle: User $userId attempted without permission on board $boardId");
-            http_response_code(403);
-            return ['error' => 'Access denied'];
-        }
-
-        // Check that the card belongs to this board
-        try {
-            $cardRecord = self::GetCardData($boardId, $cardId);
-        } catch (RuntimeException $e) {
-            http_response_code(404);
-            return ['error' => 'Card not found in this board'];
-        }
-
-        // Update title
-        try {
-            DB::query(
-                "UPDATE tarallo_cards SET title = :title WHERE id = :id",
-                ['title' => $newTitle, 'id' => $cardId]
-            );
-
-            DB::UpdateBoardModifiedTime($boardId);
-        } catch (Throwable $e) {
-            Logger::error("UpdateCardTitle: DB error updating card $cardId in board $boardId - " . $e->getMessage());
-            http_response_code(500);
-            return ['error' => 'Failed to update card title'];
-        }
-
-        // Update local record to reflect change
-        $cardRecord['title'] = $newTitle;
-
-        Logger::info("UpdateCardTitle: User $userId updated title of card $cardId in board $boardId");
-
-        return Card::cardRecordToData($cardRecord);
+        return Card::updateCardTitle($request);
     }
 
     /**
@@ -199,7 +140,7 @@ class API
 
         // === Card ownership check ===
         try {
-            $cardRecord = self::GetCardData($boardId, $cardId);
+            $cardRecord = Card::getCardData($boardId, $cardId);
         } catch (RuntimeException $e) {
             http_response_code(404);
             return ['error' => 'Card not found in this board'];
@@ -260,7 +201,7 @@ class API
 
         // Card existence/ownership check
         try {
-            $cardRecord = self::GetCardData($boardId, $cardId);
+            $cardRecord = Card::getCardData($boardId, $cardId);
         } catch (RuntimeException $e) {
             http_response_code(404);
             return ['error' => 'Card not found in this board'];
@@ -338,7 +279,7 @@ class API
 
         // Validate card belongs to board
         try {
-            self::GetCardData($boardId, $cardId);
+            Card::getCardData($boardId, $cardId);
         } catch (\RuntimeException) {
             http_response_code(404);
             return ['error' => 'Card not found in this board'];
@@ -407,7 +348,7 @@ class API
 
         // Re-fetch attachment record and card data for response
         $attachmentRecord = self::GetAttachmentRecord($boardId, $attachmentID);
-        $cardRecord = self::GetCardData($boardId, $cardId);
+        $cardRecord = Card::getCardData($boardId, $cardId);
 
         $response = Attachment::attachmentRecordToData($attachmentRecord);
         $response['card'] = Card::cardRecordToData($cardRecord);
@@ -487,7 +428,7 @@ class API
 
 		// re-query added attachment and card and return their data
 		$response = Attachment::attachmentRecordToData($attachmentRecord);
-		$cardRecord = self::GetCardData($attachmentRecord["board_id"], $attachmentRecord["card_id"]);
+		$cardRecord = Card::getCardData($attachmentRecord["board_id"], $attachmentRecord["card_id"]);
 		$response["card"] = Card::cardRecordToData($cardRecord);
 		return $response;
 	}
@@ -1208,7 +1149,7 @@ class API
 		}
 
 		// query and validate card id
-		$cardData = self::GetCardData($request["board_id"], $request["card_id"]);
+		$cardData = Card::getCardData($request["board_id"], $request["card_id"]);
 
 		// create the new mask
 		$labelMask = $cardData["label_mask"];
@@ -1627,27 +1568,7 @@ class API
 		return $flagMask;
 	}
 
-	private static function GetCardData($boardID, $cardID)
-	{
-		// query and validate cardlist
-		$cardQuery = "SELECT * FROM tarallo_cards WHERE id = :card_id";
-		DB::setParam("card_id", $cardID);
-		$cardData = DB::fetchRowWithStoredParams($cardQuery);
 
-		if (!$cardData)
-		{
-			http_response_code(404);
-			exit("The specified card does not exists.");
-		}
-
-		if ($cardData["board_id"] != $boardID)
-		{
-			http_response_code(400);
-			exit("The card is not part of the specified board.");
-		}
-
-		return $cardData;
-	}
 
 	private static function GetAttachmentRecord($boardID, $attachmentID)
 	{
