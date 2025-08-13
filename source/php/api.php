@@ -156,18 +156,7 @@ class API
 
 	public static function UpdateBoardTitle($request)
 	{
-		// query and validate board id
-		$boardData = Board::GetBoardData($request["board_id"]);
-
-		// update the board title
-		DB::setParam("title", self::CleanBoardTitle($request["title"]));
-		DB::setParam("id", $request["board_id"]);
-		DB::queryWithStoredParams("UPDATE tarallo_boards SET title = :title WHERE id = :id");
-
-		DB::updateBoardModifiedTime($request["board_id"]);
-
-		// requery and return the board data
-		return Board::GetBoardData($request["board_id"]);
+		return Board::updateBoardTitle($request);
 	}
 
 	public static function CreateNewBoard($request)
@@ -1049,7 +1038,7 @@ class API
 			// create a new board record
 			$createBoardQuery = "INSERT INTO tarallo_boards (title, label_names, label_colors, last_modified_time, background_guid)";
 			$createBoardQuery .= " VALUES (:title, :label_names, :label_colors, :last_modified_time, :background_guid)";
-			DB::setParam("title", self::CleanBoardTitle($title));
+			DB::setParam("title", Board::CleanBoardTitle($title));
 			DB::setParam("label_names", $labelNames);
 			DB::setParam("label_colors", $labelColors);
 			DB::setParam("last_modified_time", time());
@@ -1073,11 +1062,6 @@ class API
 		}
 
 		return $newBoardID;
-	}
-
-	private static function CleanBoardTitle($title)
-	{
-		return substr($title, 0, 64);
 	}
 
 	private static function CleanLabelName($name)

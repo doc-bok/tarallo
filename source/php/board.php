@@ -293,4 +293,80 @@ class Board
 
         return $boardData;
     }
+
+    /**
+     * Update the title of a board.
+     * @param array $request Must contain 'board_id' and 'title'.
+     * @return array Updated board data.
+     * @throws InvalidArgumentException On invalid input.
+     * @throws RuntimeException On DB error.
+     */
+    public static function updateBoardTitle(array $request): array
+    {
+        foreach (['board_id', 'title'] as $key) {
+            if (!isset($request[$key]) || $request[$key] === '') {
+                throw new InvalidArgumentException("Missing or invalid parameter: $key");
+            }
+        }
+
+        $boardID = (int) $request['board_id'];
+        $rawTitle = (string) $request['title'];
+
+        if ($boardID <= 0) {
+            throw new InvalidArgumentException("Invalid board ID: $boardID");
+        }
+
+        // Ensure the board exists / user has the right to edit
+        Board::GetBoardData($boardID);
+
+        // Sanitise and validate title
+        $cleanTitle = self::cleanBoardTitle($rawTitle);
+        if ($cleanTitle === '') {
+            throw new InvalidArgumentException("Board title cannot be empty after cleaning.");
+        }
+
+        // Update in DB
+        try {
+            $rows = DB::query(
+                "UPDATE tarallo_boards SET title = :title WHERE id = :id",
+                [
+                    'title' => $cleanTitle,
+                    'id'    => $boardID
+                ]
+            );
+
+            if ($rows < 1) {
+                Logger::warning("updateBoardTitle: No board updated for ID $boardID");
+            }
+        } catch (Throwable $e) {
+            Logger::error("updateBoardTitle: DB error updating board $boardID - " . $e->getMessage());
+            throw new RuntimeException("Database error updating board title.");
+        }
+
+        // Mark as modified
+        DB::UpdateBoardModifiedTime($boardID);
+
+        // Return updated board data
+        return Board::GetBoardData($boardID);
+    }
+
+    /**
+     * Sanitise and truncate a board title.
+     * @param string $title Raw title.
+     * @return string Safe, truncated title (max 64 chars).
+     */
+    private static function cleanBoardTitle(string $title): string
+    {
+        $title = trim($title);
+
+        // Remove any control characters but allow most Unicode letters/numbers/punctuation
+        $title = preg_replace('/[^\P{C}]+/u', '', $title);
+
+        // Collapse multiple spaces
+        $title = preg_replace('/\s{2,}/', ' ', $title);
+
+        // Truncate to 64 chars
+        return mb_substr($title, 0, 64);
+    }
+
 }
