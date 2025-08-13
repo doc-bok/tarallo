@@ -539,4 +539,72 @@ class File {
 
         return true;
     }
+
+    /**
+     * Handle chunked upload of a file (currently only board import supported).
+     * @param array $request Must contain: 'context', 'chunkIndex', 'data'
+     * @return array ['size' => int]
+     * @throws InvalidArgumentException On bad input.
+     * @throws RuntimeException On permission denied, invalid context, or file error.
+     */
+    public static function UploadChunk(array $request): array
+    {
+        // --- Require login ---
+        if (!Session::isUserLoggedIn()) {
+            throw new RuntimeException("Must be logged in to upload data", 403);
+        }
+
+        // --- Validate basic parameters ---
+        foreach (['context', 'chunkIndex', 'data'] as $key) {
+            if (!isset($request[$key])) {
+                throw new InvalidArgumentException("Missing parameter: $key");
+            }
+        }
+
+        $context    = (string)$request['context'];
+        $chunkIndex = (int)$request['chunkIndex'];
+        $dataB64    = (string)$request['data'];
+
+        if ($chunkIndex < 0) {
+            throw new InvalidArgumentException("Invalid chunkIndex: must be >= 0");
+        }
+
+        // --- Determine destination path based on context ---
+        switch ($context) {
+            case 'ImportBoard':
+                if (empty($_SESSION['is_admin']) && !DB::getDBSetting('board_import_enabled')) {
+                    throw new RuntimeException("Board import is disabled on this server (upload)", 403);
+                }
+                $destFilePath = Board::TEMP_EXPORT_PATH;
+                break;
+            default:
+                throw new RuntimeException("Invalid upload context '$context'", 400);
+        }
+
+        // --- Decode base64 safely ---
+        $chunkContent = base64_decode($dataB64, true);
+        if ($chunkContent === false) {
+            throw new RuntimeException("Invalid base64-encoded chunk data", 400);
+        }
+
+        // --- Ensure directory exists ---
+        File::prepareDir(dirname(File::ftpDir($destFilePath)));
+
+        // --- Determine write mode ---
+        $writeFlags = ($chunkIndex === 0) ? 0 : FILE_APPEND;
+
+        // --- Write data ---
+        if (!File::writeToFile($destFilePath, $chunkContent, $writeFlags)) {
+            throw new RuntimeException("Failed to write chunk to storage", 500);
+        }
+
+        // --- Report file size ---
+        $fullPath = File::ftpDir($destFilePath);
+        if (!is_file($fullPath)) {
+            throw new RuntimeException("Destination file missing after write", 500);
+        }
+        $size = filesize($fullPath);
+
+        return ['size' => $size];
+    }
 }

@@ -225,39 +225,9 @@ class API
 		Board::exportBoard($request);
 	}
 
-	public static function UploadChunk($request)
+	public static function UploadChunk(array $request): array
 	{
-		if (!Session::isUserLoggedIn())
-		{
-			http_response_code(403);
-			exit("Cannot upload data without being logged in.");
-		}
-
-		// validate context
-		switch ($request["context"])
-		{
-			case "ImportBoard":
-				if (!$_SESSION["is_admin"] && !DB::getDBSetting("board_import_enabled"))
-				{
-					http_response_code(403);
-					exit("Board import is disabled on this server! (upload)");
-				}
-				$destFilePath = Board::TEMP_EXPORT_PATH;
-				break;
-			default:
-				http_response_code(400);
-				exit("Invalid context.");
-		}
-
-		// decode content and write to file
-		$writeFlags = $request["chunkIndex"] === 0 ? 0 : FILE_APPEND; // append if its not the first chunk
-		$chunkContent = base64_decode($request["data"]);
-		File::writeToFile($destFilePath, $chunkContent, $writeFlags);
-
-		// prepare the response
-		$response = array();
-		$response["size"] = filesize(File::ftpDir($destFilePath));
-		return $response;
+		return File::uploadChunk($request);
 	}
 }
 
