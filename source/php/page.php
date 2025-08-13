@@ -78,7 +78,7 @@ class Page
      */
     public static function getBoardListPage(): array
     {
-        Session::EnsureSession();
+        Session::ensureSession();
 
         if (empty($_SESSION['user_id'])) {
             Logger::error("GetBoardListPage: No user_id in session");
@@ -155,5 +155,34 @@ class Page
                 'background_img_url' => Board::DEFAULT_BG
             ])
         ];
+    }
+
+    /**
+     * Request the page that should be displayed for the current state.
+     * @param array $request The request parameters.
+     * @return array Data for the page to display.
+     */
+    public static function getCurrentPage(array $request): array
+    {
+        try {
+            // Ensure DB exists or initialise
+            DB::initDatabaseIfNeeded();
+
+            // Logged in?
+            if (isset($_SESSION['logged_in'])) {
+                return self::getLoggedInPage($request);
+            }
+
+            // Logged out flow
+            return self::getLoggedOutPage();
+
+        } catch (Throwable $e) {
+            Logger::error("GetCurrentPage: Unhandled exception - " . $e->getMessage());
+            http_response_code(500);
+            return [
+                'page_name' => 'Error',
+                'page_content' => ['message' => 'Internal Server Error']
+            ];
+        }
     }
 }

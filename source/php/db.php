@@ -432,7 +432,7 @@ class DB {
 
         if (!$dbExists) {
             Logger::warning("Database not initialised — attempting init");
-            Session::LogoutInternal();
+            Session::logoutInternal();
 
             if (!self::tryApplyingDBPatch(self::INIT_DB_PATCH)) {
                 Logger::error("DB init failed - corrupted or missing patch");
@@ -600,6 +600,44 @@ class DB {
         );
 
         return $updated;
+    }
+
+    /**
+     * Update the last_modified_time for a given board.
+     * @param int $boardID The board's ID.
+     * @return bool        True if a row was updated, false if not (board not found).
+     * @throws RuntimeException On invalid ID or DB error.
+     */
+    public static function UpdateBoardModifiedTime(int $boardID): bool
+    {
+        if ($boardID <= 0) {
+            throw new RuntimeException("Invalid board ID: $boardID");
+        }
+
+        try {
+            $rows = DB::query(
+                "UPDATE tarallo_boards 
+             SET last_modified_time = :last_modified_time 
+             WHERE id = :board_id",
+                [
+                    'last_modified_time' => time(),
+                    'board_id'           => $boardID
+                ]
+            );
+        } catch (Throwable $e) {
+            Logger::error(
+                "UpdateBoardModifiedTime: DB error updating board $boardID - " . $e->getMessage()
+            );
+            throw new RuntimeException("Failed to update board modified time");
+        }
+
+        if ($rows > 0) {
+            Logger::debug("UpdateBoardModifiedTime: Board $boardID modified time updated.");
+            return true;
+        } else {
+            Logger::warning("UpdateBoardModifiedTime: Board $boardID not found or not updated.");
+            return false;
+        }
     }
 
 

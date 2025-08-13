@@ -31,7 +31,7 @@ class Board
         bool $includeCardContent = false,
         bool $includeAttachments = false
     ): array {
-        Session::EnsureSession();
+        Session::ensureSession();
 
         if (empty($_SESSION['user_id'])) {
             Logger::error("GetBoardData: No user_id in session");

@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 class Account
 {
+    // special user IDs
+    const userId_ONREGISTER = -1; // if a permission record on the permission table has this user_id, the permission will be copied to any new registered user
+    const userId_MIN = self::userId_ONREGISTER; // this should be the minimun special user ID
+
     private const ROLE_ADMIN = 'admin';
 
     /**
@@ -138,5 +142,116 @@ class Account
         Logger::info("AddUserInternal: Created user '$username' (ID $userId)" . ($isAdmin ? ' [ADMIN]' : ''));
 
         return (int)$userId;
+    }
+
+    /**
+     * Register a new user.
+     * @param array $request The request parameters.
+     * @return array|string[] The result of the register attempt.
+     */
+    public static function register(array $request): array
+    {
+        Session::ensureSession();
+
+        $settings = DB::getDBSettings();
+        if (empty($settings['registration_enabled'])) {
+            Logger::warning("Register: Registration disabled");
+            http_response_code(403);
+            return ['error' => 'Account creation disabled on this server'];
+        }
+
+        if (Session::isUserLoggedIn()) {
+            Logger::info("Register: Existing session detected, logging out first");
+            Session::logoutInternal();
+        }
+
+        $username     = trim($request['username'] ?? '');
+        $displayName  = trim($request['display_name'] ?? '');
+        $password     = $request['password'] ?? '';
+
+        // Username validation
+        if (strlen($username) < 5) {
+            http_response_code(400);
+            return ['error' => 'Username is too short'];
+        }
+        if (!preg_match('/^[A-Za-z0-9]+$/', $username)) {
+            http_response_code(400);
+            return ['error' => 'Username must be alphanumeric and contain no spaces'];
+        }
+        // Display name validation
+        if (strlen($displayName) < 3) {
+            http_response_code(400);
+            return ['error' => 'Display name is too short'];
+        }
+        if (!preg_match('/^[A-Za-z0-9\s]+$/', $displayName)) {
+            http_response_code(400);
+            return ['error' => 'Display name must be alphanumeric'];
+        }
+        // Password validation
+        if (strlen($password) < 5) {
+            http_response_code(400);
+            return ['error' => 'Password must be at least 5 characters'];
+        }
+
+        // Prevent duplicate username
+        if (self::UsernameExists($username)) {
+            http_response_code(400);
+            return ['error' => 'Username already in use'];
+        }
+
+        // Create user
+        $userId = Account::addUserInternal($username, $password, $displayName);
+        if (!$userId) {
+            Logger::error("Register: Failed to create user '$username'");
+            http_response_code(500);
+            return ['error' => 'Internal server error while creating user'];
+        }
+
+        Logger::info("Register: Created new user '$username' with ID $userId");
+
+        // Apply initial permissions
+        $initialPerms = DB::fetchTable(
+            "SELECT * FROM tarallo_permissions WHERE user_id = :id",
+            ['id' => self::userId_ONREGISTER]
+        );
+        foreach ($initialPerms as $perm) {
+            if ($perm['user_type'] == Permission::USERTYPE_Blocked) continue;
+            DB::query(
+                "INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:uid, :bid, :ut)",
+                ['uid' => $userId, 'bid' => $perm['board_id'], 'ut' => $perm['user_type']]
+            );
+        }
+
+        return [
+            'success'  => true,
+            'username' => $username
+        ];
+    }
+
+    /**
+     * Check whether a username already exists in the database.
+     *
+     * @param string $username Username to check
+     * @return bool            True if the username exists, false otherwise
+     * @throws RuntimeException On invalid input or DB error
+     */
+    public static function UsernameExists(string $username): bool
+    {
+        $username = trim($username);
+        if ($username === '') {
+            throw new RuntimeException("Username cannot be empty.");
+        }
+
+        try {
+            $count = DB::fetchOne(
+                "SELECT COUNT(*) FROM tarallo_users WHERE username = :username",
+                ['username' => $username]
+            );
+        } catch (Throwable $e) {
+            Logger::error("UsernameExists: DB error while checking '$username' - " . $e->getMessage());
+            throw new RuntimeException("Database error while checking username availability");
+        }
+
+        return ((int) $count) > 0;
     }
 }

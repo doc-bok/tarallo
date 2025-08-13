@@ -43,86 +43,14 @@ class API
 	const MAX_LABEL_FIELD_LEN = 400;
 	const TEMP_EXPORT_PATH = "temp/export.zip";
 
-	// special user IDs
-	const userId_ONREGISTER = -1; // if a permission record on the permission table has this user_id, the permission will be copied to any new registered user
-	const userId_MIN = self::userId_ONREGISTER; // this should be the minimun special user ID
-
-    /**
-     * Request the page that should be displayed for the current state.
-     * @param array $request The request parameters.
-     * @return array Data for the page to display.
-     */
     public static function GetCurrentPage(array $request): array
     {
-        try {
-            // Ensure DB exists or initialise
-            DB::initDatabaseIfNeeded();
-
-            // Logged in?
-            if (isset($_SESSION['logged_in'])) {
-                return Page::getLoggedInPage($request);
-            }
-
-            // Logged out flow
-            return Page::getLoggedOutPage();
-
-        } catch (Throwable $e) {
-            Logger::error("GetCurrentPage: Unhandled exception - " . $e->getMessage());
-            http_response_code(500);
-            return [
-                'page_name' => 'Error',
-                'page_content' => ['message' => 'Internal Server Error']
-            ];
-        }
+        return Page::getCurrentPage($request);
     }
 
-    /**
-     * Get the board list page from the database.
-     * @return array
-     */
     public static function GetBoardListPage(): array
     {
-        Session::EnsureSession();
-
-        if (empty($_SESSION['user_id'])) {
-            Logger::error("GetBoardListPage: No user_id in session");
-            throw new RuntimeException("Not logged in");
-        }
-
-        $userId = (int) $_SESSION['user_id'];
-        $displayName = $_SESSION['display_name'] ?? 'Unknown';
-
-        $sql = "
-        SELECT b.*, p.user_type
-        FROM tarallo_boards b
-        INNER JOIN tarallo_permissions p ON b.id = p.board_id
-        WHERE p.user_id = :user_id
-        ORDER BY b.last_modified_time DESC
-    ";
-        $results = DB::fetchColumn($sql, 'id', ['user_id' => $userId]);
-
-        $boardList = [];
-        foreach ($results as $boardId) {
-            try {
-                // Use GetBoardData to enforce permissions and formatting
-                $board = Board::GetBoardData((int)$boardId, Permission::USERTYPE_Observer);
-                $boardList[] = $board;
-            } catch (RuntimeException $e) {
-                Logger::debug("GetBoardListPage: Skipping board $boardId - " . $e->getMessage());
-            }
-        }
-
-        $settings = DB::getDBSettings();
-
-        return [
-            'page_name'    => 'BoardList',
-            'page_content' => array_merge($settings, [
-                'boards'           => $boardList,
-                'background_url'   => Board::DEFAULT_BG,
-                'background_tiled' => true,
-                'display_name'     => $displayName
-            ])
-        ];
+        return Page::getBoardListPage();
     }
     
     public static function GetBoardPage(array $request): array
@@ -130,374 +58,34 @@ class API
         return Page::getBoardPage($request);
     }
 
-    /**
-     * Logs a user into the application.
-     * @param array $request The request parameters.
-     * @return string[]|true[] The result of the login attempt.
-     */
     public static function Login(array $request): array
     {
-        Session::EnsureSession();
-
-        // Force logout if already logged in
-        if (self::IsUserLoggedIn()) {
-            Logger::info("Login: Existing session detected, logging out first");
-            Session::LogoutInternal();
-        }
-
-        $username = trim($request['username'] ?? '');
-        $password = $request['password'] ?? '';
-
-        if ($username === '' || $password === '') {
-            Logger::warning("Login: Missing username or password");
-            http_response_code(400);
-            return ['error' => 'Missing username or password'];
-        }
-
-        // Look up user
-        $userRecord = DB::fetchRow(
-            "SELECT * FROM tarallo_users WHERE username = :username",
-            ['username' => $username]
-        );
-
-        if (!$userRecord) {
-            Logger::warning("Login failed: Unknown username '$username'");
-            http_response_code(401);
-            return ['error' => 'Invalid username or password'];
-        }
-
-        // First login: password is empty
-        if (strlen($userRecord['password']) === 0) {
-            Logger::info("Login: First login for '$username', setting password");
-            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-
-            $ok = DB::query(
-                "UPDATE tarallo_users SET password = :passwordHash WHERE username = :username",
-                ['passwordHash' => $passwordHash, 'username' => $username]
-            );
-            if (!$ok) {
-                Logger::error("Login: Failed to set initial password for '$username'");
-                http_response_code(500);
-                return ['error' => 'Internal error setting first password'];
-            }
-
-            // Refresh record
-            $userRecord['password'] = $passwordHash;
-        }
-
-        if (!password_verify($password, $userRecord['password'])) {
-            Logger::warning("Login failed: Wrong password for '$username'");
-            http_response_code(401);
-            return ['error' => 'Invalid username or password'];
-        }
-
-        // Successful login → update session
-        $_SESSION['logged_in']    = true;
-        $_SESSION['user_id']      = $userRecord['id'];
-        $_SESSION['username']     = $userRecord['username'];
-        $_SESSION['display_name'] = $userRecord['display_name'];
-        $_SESSION['is_admin']     = (bool) $userRecord['is_admin'];
-
-        // Update last access time
-        DB::query(
-            "UPDATE tarallo_users SET last_access_time = :t WHERE id = :id",
-            ['t' => time(), 'id' => $userRecord['id']]
-        );
-
-        Logger::info("Login successful for '$username' (user_id {$userRecord['id']})");
-
-        return ['success' => true];
+        return Session::login($request);
     }
 
-    /**
-     * Register a new user.
-     * @param array $request The request parameters.
-     * @return array|string[] The result of the register attempt.
-     */
     public static function Register(array $request): array
     {
-        Session::EnsureSession();
-
-        $settings = DB::getDBSettings();
-        if (empty($settings['registration_enabled'])) {
-            Logger::warning("Register: Registration disabled");
-            http_response_code(403);
-            return ['error' => 'Account creation disabled on this server'];
-        }
-
-        if (self::IsUserLoggedIn()) {
-            Logger::info("Register: Existing session detected, logging out first");
-            Session::LogoutInternal();
-        }
-
-        $username     = trim($request['username'] ?? '');
-        $displayName  = trim($request['display_name'] ?? '');
-        $password     = $request['password'] ?? '';
-
-        // Username validation
-        if (strlen($username) < 5) {
-            http_response_code(400);
-            return ['error' => 'Username is too short'];
-        }
-        if (!preg_match('/^[A-Za-z0-9]+$/', $username)) {
-            http_response_code(400);
-            return ['error' => 'Username must be alphanumeric and contain no spaces'];
-        }
-        // Display name validation
-        if (strlen($displayName) < 3) {
-            http_response_code(400);
-            return ['error' => 'Display name is too short'];
-        }
-        if (!preg_match('/^[A-Za-z0-9\s]+$/', $displayName)) {
-            http_response_code(400);
-            return ['error' => 'Display name must be alphanumeric'];
-        }
-        // Password validation
-        if (strlen($password) < 5) {
-            http_response_code(400);
-            return ['error' => 'Password must be at least 5 characters'];
-        }
-
-        // Prevent duplicate username
-        if (self::UsernameExists($username)) {
-            http_response_code(400);
-            return ['error' => 'Username already in use'];
-        }
-
-        // Create user
-        $userId = Account::addUserInternal($username, $password, $displayName);
-        if (!$userId) {
-            Logger::error("Register: Failed to create user '$username'");
-            http_response_code(500);
-            return ['error' => 'Internal server error while creating user'];
-        }
-
-        Logger::info("Register: Created new user '$username' with ID $userId");
-
-        // Apply initial permissions
-        $initialPerms = DB::fetchTable(
-            "SELECT * FROM tarallo_permissions WHERE user_id = :id",
-            ['id' => self::userId_ONREGISTER]
-        );
-        foreach ($initialPerms as $perm) {
-            if ($perm['user_type'] == Permission::USERTYPE_Blocked) continue;
-            DB::query(
-                "INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:uid, :bid, :ut)",
-                ['uid' => $userId, 'bid' => $perm['board_id'], 'ut' => $perm['user_type']]
-            );
-        }
-
-        return [
-            'success'  => true,
-            'username' => $username
-        ];
+        return Account::register($request);
     }
 
-    /**
-     * Logs a user out of the session.
-     * @param array $request The request parameters.
-     * @return true[] The result of the logout attempt.
-     */
     public static function Logout(array $request): array
     {
-        Session::EnsureSession();
-
-        if (self::IsUserLoggedIn()) {
-            Logger::info("Logout: User {$_SESSION['username']} (ID {$_SESSION['user_id']}) logging out");
-        } else {
-            Logger::debug("Logout: No user currently logged in");
-        }
-
-        Session::LogoutInternal();
-        return ['success' => true];
+        return Session::logout($request);
     }
 
-    /**
-     * Open a card.
-     * @param array $request The request parameters.
-     * @return string[] The card data, if successful.
-     */
     public static function OpenCard(array $request): array
     {
-        Session::EnsureSession();
-
-        $userId = $_SESSION['user_id'] ?? null;
-        $cardId = isset($request['id']) ? (int) $request['id'] : 0;
-
-        if (!$userId) {
-            http_response_code(401);
-            return ['error' => 'Not logged in'];
-        }
-        if ($cardId <= 0) {
-            http_response_code(400);
-            return ['error' => 'Invalid card ID'];
-        }
-
-        // Get board_id for this card
-        $boardRow = DB::fetchRow(
-            "SELECT board_id FROM tarallo_cards WHERE id = :id LIMIT 1",
-            ['id' => $cardId]
-        );
-        if (!$boardRow) {
-            http_response_code(404);
-            return ['error' => 'Card not found'];
-        }
-
-        try {
-            $boardData = Board::GetBoardData(
-                (int) $boardRow['board_id'],
-                Permission::USERTYPE_Observer,
-                false,  // no lists
-                true,   // include cards
-                true,   // include card content
-                true    // include attachments
-            );
-        } catch (RuntimeException $e) {
-            http_response_code(403);
-            return ['error' => 'Unable to get card data'];
-        }
-
-        // Find the card by ID and return it
-        foreach ($boardData['cards'] as $card) {
-            if ((int)$card['id'] === $cardId) {
-                return $card;
-            }
-        }
-
-        http_response_code(404);
-        return ['error' => 'Card not accessible'];
+        return Card::openCard($request);
     }
 
-    /**
-     * Add a new card to a list
-     * @param array $request The request parameters.
-     * @return string[] The card data, if successful.
-     */
     public static function AddNewCard(array $request): array
     {
-        Session::EnsureSession();
-
-        $userId = $_SESSION['user_id'] ?? null;
-        if (!$userId) {
-            http_response_code(401);
-            return ['error' => 'Not logged in'];
-        }
-
-        $boardId    = isset($request['board_id']) ? (int)$request['board_id'] : 0;
-        $cardlistId = isset($request['cardlist_id']) ? (int)$request['cardlist_id'] : 0;
-        $title      = trim($request['title'] ?? '');
-
-        if ($boardId <= 0 || $cardlistId <= 0 || $title === '') {
-            http_response_code(400);
-            return ['error' => 'Missing or invalid parameters'];
-        }
-
-        // Check board permission
-        try {
-            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
-        } catch (RuntimeException $e) {
-            Logger::warning("AddNewCard: Board $boardId not accessible to $userId");
-            http_response_code(403);
-            return ['error' => 'Access denied'];
-        }
-
-        // Check cardlist belongs to board
-        try {
-            self::GetCardlistData($boardId, $cardlistId);
-        } catch (RuntimeException $e) {
-            Logger::warning("AddNewCard: Cardlist {$cardlistId} not found in board $boardId for $userId");
-            http_response_code(400);
-            return ['error' => 'Invalid cardlist'];
-        }
-
-        $content      = "Insert the card description here."; // default
-        $coverAttach  = 0;
-        $lastMoved    = time();
-        $labelMask    = 0;
-        $flagMask     = 0;
-
-        try {
-            $newCardRecord = self::AddNewCardInternal(
-                $boardId,
-                $cardlistId,
-                0, // prev_card_id means add at top
-                $title,
-                $content,
-                $coverAttach,
-                $lastMoved,
-                $labelMask,
-                $flagMask
-            );
-        } catch (Throwable $e) {
-            Logger::error("AddNewCard: Failed adding card to board $boardId list $cardlistId - " . $e->getMessage());
-            http_response_code(500);
-            return ['error' => 'Error adding card'];
-        }
-
-        self::UpdateBoardModifiedTime($boardId);
-
-        return Card::cardRecordToData($newCardRecord);
+        return Card::addNewCard($request);
     }
 
-    /**
-     * Deletes a card from a list.
-     * @param array $request The request parameters.
-     * @return array|string[] The result of the operation.
-     */
     public static function DeleteCard(array $request): array
     {
-        Session::EnsureSession();
-
-        $userId = $_SESSION['user_id'] ?? null;
-        if (!$userId) {
-            http_response_code(401);
-            return ['error' => 'Not logged in'];
-        }
-
-        $boardId = isset($request['board_id']) ? (int)$request['board_id'] : 0;
-        $cardId  = isset($request['deleted_card_id']) ? (int)$request['deleted_card_id'] : 0;
-
-        if ($boardId <= 0 || $cardId <= 0) {
-            http_response_code(400);
-            return ['error' => 'Invalid or missing board_id / deleted_card_id'];
-        }
-
-        // Get board data with cards, forcing at least Member role
-        try {
-            $boardData = Board::GetBoardData($boardId, Permission::USERTYPE_Member, false, true);
-        } catch (RuntimeException $e) {
-            http_response_code(403);
-            return ['error' => 'Access denied'];
-        }
-
-        // Make sure the card is actually in this board
-        $cardRecord = null;
-        foreach ($boardData['cards'] as $c) {
-            if ((int) $c['id'] === $cardId) {
-                $cardRecord = $c;
-                break;
-            }
-        }
-        if (!$cardRecord) {
-            http_response_code(404);
-            return ['error' => 'Card not found in the specified board'];
-        }
-
-        try {
-            $deletedCard = self::DeleteCardInternal($boardId, $cardId, true);
-            self::UpdateBoardModifiedTime($boardId);
-        } catch (Throwable $e) {
-            Logger::error("DeleteCard: Failed to delete card $cardId in board $boardId for user $userId: " . $e->getMessage());
-            http_response_code(500);
-            return ['error' => 'Error deleting card'];
-        }
-
-        Logger::info("DeleteCard: User $userId deleted card $cardId from board $boardId");
-
-        return [
-            'success' => true,
-            'deleted_card' => Card::cardRecordToData($deletedCard)
-        ];
+        return Card::deleteCard($request);
     }
 
     /**
@@ -508,7 +96,7 @@ class API
      */
     public static function MoveCard(array $request): array
     {
-        Session::EnsureSession();
+        Session::ensureSession();
 
         $userId = $_SESSION['user_id'] ?? null;
         if (!$userId) {
@@ -550,7 +138,7 @@ class API
 
         // Validate the destination cardlist
         try {
-            self::GetCardlistData($boardId, $destCardlistId);
+            Card::GetCardlistData($boardId, $destCardlistId);
         } catch (RuntimeException $e) {
             http_response_code(400);
             return ['error' => 'Destination cardlist invalid'];
@@ -561,7 +149,7 @@ class API
             DB::beginTransaction();
 
             // Delete original card record (without deleting attachments)
-            $deletedCard = self::DeleteCardInternal($boardId, $movedCardId, false);
+            $deletedCard = Card::deleteCardInternal($boardId, $movedCardId, false);
 
             // Preserve or update last moved time
             $lastMovedTime = ($deletedCard['cardlist_id'] != $destCardlistId)
@@ -569,7 +157,7 @@ class API
                 : $deletedCard['last_moved_time'];
 
             // Add card to new location
-            $newCard = self::AddNewCardInternal(
+            $newCard = Card::AddNewCardInternal(
                 $boardId,
                 $destCardlistId,
                 $newPrevCardId,
@@ -587,7 +175,7 @@ class API
                 ['new_id' => $newCard['id'], 'old_id' => $movedCardId]
             );
 
-            self::UpdateBoardModifiedTime($boardId);
+            DB::UpdateBoardModifiedTime($boardId);
 
             DB::commit();
         } catch (Throwable $e) {
@@ -609,7 +197,7 @@ class API
      */
     public static function MoveCardList(array $request): array
     {
-        Session::EnsureSession();
+        Session::ensureSession();
 
         $userId       = $_SESSION['user_id'] ?? null;
         $boardId      = isset($request['board_id']) ? (int) $request['board_id'] : 0;
@@ -637,7 +225,7 @@ class API
 
         // Source list must exist in this board
         try {
-            $cardListData = self::GetCardlistData($boardId, $listId);
+            $cardListData = Card::GetCardlistData($boardId, $listId);
         } catch (RuntimeException) {
             http_response_code(404);
             return ['error' => 'List not found in board'];
@@ -648,7 +236,7 @@ class API
         if ($newPrevList > 0) {
             // New prev list must exist in this board
             try {
-                $prevListData = self::GetCardlistData($boardId, $newPrevList);
+                $prevListData = Card::GetCardlistData($boardId, $newPrevList);
             } catch (\RuntimeException) {
                 http_response_code(400);
                 return ['error' => 'Invalid new_prev_cardlist_id'];
@@ -683,7 +271,7 @@ class API
             );
 
             self::AddCardListToLL($listId, $newPrevList, $nextCardListID);
-            self::UpdateBoardModifiedTime($boardId);
+            DB::UpdateBoardModifiedTime($boardId);
 
             DB::commit();
         } catch (Throwable $e) {
@@ -696,7 +284,7 @@ class API
         Logger::info("MoveCardList: User $userId moved list $listId in board $boardId");
 
         // Return fresh list data after move
-        return self::GetCardlistData($boardId, $listId);
+        return Card::GetCardlistData($boardId, $listId);
     }
 
     /**
@@ -706,7 +294,7 @@ class API
      */
     public static function UpdateCardTitle(array $request): array
     {
-        Session::EnsureSession();
+        Session::ensureSession();
 
         $userId = $_SESSION['user_id'] ?? null;
         $boardId = isset($request['board_id']) ? (int) $request['board_id'] : 0;
@@ -748,7 +336,7 @@ class API
                 ['title' => $newTitle, 'id' => $cardId]
             );
 
-            self::UpdateBoardModifiedTime($boardId);
+            DB::UpdateBoardModifiedTime($boardId);
         } catch (Throwable $e) {
             Logger::error("UpdateCardTitle: DB error updating card $cardId in board $boardId - " . $e->getMessage());
             http_response_code(500);
@@ -770,7 +358,7 @@ class API
      */
     public static function UpdateCardContent(array $request): array
     {
-        Session::EnsureSession();
+        Session::ensureSession();
 
         $userId    = $_SESSION['user_id'] ?? null;
         $boardId   = isset($request['board_id']) ? (int)$request['board_id'] : 0;
@@ -811,7 +399,7 @@ class API
                 "UPDATE tarallo_cards SET content = :content WHERE id = :id",
                 ['content' => $newContent, 'id' => $cardId]
             );
-            self::UpdateBoardModifiedTime($boardId);
+            DB::UpdateBoardModifiedTime($boardId);
         } catch (Throwable $e) {
             Logger::error("UpdateCardContent: DB error on card $cardId (board $boardId) - " . $e->getMessage());
             http_response_code(500);
@@ -833,7 +421,7 @@ class API
      */
     public static function UpdateCardFlags(array $request): array
     {
-        Session::EnsureSession();
+        Session::ensureSession();
 
         $userId  = $_SESSION['user_id'] ?? null;
         $boardId = isset($request['board_id']) ? (int)$request['board_id'] : 0;
@@ -879,7 +467,7 @@ class API
                 "UPDATE tarallo_cards SET flags = :flags WHERE id = :id",
                 ['flags' => $cardRecord['flags'], 'id' => $cardId]
             );
-            self::UpdateBoardModifiedTime($boardId);
+            DB::UpdateBoardModifiedTime($boardId);
         } catch (Throwable $e) {
             Logger::error("UpdateCardFlags: DB error on card $cardId in board $boardId - " . $e->getMessage());
             http_response_code(500);
@@ -898,7 +486,7 @@ class API
      */
     public static function UploadAttachment(array $request): array
     {
-        Session::EnsureSession();
+        Session::ensureSession();
 
         $userId = $_SESSION['user_id'] ?? null;
         if (!$userId) {
@@ -974,7 +562,7 @@ class API
         }
 
         // Decode base64 content and save file
-        $filePath = self::GetAttachmentFilePath($boardId, $guid, $extension);
+        $filePath = Attachment::getAttachmentFilePath($boardId, $guid, $extension);
         $fileContent = base64_decode($attachment);
 
         if ($fileContent === false) {
@@ -989,7 +577,7 @@ class API
         }
 
         // Create thumbnail if possible
-        $thumbFilePath = self::GetThumbnailFilePath($boardId, $guid);
+        $thumbFilePath = Attachment::getThumbnailFilePath($boardId, $guid);
         Utils::createImageThumbnail($filePath, $thumbFilePath);
         if (File::fileExists($thumbFilePath)) {
             try {
@@ -1003,7 +591,7 @@ class API
             }
         }
 
-        self::UpdateBoardModifiedTime($boardId);
+        DB::UpdateBoardModifiedTime($boardId);
 
         // Re-fetch attachment record and card data for response
         $attachmentRecord = self::GetAttachmentRecord($boardId, $attachmentID);
@@ -1054,7 +642,7 @@ class API
 		DB::setParam("background_guid", $guid);
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET background_guid = :background_guid WHERE id = :board_id");
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["board_id"]);
 
 		$boardData["background_url"] = $newBackgroundPath;
 		$boardData["background_tiled"] = false;
@@ -1071,7 +659,7 @@ class API
 		$attachmentRecord = self::GetAttachmentRecord($request["board_id"], $request["id"]);
 
 		// delete attachments files
-		self::DeleteAttachmentFiles($attachmentRecord);
+		Attachment::deleteAttachmentFiles($attachmentRecord);
 
 		// delete attachment from db
 		$deletionQuery = "DELETE FROM tarallo_attachments WHERE id = :id";
@@ -1083,7 +671,7 @@ class API
 		DB::setParam("card_id", $attachmentRecord["card_id"]);
 		DB::queryWithStoredParams("UPDATE tarallo_cards SET cover_attachment_id = 0 WHERE cover_attachment_id = :attachment_id AND id = :card_id");
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["board_id"]);
 
 		// re-query added attachment and card and return their data
 		$response = Attachment::attachmentRecordToData($attachmentRecord);
@@ -1107,7 +695,7 @@ class API
 		DB::setParam("name", $filteredName);
 		DB::queryWithStoredParams("UPDATE tarallo_attachments SET name = :name WHERE id = :id");
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["board_id"]);
 
 		// return the updated attachment data
 		$attachmentRecord["name"] = $filteredName;
@@ -1130,7 +718,7 @@ class API
 		}
 		if (!isset($request["thumbnail"]) || !File::fileExists($attachmentPath))
 		{
-			$attachmentPath = self::GetAttachmentFilePathFromRecord($attachmentRecord);
+			$attachmentPath = Attachment::getAttachmentFilePathFromRecord($attachmentRecord);
 		}
 
 		$mimeType = File::getMimeType($attachmentRecord["extension"]);
@@ -1146,14 +734,14 @@ class API
 		$boardData = Board::GetBoardData($request["board_id"]);
 
 		//query and validate cardlist id
-		$cardlistData = self::GetCardlistData($request["board_id"], $request["id"]);
+		$cardlistData = Card::GetCardlistData($request["board_id"], $request["id"]);
 
 		// update the cardlist name
 		DB::setParam("name", $request["name"]);
 		DB::setParam("id", $request["id"]);
 		DB::queryWithStoredParams("UPDATE tarallo_cardlists SET name = :name WHERE id = :id");
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["board_id"]);
 
 		// return the cardlist data
 		$cardlistData["name"] = $request["name"];
@@ -1168,7 +756,7 @@ class API
 		// insert the new cardlist
 		$newCardListData = self::AddNewCardListInternal($boardData["id"], $request["prev_list_id"], $request["name"]);
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["board_id"]);
 
 		return $newCardListData;
 	}
@@ -1179,7 +767,7 @@ class API
 		$boardData = Board::GetBoardData($request["board_id"]);
 
 		//query and validate cardlist id
-		$cardListData = self::GetCardlistData($request["board_id"], $request["id"]);
+		$cardListData = Card::GetCardlistData($request["board_id"], $request["id"]);
 
 		// check the number of cards in the list (deletion of lists is only allowed when empty)
 		DB::setParam("id", $request["id"]);
@@ -1194,7 +782,7 @@ class API
 		// delete the list
 		self::DeleteCardListInternal($cardListData);
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["board_id"]);
 
 		return $cardListData;
 	}
@@ -1209,7 +797,7 @@ class API
 		DB::setParam("id", $request["board_id"]);
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET title = :title WHERE id = :id");
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["board_id"]);
 
 		// requery and return the board data
 		return Board::GetBoardData($request["board_id"]);
@@ -1217,7 +805,7 @@ class API
 
 	public static function CreateNewBoard($request)
 	{
-		if (!self::IsUserLoggedIn())
+		if (!Session::isUserLoggedIn())
 		{
 			http_response_code(403);
 			exit("Cannot create a new board without being logged in.");
@@ -1239,7 +827,7 @@ class API
 		DB::setParam("id", $request["id"]);
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET closed = 1 WHERE id = :id");
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["board_id"]);
 
 		$boardData["closed"] = 1;
 		return $boardData;
@@ -1254,7 +842,7 @@ class API
 		DB::setParam("id", $request["id"]);
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET closed = 0 WHERE id = :id");
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["board_id"]);
 
 		$boardData["closed"] = 0;
 		return $boardData;
@@ -1326,7 +914,7 @@ class API
 			exit("Board import is disabled on this server!");
 		}
 
-		if (!self::IsUserLoggedIn())
+		if (!Session::isUserLoggedIn())
 		{
 			http_response_code(403);
 			exit("Cannot create a new board without being logged in.");
@@ -1490,7 +1078,7 @@ class API
 			exit("Importing boards from Trello is disabled on this server!");
 		}
 
-		if (!self::IsUserLoggedIn())
+		if (!Session::isUserLoggedIn())
 		{
 			http_response_code(403);
 			exit("Cannot create a new board without being logged in.");
@@ -1695,7 +1283,7 @@ class API
 
 		// update the board
 		self::UpdateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
-		self::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["board_id"]);
 
 		// return the updated labels
 		$response = array();
@@ -1728,7 +1316,7 @@ class API
 
 		// update the board
 		self::UpdateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
-		self::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["board_id"]);
 
 		// return the updated label
 		$response = array();
@@ -1769,7 +1357,7 @@ class API
 
 		// update the board
 		self::UpdateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
-		self::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["board_id"]);
 
 		// remove the label flag from all the cards of this board
 		DB::setParam("removed_label_mask", ~(1 << $labelIndex));
@@ -1820,7 +1408,7 @@ class API
 		DB::setParam("card_id", $cardData["id"]);
 		DB::queryWithStoredParams("UPDATE tarallo_cards SET label_mask = :label_mask WHERE id = :card_id");
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["board_id"]);
 
 		// return info about the updated label
 		$response = array();
@@ -1861,7 +1449,7 @@ class API
 				exit("Special permissions are only available to site admins.");
 			}
 
-			if ($request["user_id"] < self::userId_MIN)
+			if ($request["user_id"] < Account::userId_MIN)
 			{
 				http_response_code(400);
 				exit("Invalid special permission.");
@@ -1916,7 +1504,7 @@ class API
 			DB::queryWithStoredParams("INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:user_id, :board_id, :user_type)");
 		}
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+		DB::UpdateBoardModifiedTime($request["board_id"]);
 
 		// query back for the updated permission
 		DB::setParam("board_id", $request["board_id"]);
@@ -2035,7 +1623,7 @@ class API
 
 	public static function UploadChunk($request)
 	{
-		if (!self::IsUserLoggedIn())
+		if (!Session::isUserLoggedIn())
 		{
 			http_response_code(403);
 			exit("Cannot upload data without being logged in.");
@@ -2084,202 +1672,6 @@ class API
 		DB::setParam("board_id", $boardID);
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET label_names = :label_names, label_colors = :label_colors WHERE id = :board_id");
 	}
-
-	private static function DeleteAttachmentFiles($attachmentRecord)
-	{
-		$attachmentPath = self::GetAttachmentFilePathFromRecord($attachmentRecord);
-		File::deleteFile($attachmentPath);
-		$thumbnailPath = self::GetThumbnailFilePathFromRecord($attachmentRecord);
-		File::deleteFile($thumbnailPath);
-	}
-
-    /**
-     * Internal helper to delete a card.
-     * @param int $boardID The ID of the board.
-     * @param int $cardID The ID of the card.
-     * @param bool $deleteAttachments If TRUE will delete attachments as well.
-     * @return array The result of the operation.
-     * @throws Throwable if database update fails.
-     */
-    private static function DeleteCardInternal(int $boardID, int $cardID, bool $deleteAttachments = true): array
-    {
-        // Fetch the card record (no extra permission checks, caller already did that)
-        $cardRecord = DB::fetchRow(
-            "SELECT * FROM tarallo_cards WHERE id = :id",
-            ['id' => $cardID]
-        );
-
-        if (!$cardRecord) {
-            throw new RuntimeException("Card does not exist");
-        }
-
-        DB::beginTransaction();
-        try {
-            // Relink previous card to skip this one
-            if (!empty($cardRecord['prev_card_id'])) {
-                DB::query(
-                    "UPDATE tarallo_cards
-                 SET next_card_id = :next
-                 WHERE id = :prev",
-                    [
-                        'next' => $cardRecord['next_card_id'] ?: 0,
-                        'prev' => $cardRecord['prev_card_id']
-                    ]
-                );
-            }
-
-            // Relink next card to skip this one
-            if (!empty($cardRecord['next_card_id'])) {
-                DB::query(
-                    "UPDATE tarallo_cards
-                 SET prev_card_id = :prev
-                 WHERE id = :next",
-                    [
-                        'prev' => $cardRecord['prev_card_id'] ?: 0,
-                        'next' => $cardRecord['next_card_id']
-                    ]
-                );
-            }
-
-            // Delete attachments if requested
-            if ($deleteAttachments) {
-                $attachments = DB::fetchTable(
-                    "SELECT * FROM tarallo_attachments WHERE card_id = :id",
-                    ['id' => $cardID]
-                );
-                foreach ($attachments as $att) {
-                    self::DeleteAttachmentFiles($att);
-                }
-                DB::query(
-                    "DELETE FROM tarallo_attachments WHERE card_id = :id",
-                    ['id' => $cardID]
-                );
-            }
-
-            // Finally delete the card itself
-            DB::query(
-                "DELETE FROM tarallo_cards WHERE id = :id",
-                ['id' => $cardID]
-            );
-
-            DB::commit();
-        } catch (Throwable $e) {
-            DB::rollBack();
-            throw $e;
-        }
-
-        return $cardRecord; // Return original record for logging/response
-    }
-
-    /**
-     * Internal helper to add a new card.
-     * @param int $boardID The ID of the board
-     * @param int $cardlistID The ID of the card list
-     * @param int $prevCardID The previous card ID
-     * @param string $title The title of the card
-     * @param string $content The content of the card
-     * @param int $coverAttachmentID The ID of the cover attachment
-     * @param int $lastMovedTime The last time the card was moved
-     * @param int $labelMask The labels that are set
-     * @param int $flagMask Any flags that are set
-     * @return array The new card data if successful
-     * @throws RuntimeException if the database fails to update.
-     */
-    private static function AddNewCardInternal(
-        int $boardID,
-        int $cardlistID,
-        int $prevCardID,
-        string $title,
-        string $content,
-        int $coverAttachmentID,
-        int $lastMovedTime,
-        int $labelMask,
-        int $flagMask
-    ): array {
-        // Count cards in destination list
-        $cardCount = (int) DB::fetchOne(
-            "SELECT COUNT(*) FROM tarallo_cards WHERE cardlist_id = :cid",
-            ['cid' => $cardlistID]
-        );
-
-        if ($cardCount === 0 && $prevCardID > 0) {
-            throw new RuntimeException("Previous card ID not in empty list");
-        }
-
-        $nextCardID  = 0;
-        $prevCardRec = null;
-        $nextCardRec = null;
-
-        if ($cardCount > 0) {
-            // Find next card
-            $nextCardRec = DB::fetchRow(
-                "SELECT * FROM tarallo_cards WHERE cardlist_id = :cid AND prev_card_id = :pid",
-                ['cid' => $cardlistID, 'pid' => $prevCardID]
-            );
-
-            // Validate prev card
-            if ($prevCardID > 0) {
-                $prevCardRec = DB::fetchRow(
-                    "SELECT * FROM tarallo_cards WHERE cardlist_id = :cid AND id = :pid",
-                    ['cid' => $cardlistID, 'pid' => $prevCardID]
-                );
-                if (!$prevCardRec) {
-                    throw new \RuntimeException("Previous card ID {$prevCardID} invalid");
-                }
-            }
-
-            if ($nextCardRec) {
-                $nextCardID = (int) $nextCardRec['id'];
-            }
-        }
-
-        // Transaction to insert/update links
-        DB::beginTransaction();
-        try {
-            $newCardID = DB::insert(
-                "INSERT INTO tarallo_cards 
-                (title, content, prev_card_id, next_card_id, cardlist_id, board_id, cover_attachment_id, last_moved_time, label_mask, flags)
-             VALUES 
-                (:title, :content, :prev_id, :next_id, :cid, :bid, :cover, :last_moved, :label, :flags)",
-                [
-                    'title'       => $title,
-                    'content'     => $content,
-                    'prev_id'     => $prevCardID,
-                    'next_id'     => $nextCardID,
-                    'cid'         => $cardlistID,
-                    'bid'         => $boardID,
-                    'cover'       => $coverAttachmentID,
-                    'last_moved'  => $lastMovedTime,
-                    'label'       => $labelMask,
-                    'flags'       => $flagMask
-                ]
-            );
-
-            if ($nextCardID > 0) {
-                DB::query(
-                    "UPDATE tarallo_cards SET prev_card_id = :new_id WHERE id = :nid",
-                    ['new_id' => $newCardID, 'nid' => $nextCardID]
-                );
-            }
-            if ($prevCardID > 0) {
-                DB::query(
-                    "UPDATE tarallo_cards SET next_card_id = :new_id WHERE id = :pid",
-                    ['new_id' => $newCardID, 'pid' => $prevCardID]
-                );
-            }
-
-            DB::commit();
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            throw $e;
-        }
-
-        return DB::fetchRow(
-            "SELECT * FROM tarallo_cards WHERE id = :id",
-            ['id' => $newCardID]
-        );
-    }
-
 
 	private static function RemoveCardListFromLL($cardListData)
 	{
@@ -2418,7 +1810,7 @@ class API
 		}
 
 		// re-query the added list and return its data
-		return self::GetCardlistData($boardID, $newListID);
+		return Card::GetCardlistData($boardID, $newListID);
 	}
 
 	private static function CreateNewBoardInternal($title, $labelNames = "", $labelColors = "", $backgroundGUID = null)
@@ -2461,35 +1853,6 @@ class API
 		$flagMask = 0;
 		$flagMask += $flagList["locked"] ? 1 : 0;
 		return $flagMask;
-	}
-
-	private static function UpdateBoardModifiedTime($boardID)
-	{
-		DB::setParam("last_modified_time", time());
-		DB::setParam("board_id", $boardID);
-		DB::queryWithStoredParams("UPDATE tarallo_boards SET last_modified_time = :last_modified_time WHERE id = :board_id");
-	}
-
-	private static function GetCardlistData($boardID, $cardlistID)
-	{
-		// query and validate cardlist
-		$cardlistQuery = "SELECT * FROM tarallo_cardlists WHERE id = :cardlist_id";
-		DB::setParam("cardlist_id", $cardlistID);
-		$cardlistData = DB::fetchRowWithStoredParams($cardlistQuery);
-
-		if (!$cardlistData)
-		{
-			http_response_code(404);
-			exit("The specified list does not exists.");
-		}
-
-		if ($cardlistData["board_id"] != $boardID)
-		{
-			http_response_code(400);
-			exit("The specified list is not part of the specified board.");
-		}
-
-		return $cardlistData;
 	}
 
 	private static function GetCardData($boardID, $cardID)
@@ -2535,47 +1898,6 @@ class API
 		return $attachmentRecord;
 	}
 
-	private static function GetAttachmentDir($boardID)
-	{
-		return Board::getBoardContentDir($boardID) . "a/";
-	}
-
-	private static function GetAttachmentFilePath($boardID, $guid, $extension)
-	{
-		return self::GetAttachmentDir($boardID) . $guid . "." . $extension;
-	}
-
-	private static function GetAttachmentFilePathFromRecord($record)
-	{
-		return self::GetAttachmentFilePath($record["board_id"], $record["guid"], $record["extension"]);
-	}
-
-
-	private static function GetThumbnailDir($boardID)
-	{
-		return self::GetAttachmentDir($boardID) . "t/";
-	}
-
-	private static function GetThumbnailFilePath($boardID, $guid)
-	{
-		return self::GetThumbnailDir($boardID) . $guid . ".jpg";
-	}
-
-	private static function GetThumbnailFilePathFromRecord($record)
-	{
-		return self::GetThumbnailFilePath($record["board_id"], $record["guid"]);
-	}
-
-    /**
-     * Checks to see if a user is logged in.
-     * @return bool TRUE if a user is logged into the session.
-     */
-    private static function IsUserLoggedIn(): bool
-    {
-        Session::EnsureSession();
-        return !empty($_SESSION['user_id']) && is_numeric($_SESSION['user_id']);
-    }
-
 	private static function CleanBoardTitle($title)
 	{
 		return substr($title, 0, 64);
@@ -2604,15 +1926,6 @@ class API
 	{
 		DB::setParam("name", $name);
 		return DB::fetchOneWithStoredParams("SELECT value FROM tarallo_settings WHERE name = :name");
-	}
-
-	private static function UsernameExists($username) 
-	{
-		// check if the specified username already exists
-		$userQuery = "SELECT COUNT(*) FROM tarallo_users where username = :username";
-		DB::setParam("username", $username);
-
-		return DB::fetchOneWithStoredParams($userQuery);
 	}
 }
 
