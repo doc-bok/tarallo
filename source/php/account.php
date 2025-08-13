@@ -5,8 +5,8 @@ declare(strict_types=1);
 class Account
 {
     // special user IDs
-    const userId_ONREGISTER = -1; // if a permission record on the permission table has this user_id, the permission will be copied to any new registered user
-    const userId_MIN = self::userId_ONREGISTER; // this should be the minimun special user ID
+    const USER_ID_ONREGISTER = -1; // if a permission record on the permission table has this user_id, the permission will be copied to any new registered user
+    const USER_ID_MIN = self::USER_ID_ONREGISTER; // this should be the minimun special user ID
 
     private const ROLE_ADMIN = 'admin';
 
@@ -212,7 +212,7 @@ class Account
         // Apply initial permissions
         $initialPerms = DB::fetchTable(
             "SELECT * FROM tarallo_permissions WHERE user_id = :id",
-            ['id' => self::userId_ONREGISTER]
+            ['id' => self::USER_ID_ONREGISTER]
         );
         foreach ($initialPerms as $perm) {
             if ($perm['user_type'] == Permission::USERTYPE_Blocked) continue;

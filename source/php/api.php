@@ -40,7 +40,6 @@ echo json_encode($response);
 // contains all the tarallo api calls
 class API
 {
-
     public static function GetCurrentPage(array $request): array
     {
         return Page::getCurrentPage($request);
@@ -191,141 +190,34 @@ class API
         return Label::createBoardLabel($request);
 	}
 
-	public static function UpdateBoardLabel($request)
+	public static function UpdateBoardLabel(array $request): array
 	{
 		return Label::updateBoardLabel($request);
 	}
 
-	public static function DeleteBoardLabel($request)
+	public static function DeleteBoardLabel(array $request): array
 	{
 		return Label::deleteBoardLabel($request);
 	}
 
-	public static function SetCardLabel($request)
+	public static function SetCardLabel(array $request): array
 	{
 		return Label::setCardLabel($request);
 	}
 
-	public static function GetBoardPermissions($request) {
-		// query and validate board id
-		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Moderator);
-
-		// query permissions for this board
-		$boardPermissionsQuery = "SELECT tarallo_permissions.user_id, tarallo_users.display_name, tarallo_permissions.user_type";
-		$boardPermissionsQuery .= " FROM tarallo_permissions LEFT JOIN tarallo_users ON tarallo_permissions.user_id = tarallo_users.id";
-		$boardPermissionsQuery .= " WHERE board_id = :board_id";
-		DB::setParam("board_id", $request["id"]);
-		$boardData["permissions"] = DB::fetchTableWithStoredParams($boardPermissionsQuery);
-		$boardData["is_admin"] = $_SESSION["is_admin"];
-
-		return $boardData;
+	public static function GetBoardPermissions(array $request): array
+    {
+		return Permission::getBoardPermissions($request);
 	}
 
-	public static function SetUserPermission($request) {
-		// query and validate board id
-		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Moderator);
-		$isSpecialPermission = $request["user_id"] < 0;
-
-		if ($isSpecialPermission)
-		{
-			if (!$_SESSION["is_admin"]) 
-			{
-				http_response_code(403);
-				exit("Special permissions are only available to site admins.");
-			}
-
-			if ($request["user_id"] < Account::userId_MIN)
-			{
-				http_response_code(400);
-				exit("Invalid special permission.");
-			}
-		}
-
-		if ($request["user_id"] == $_SESSION["user_id"]) 
-		{
-			http_response_code(400);
-			exit("Cannot edit your own permissions!");
-		}
-
-		if ($request["user_type"] <= $boardData["user_type"]) 
-		{
-			http_response_code(403);
-			exit("Cannot assign this level of permission.");
-		}
-
-		// query current user type
-		$boardPermissionsQuery = "SELECT user_id, user_type FROM tarallo_permissions";
-		$boardPermissionsQuery .= " WHERE board_id = :board_id AND user_id = :user_id";
-		DB::setParam("board_id", $request["board_id"]);
-		DB::setParam("user_id", $request["user_id"]);
-		$permission = DB::fetchRowWithStoredParams($boardPermissionsQuery);
-
-		if (!$isSpecialPermission)
-		{
-			if (!$permission) 
-			{
-				http_response_code(404);
-				exit("No permission for the specified user was found!");
-			}
-
-			if ($permission["user_type"] <= $boardData["user_type"])
-			{
-				http_response_code(403);
-				exit("Cannot edit permissions for this user.");
-			}
-		}
-
-		DB::setParam("board_id", $request["board_id"]);
-		DB::setParam("user_id", $request["user_id"]);
-		DB::setParam("user_type", $request["user_type"]);
-		if ($permission) 
-		{
-			// update permission
-			DB::queryWithStoredParams("UPDATE tarallo_permissions SET user_type = :user_type WHERE board_id = :board_id AND user_id = :user_id");
-		} 
-		else // if ($isSpecialPermission)
-		{
-			// add permission (only special permissions can be added here if not present)
-			DB::queryWithStoredParams("INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:user_id, :board_id, :user_type)");
-		}
-
-		DB::updateBoardModifiedTime($request["board_id"]);
-
-		// query back for the updated permission
-		DB::setParam("board_id", $request["board_id"]);
-		DB::setParam("user_id", $request["user_id"]);
-		$permission = DB::fetchRowWithStoredParams($boardPermissionsQuery);
-
-		return $permission;
+	public static function SetUserPermission(array $request): array
+    {
+        return Permission::setUserPermission($request);
 	}
 
-	public static function RequestBoardAccess($request)
+	public static function RequestBoardAccess(array $request): array
 	{
-		// query and validate board id and access level
-		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_None);
-
-		if ($boardData["user_type"] < Permission::USERTYPE_Guest) 
-		{
-			http_response_code(400);
-			exit("The user is already allowed to view this board!");
-		}
-
-		DB::setParam("user_id", $_SESSION["user_id"]);
-		DB::setParam("board_id", $request["board_id"]);
-		DB::setParam("user_type", Permission::USERTYPE_Guest);
-
-		// add new permission or update existing one
-		if ($boardData["user_type"] == Permission::USERTYPE_None)
-			$guestPermissionQuery = "INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:user_id, :board_id, :user_type)";
-		else
-			$guestPermissionQuery = "UPDATE tarallo_permissions SET user_type = :user_type WHERE user_id = :user_id AND board_id = :board_id";
-
-		DB::queryWithStoredParams($guestPermissionQuery);
-
-		// prepare the response
-		$response = array();
-		$response["access_requested"] = true;
-		return $response;
+		return Permission::requestBoardAccess($request);
 	}
 
 	public static function ExportBoard($request)

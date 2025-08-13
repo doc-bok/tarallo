@@ -684,13 +684,6 @@ class DB {
         self::$QUERY_PARAMS[$key] = $value;
     }
 
-    public static function queryWithStoredParams(string $sql): PDOStatement
-    {
-        $params = self::$QUERY_PARAMS;
-        self::$QUERY_PARAMS = [];
-        return self::query($sql, $params);
-    }
-
     public static function fetchTableWithStoredParams(string $sql): array
     {
         $params = self::$QUERY_PARAMS;
