@@ -114,132 +114,10 @@ class API
         return Card::updateCardFlags($request);
     }
 
-    /**
-     * Upload an attachment
-     * @param array $request The request parameters.
-     * @return array|string[]
-     */
     public static function UploadAttachment(array $request): array
     {
-        Session::ensureSession();
-
-        $userId = $_SESSION['user_id'] ?? null;
-        if (!$userId) {
-            http_response_code(401);
-            return ['error' => 'Not logged in'];
-        }
-
-        // Validate required inputs
-        $boardId    = isset($request['board_id']) ? (int) $request['board_id'] : 0;
-        $cardId     = isset($request['card_id']) ? (int) $request['card_id'] : 0;
-        $filename   = trim($request['filename'] ?? '');
-        $attachment = $request['attachment'] ?? '';
-
-        if ($boardId <= 0 || $cardId <= 0 || $filename === '' || $attachment === '') {
-            http_response_code(400);
-            return ['error' => 'Missing or invalid parameters'];
-        }
-
-        // Check attachment size limit
-        $maxAttachmentSizeKB = (int) self::GetDBSetting('attachment_max_size_kb');
-        
-        // Base64 encoding inflates size ~33% (hence * 0.75 to reverse)
-        $attachmentSizeKB = (strlen($attachment) * 0.75) / 1024;
-        if ($maxAttachmentSizeKB > 0 && $attachmentSizeKB > $maxAttachmentSizeKB) {
-            http_response_code(400);
-            return ['error' => "Attachment is too big! Max size is {$maxAttachmentSizeKB} KB"];
-        }
-
-        // Permission check: require Member role on board
-        try {
-            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
-        } catch (RuntimeException) {
-            Logger::warning("UploadAttachment: User {$userId} no permission on board {$boardId}");
-            http_response_code(403);
-            return ['error' => 'Access denied'];
-        }
-
-        // Validate card belongs to board
-        try {
-            Card::getCardData($boardId, $cardId);
-        } catch (\RuntimeException) {
-            http_response_code(404);
-            return ['error' => 'Card not found in this board'];
-        }
-
-        // Prepare attachment metadata
-        $fileInfo = pathinfo($filename);
-        $name      = self::CleanAttachmentName($fileInfo['filename'] ?? '');
-        $extension = isset($fileInfo['extension']) ? strtolower($fileInfo['extension']) : 'bin';
-        $guid      = uniqid('', true);
-
-        // Insert attachment record in DB
-        $insertSql = "INSERT INTO tarallo_attachments (name, guid, extension, card_id, board_id)
-                  VALUES (:name, :guid, :extension, :card_id, :board_id)";
-        try {
-            $attachmentID = DB::insert($insertSql, [
-                'name'      => $name,
-                'guid'      => $guid,
-                'extension' => $extension,
-                'card_id'   => $cardId,
-                'board_id'  => $boardId
-            ]);
-            
-            if (!$attachmentID) {
-                Logger::error("UploadAttachment: Failed to insert attachment record for board $boardId");
-                http_response_code(500);
-                return ['error' => 'Failed to save new attachment'];
-            }
-        } catch (Throwable $e) {
-            Logger::error("UploadAttachment: Database error - " . $e->getMessage());
-            http_response_code(500);
-            return ['error' => 'Database error saving attachment'];
-        }
-
-        // Decode base64 content and save file
-        $filePath = Attachment::getAttachmentFilePath($boardId, $guid, $extension);
-        $fileContent = base64_decode($attachment);
-
-        if ($fileContent === false) {
-            http_response_code(400);
-            return ['error' => 'Invalid attachment base64 data'];
-        }
-
-        if (!File::writeToFile($filePath, $fileContent)) {
-            Logger::error("UploadAttachment: Failed to write file to {$filePath}");
-            http_response_code(500);
-            return ['error' => 'Failed to save attachment file'];
-        }
-
-        // Create thumbnail if possible
-        $thumbFilePath = Attachment::getThumbnailFilePath($boardId, $guid);
-        Utils::createImageThumbnail($filePath, $thumbFilePath);
-        if (File::fileExists($thumbFilePath)) {
-            try {
-                DB::query(
-                    "UPDATE tarallo_cards SET cover_attachment_id = :attachment_id WHERE id = :card_id",
-                    ['attachment_id' => $attachmentID, 'card_id' => $cardId]
-                );
-            } catch (\Throwable $e) {
-                Logger::error("UploadAttachment: Failed to set cover attachment - " . $e->getMessage());
-                // Not fatal; continue without failing the upload
-            }
-        }
-
-        DB::UpdateBoardModifiedTime($boardId);
-
-        // Re-fetch attachment record and card data for response
-        $attachmentRecord = self::GetAttachmentRecord($boardId, $attachmentID);
-        $cardRecord = Card::getCardData($boardId, $cardId);
-
-        $response = Attachment::attachmentRecordToData($attachmentRecord);
-        $response['card'] = Card::cardRecordToData($cardRecord);
-
-        Logger::info("UploadAttachment: User $userId uploaded attachment $attachmentID to card $cardId in board $boardId");
-
-        return $response;
+        return Attachment::uploadAttachment($request);
     }
-
 
 	public static function UploadBackground($request)
 	{
@@ -291,7 +169,7 @@ class API
 		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Member);
 
 		// query attachment
-		$attachmentRecord = self::GetAttachmentRecord($request["board_id"], $request["id"]);
+		$attachmentRecord = Attachment::GetAttachmentRecord($request["board_id"], $request["id"]);
 
 		// delete attachments files
 		Attachment::deleteAttachmentFiles($attachmentRecord);
@@ -321,10 +199,10 @@ class API
 		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Member);
 
 		// query attachment
-		$attachmentRecord = self::GetAttachmentRecord($request["board_id"], $request["id"]);
+		$attachmentRecord = Attachment::GetAttachmentRecord($request["board_id"], $request["id"]);
 
 		// update attachment name
-		$filteredName = self::CleanAttachmentName($request["name"]);
+		$filteredName = Attachment::cleanAttachmentName($request["name"]);
 
 		DB::setParam("id", $attachmentRecord["id"]);
 		DB::setParam("name", $filteredName);
@@ -341,10 +219,10 @@ class API
 	public static function ProxyAttachment($request)
 	{
 		// query and validate board id
-		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Observer);
+		$boardData = Board::GetBoardData((int)$request["board_id"], Permission::USERTYPE_Observer);
 
 		// query attachment
-		$attachmentRecord = self::GetAttachmentRecord($request["board_id"], $request["id"]);
+		$attachmentRecord = Attachment::GetAttachmentRecord((int)$request["board_id"], (int)$request["id"]);
 
 		// output just the file (or its thumbnail)
 		if (isset($request["thumbnail"]))
@@ -543,7 +421,7 @@ class API
 
 	public static function ImportBoard($request)
 	{
-		if (!$_SESSION["is_admin"] && !self::GetDBSetting("board_import_enabled"))
+		if (!$_SESSION["is_admin"] && !DB::getDBSetting("board_import_enabled"))
 		{
 			http_response_code(403);
 			exit("Board import is disabled on this server!");
@@ -707,7 +585,7 @@ class API
 
 	public static function ImportFromTrello($request) 
 	{
-		if (!$_SESSION["is_admin"] && !self::GetDBSetting("trello_import_enabled"))
+		if (!$_SESSION["is_admin"] && !DB::getDBSetting("trello_import_enabled"))
 		{
 			http_response_code(403);
 			exit("Importing boards from Trello is disabled on this server!");
@@ -1180,7 +1058,7 @@ class API
 
 	public static function ExportBoard($request)
 	{
-		if (!$_SESSION["is_admin"] && !self::GetDBSetting("board_export_enabled"))
+		if (!$_SESSION["is_admin"] && !DB::getDBSetting("board_export_enabled"))
 		{
 			http_response_code(403);
 			exit("Board export is disabled on this server!");
@@ -1210,7 +1088,7 @@ class API
 		$boardExportData["cards"] = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_cards WHERE board_id = :board_id");
 		DB::setParam("board_id", $boardId);
 		$boardExportData["attachments"] = DB::fetchTableWithStoredParams("SELECT * FROM tarallo_attachments WHERE board_id = :board_id");
-		$boardExportData["db_version"] = self::GetDBSetting("db_version");
+		$boardExportData["db_version"] = DB::getDBSetting("db_version");
 
 		// add the data struct to the zip as json
 		$exportDataJsonPath = "temp/export.json";
@@ -1268,7 +1146,7 @@ class API
 		switch ($request["context"])
 		{
 			case "ImportBoard":
-				if (!$_SESSION["is_admin"] && !self::GetDBSetting("board_import_enabled"))
+				if (!$_SESSION["is_admin"] && !DB::getDBSetting("board_import_enabled"))
 				{
 					http_response_code(403);
 					exit("Board import is disabled on this server! (upload)");
@@ -1443,35 +1321,9 @@ class API
 		return $newBoardID;
 	}
 
-	private static function GetAttachmentRecord($boardID, $attachmentID)
-	{
-		// query attachment
-		DB::setParam("id", $attachmentID);
-		$attachmentRecord = DB::fetchRowWithStoredParams("SELECT * FROM tarallo_attachments WHERE id = :id");
-
-		if (!$attachmentRecord)
-		{
-			http_response_code(404);
-			exit("Attachment not found.");
-		}
-
-		if ($attachmentRecord["board_id"] != $boardID)
-		{
-			http_response_code(403);
-			exit("Cannot modify attachments from other boards.");
-		}
-
-		return $attachmentRecord;
-	}
-
 	private static function CleanBoardTitle($title)
 	{
 		return substr($title, 0, 64);
-	}
-
-	private static function CleanAttachmentName($name)
-	{
-		return substr($name, 0, 100);
 	}
 
 	private static function CleanLabelName($name)
@@ -1486,12 +1338,6 @@ class API
 			return 0;
 
 		return ($a["pos"] < $b["pos"]) ? -1 : 1;
-	}
-
-	private static function GetDBSetting($name)
-	{
-		DB::setParam("name", $name);
-		return DB::fetchOneWithStoredParams("SELECT value FROM tarallo_settings WHERE name = :name");
 	}
 }
 

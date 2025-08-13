@@ -338,4 +338,207 @@ class Attachment
 
         return $baseDir . DIRECTORY_SEPARATOR . $subdir . DIRECTORY_SEPARATOR;
     }
+
+    /**
+     * Upload an attachment
+     * @param array $request The request parameters.
+     * @return array|string[]
+     */
+    public static function uploadAttachment(array $request): array
+    {
+        Session::ensureSession();
+
+        $userId = $_SESSION['user_id'] ?? null;
+        if (!$userId) {
+            http_response_code(401);
+            return ['error' => 'Not logged in'];
+        }
+
+        // Validate required inputs
+        $boardId    = isset($request['board_id']) ? (int) $request['board_id'] : 0;
+        $cardId     = isset($request['card_id']) ? (int) $request['card_id'] : 0;
+        $filename   = trim($request['filename'] ?? '');
+        $attachment = $request['attachment'] ?? '';
+
+        if ($boardId <= 0 || $cardId <= 0 || $filename === '' || $attachment === '') {
+            http_response_code(400);
+            return ['error' => 'Missing or invalid parameters'];
+        }
+
+        // Check attachment size limit
+        $maxAttachmentSizeKB = (int) DB::getDBSetting('attachment_max_size_kb');
+
+        // Base64 encoding inflates size ~33% (hence * 0.75 to reverse)
+        $attachmentSizeKB = (strlen($attachment) * 0.75) / 1024;
+        if ($maxAttachmentSizeKB > 0 && $attachmentSizeKB > $maxAttachmentSizeKB) {
+            http_response_code(400);
+            return ['error' => "Attachment is too big! Max size is $maxAttachmentSizeKB KB"];
+        }
+
+        // Permission check: require Member role on board
+        try {
+            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
+        } catch (RuntimeException) {
+            Logger::warning("UploadAttachment: User $userId no permission on board $boardId");
+            http_response_code(403);
+            return ['error' => 'Access denied'];
+        }
+
+        // Validate card belongs to board
+        try {
+            Card::getCardData($boardId, $cardId);
+        } catch (RuntimeException) {
+            http_response_code(404);
+            return ['error' => 'Card not found in this board'];
+        }
+
+        // Prepare attachment metadata
+        $fileInfo = pathinfo($filename);
+        $name      = self::cleanAttachmentName($fileInfo['filename'] ?? '');
+        $extension = isset($fileInfo['extension']) ? strtolower($fileInfo['extension']) : 'bin';
+        $guid      = uniqid('', true);
+
+        // Insert attachment record in DB
+        $insertSql = "INSERT INTO tarallo_attachments (name, guid, extension, card_id, board_id)
+                  VALUES (:name, :guid, :extension, :card_id, :board_id)";
+        try {
+            $attachmentID = DB::insert($insertSql, [
+                'name'      => $name,
+                'guid'      => $guid,
+                'extension' => $extension,
+                'card_id'   => $cardId,
+                'board_id'  => $boardId
+            ]);
+
+            if (!$attachmentID) {
+                Logger::error("UploadAttachment: Failed to insert attachment record for board $boardId");
+                http_response_code(500);
+                return ['error' => 'Failed to save new attachment'];
+            }
+        } catch (Throwable $e) {
+            Logger::error("UploadAttachment: Database error - " . $e->getMessage());
+            http_response_code(500);
+            return ['error' => 'Database error saving attachment'];
+        }
+
+        // Decode base64 content and save file
+        $filePath = Attachment::getAttachmentFilePath($boardId, $guid, $extension);
+        $fileContent = base64_decode($attachment);
+
+        if ($fileContent === false) {
+            http_response_code(400);
+            return ['error' => 'Invalid attachment base64 data'];
+        }
+
+        if (!File::writeToFile($filePath, $fileContent)) {
+            Logger::error("UploadAttachment: Failed to write file to $filePath");
+            http_response_code(500);
+            return ['error' => 'Failed to save attachment file'];
+        }
+
+        // Create thumbnail if possible
+        $thumbFilePath = Attachment::getThumbnailFilePath($boardId, $guid);
+        Utils::createImageThumbnail($filePath, $thumbFilePath);
+        if (File::fileExists($thumbFilePath)) {
+            try {
+                DB::query(
+                    "UPDATE tarallo_cards SET cover_attachment_id = :attachment_id WHERE id = :card_id",
+                    ['attachment_id' => $attachmentID, 'card_id' => $cardId]
+                );
+            } catch (Throwable $e) {
+                Logger::error("UploadAttachment: Failed to set cover attachment - " . $e->getMessage());
+                // Not fatal; continue without failing the upload
+            }
+        }
+
+        DB::UpdateBoardModifiedTime($boardId);
+
+        // Re-fetch attachment record and card data for response
+        $attachmentRecord = self::GetAttachmentRecord($boardId, (int)$attachmentID);
+        $cardRecord = Card::getCardData($boardId, $cardId);
+
+        $response = Attachment::attachmentRecordToData($attachmentRecord);
+        $response['card'] = Card::cardRecordToData($cardRecord);
+
+        Logger::info("UploadAttachment: User $userId uploaded attachment $attachmentID to card $cardId in board $boardId");
+
+        return $response;
+    }
+
+    /**
+     * Sanitize an attachment name for safe storage.
+     *
+     * - Removes unsafe characters
+     * - Collapses whitespace
+     * - Limits length to 100 characters
+     * - Preserves extension if possible
+     *
+     * @param string $name Raw attachment name (user-provided)
+     * @return string Safe, truncated name
+     */
+    public static function cleanAttachmentName(string $name): string
+    {
+        $name = trim($name);
+
+        // Prevent directory traversal
+        $name = basename($name);
+
+        // Replace illegal filesystem characters with underscores
+        $name = preg_replace('/[^\p{L}\p{N}\s.\-_()]+/u', '_', $name);
+
+        // Collapse multiple spaces/underscores
+        $name = preg_replace('/[ _]+/', '_', $name);
+
+        // Split name & extension
+        $ext  = '';
+        $base = $name;
+        if (str_contains($name, '.')) {
+            $parts = explode('.', $name);
+            $ext   = array_pop($parts);
+            $base  = implode('.', $parts);
+        }
+
+        // Enforce length limit (100 chars total)
+        $maxBaseLength = $ext ? 100 - (strlen($ext) + 1) : 100;
+        $base = substr($base, 0, $maxBaseLength);
+
+        // Recombine
+        return $ext ? "$base.$ext" : $base;
+    }
+
+    /**
+     * Retrieve an attachment record, verifying it belongs to the given board.
+     *
+     * @param int $boardID      The board ID to check against.
+     * @param int $attachmentID The attachment ID to fetch.
+     * @return array            Attachment DB row.
+     * @throws RuntimeException If not found or board mismatch.
+     */
+    public static function GetAttachmentRecord(int $boardID, int $attachmentID): array
+    {
+        if ($boardID <= 0 || $attachmentID <= 0) {
+            throw new RuntimeException("Invalid board or attachment ID");
+        }
+
+        try {
+            $attachmentRecord = DB::fetchRow(
+                "SELECT * FROM tarallo_attachments WHERE id = :id",
+                ['id' => $attachmentID]
+            );
+        } catch (Throwable $e) {
+            Logger::error("GetAttachmentRecord: DB error fetching $attachmentID - {$e->getMessage()}");
+            throw new RuntimeException("Database error while retrieving attachment");
+        }
+
+        if (!$attachmentRecord) {
+            throw new RuntimeException("Attachment not found", 404);
+        }
+
+        if ((int)$attachmentRecord['board_id'] !== $boardID) {
+            throw new RuntimeException("Attachment belongs to another board", 403);
+        }
+
+        return $attachmentRecord;
+    }
+
 }

@@ -67,7 +67,7 @@ class Utils {
         $srcInfo = @getimagesize($srcAbsPath);
         if ($srcInfo === false) {
             Logger::error("createImageThumbnail: Failed to get image size for {$srcAbsPath}");
-            throw new \RuntimeException("Unable to get image size: {$srcAbsPath}");
+            throw new RuntimeException("Unable to get image size: {$srcAbsPath}");
         }
 
         // Detect image type and create source image resource

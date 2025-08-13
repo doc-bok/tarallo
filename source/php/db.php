@@ -640,6 +640,37 @@ class DB {
         }
     }
 
+    /**
+     * Retrieve a single setting value from the database.
+     * @param string $name Setting name to retrieve.
+     * @return string|null The setting value, or null if not found.
+     * @throws RuntimeException On invalid name or DB error.
+     */
+    public static function getDBSetting(string $name): ?string
+    {
+        $name = trim($name);
+        if ($name === '') {
+            throw new RuntimeException("Setting name cannot be empty.");
+        }
+
+        try {
+            $value = DB::fetchOne(
+                "SELECT value FROM tarallo_settings WHERE name = :name",
+                ['name' => $name]
+            );
+        } catch (Throwable $e) {
+            Logger::error("GetDBSetting: DB error fetching '$name' - " . $e->getMessage());
+            throw new RuntimeException("Database error retrieving setting '$name'");
+        }
+
+        if ($value === false || $value === null) {
+            Logger::warning("GetDBSetting: '$name' not found in tarallo_settings");
+            return null;
+        }
+
+        return (string) $value;
+    }
+
 
     // --- Legacy methods with stored params (for backward compatibility) ---
     
