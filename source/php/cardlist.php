@@ -85,7 +85,7 @@ class CardList
             );
 
             self::addCardListToLL($listId, $newPrevList, $nextCardListID);
-            DB::UpdateBoardModifiedTime($boardId);
+            DB::updateBoardModifiedTime($boardId);
 
             DB::commit();
         } catch (Throwable $e) {
@@ -262,7 +262,7 @@ class CardList
         }
 
         // Mark board as modified
-        DB::UpdateBoardModifiedTime($boardID);
+        DB::updateBoardModifiedTime($boardID);
 
         // Return updated record
         $cardlistData['name'] = $newName;
@@ -301,7 +301,7 @@ class CardList
         // Delegate to internal safe method
         $newCardListData = self::addNewCardListInternal($boardID, $prevListID, $name);
 
-        DB::UpdateBoardModifiedTime($boardID);
+        DB::updateBoardModifiedTime($boardID);
 
         return $newCardListData;
     }
@@ -393,4 +393,85 @@ class CardList
         return Card::GetCardlistData($boardID, (int)$newListID);
     }
 
+    /**
+     * Delete a card list from a board, only if it is empty.
+     * @param array $request Must contain 'board_id' and 'id'.
+     * @return array The deleted list's data.
+     * @throws InvalidArgumentException On invalid/missing parameters.
+     * @throws RuntimeException On deletion failure or if list is not empty.
+     */
+    public static function deleteCardList(array $request): array
+    {
+        // Validate request parameters
+        foreach (['board_id', 'id'] as $key) {
+            if (!isset($request[$key]) || !is_numeric($request[$key])) {
+                throw new InvalidArgumentException("Missing or invalid parameter: $key");
+            }
+        }
+
+        $boardID = (int) $request['board_id'];
+        $listID  = (int) $request['id'];
+
+        if ($boardID <= 0 || $listID <= 0) {
+            throw new InvalidArgumentException("Invalid board or list ID");
+        }
+
+        // Check board access
+        Board::GetBoardData($boardID);
+
+        // Get list and confirm it belongs to board
+        $cardListData = Card::GetCardlistData($boardID, $listID);
+
+        // Ensure list is empty
+        try {
+            $cardCount = DB::fetchOne(
+                "SELECT COUNT(*) FROM tarallo_cards WHERE cardlist_id = :id",
+                ['id' => $listID]
+            );
+        } catch (Throwable $e) {
+            Logger::error("deleteCardList: Failed to count cards for list $listID - " . $e->getMessage());
+            throw new RuntimeException("Database error checking list contents");
+        }
+
+        if ($cardCount > 0) {
+            throw new RuntimeException(
+                "List $listID still contains $cardCount cards and cannot be deleted",
+                400
+            );
+        }
+
+        // Execute deletion
+        self::deleteCardListInternal($cardListData);
+
+        // Update board modified time
+        DB::updateBoardModifiedTime($boardID);
+
+        return $cardListData;
+    }
+
+    /**
+     * Internal helper to remove a card list and update linked-list pointers.
+     * @param array $cardListData Must contain 'id', 'prev_list_id', 'next_list_id'.
+     * @return void Deleted list's data.
+     * @throws RuntimeException On DB/linked list errors.
+     */
+    private static function deleteCardListInternal(array $cardListData): void
+    {
+        try {
+            DB::beginTransaction();
+
+            CardList::removeCardListFromLL($cardListData);
+
+            DB::query(
+                "DELETE FROM tarallo_cardlists WHERE id = :id",
+                ['id' => (int) $cardListData['id']]
+            );
+
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Logger::error("deleteCardListInternal: Failed to delete list {$cardListData['id']} - " . $e->getMessage());
+            throw new RuntimeException("Failed to delete card list");
+        }
+    }
 }

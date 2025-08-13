@@ -451,7 +451,7 @@ class Attachment
             }
         }
 
-        DB::UpdateBoardModifiedTime($boardId);
+        DB::updateBoardModifiedTime($boardId);
 
         // Re-fetch attachment record and card data for response
         $attachmentRecord = self::getAttachmentRecord($boardId, (int)$attachmentID);
@@ -706,7 +706,7 @@ class Attachment
         }
 
         // Update the board modified timestamp
-        DB::UpdateBoardModifiedTime($boardID);
+        DB::updateBoardModifiedTime($boardID);
 
         // Prepare response data with updated attachment and card info
         $response = self::AttachmentRecordToData($attachmentRecord);
@@ -775,7 +775,7 @@ class Attachment
         }
 
         // Update the board modified time
-        DB::UpdateBoardModifiedTime($boardID);
+        DB::updateBoardModifiedTime($boardID);
 
         // Return updated attachment data
         $attachmentRecord['name'] = $filteredName;

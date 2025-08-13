@@ -277,7 +277,7 @@ class Board
                 ]
             );
 
-            DB::UpdateBoardModifiedTime($boardID);
+            DB::updateBoardModifiedTime($boardID);
         } catch (Throwable $e) {
             // On DB failure, clean up newly created files
             File::deleteFile($newBackgroundPath);

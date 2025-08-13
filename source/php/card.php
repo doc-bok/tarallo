@@ -190,7 +190,7 @@ class Card
             return ['error' => 'Error adding card'];
         }
 
-        DB::UpdateBoardModifiedTime($boardId);
+        DB::updateBoardModifiedTime($boardId);
 
         return Card::cardRecordToData($newCardRecord);
     }
@@ -381,7 +381,7 @@ class Card
 
         try {
             $deletedCard = self::deleteCardInternal($cardId);
-            DB::UpdateBoardModifiedTime($boardId);
+            DB::updateBoardModifiedTime($boardId);
         } catch (Throwable $e) {
             Logger::error("DeleteCard: Failed to delete card $cardId in board $boardId for user $userId: " . $e->getMessage());
             http_response_code(500);
@@ -560,7 +560,7 @@ class Card
                 ['new_id' => $newCard['id'], 'old_id' => $movedCardId]
             );
 
-            DB::UpdateBoardModifiedTime($boardId);
+            DB::updateBoardModifiedTime($boardId);
 
             DB::commit();
         } catch (Throwable $e) {
@@ -624,7 +624,7 @@ class Card
                 ['title' => $newTitle, 'id' => $cardId]
             );
 
-            DB::UpdateBoardModifiedTime($boardId);
+            DB::updateBoardModifiedTime($boardId);
         } catch (Throwable $e) {
             Logger::error("UpdateCardTitle: DB error updating card $cardId in board $boardId - " . $e->getMessage());
             http_response_code(500);
@@ -723,7 +723,7 @@ class Card
                 "UPDATE tarallo_cards SET content = :content WHERE id = :id",
                 ['content' => $newContent, 'id' => $cardId]
             );
-            DB::UpdateBoardModifiedTime($boardId);
+            DB::updateBoardModifiedTime($boardId);
         } catch (Throwable $e) {
             Logger::error("UpdateCardContent: DB error on card $cardId (board $boardId) - " . $e->getMessage());
             http_response_code(500);
@@ -791,7 +791,7 @@ class Card
                 "UPDATE tarallo_cards SET flags = :flags WHERE id = :id",
                 ['flags' => $cardRecord['flags'], 'id' => $cardId]
             );
-            DB::UpdateBoardModifiedTime($boardId);
+            DB::updateBoardModifiedTime($boardId);
         } catch (Throwable $e) {
             Logger::error("UpdateCardFlags: DB error on card $cardId in board $boardId - " . $e->getMessage());
             http_response_code(500);

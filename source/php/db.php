@@ -608,7 +608,7 @@ class DB {
      * @return bool        True if a row was updated, false if not (board not found).
      * @throws RuntimeException On invalid ID or DB error.
      */
-    public static function UpdateBoardModifiedTime(int $boardID): bool
+    public static function updateBoardModifiedTime(int $boardID): bool
     {
         if ($boardID <= 0) {
             throw new RuntimeException("Invalid board ID: $boardID");

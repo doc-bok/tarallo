@@ -151,28 +151,7 @@ class API
 
 	public static function DeleteCardList($request)
 	{
-		// query and validate board id
-		$boardData = Board::GetBoardData($request["board_id"]);
-
-		//query and validate cardlist id
-		$cardListData = Card::GetCardlistData($request["board_id"], $request["id"]);
-
-		// check the number of cards in the list (deletion of lists is only allowed when empty)
-		DB::setParam("id", $request["id"]);
-		$cardCount = DB::fetchOneWithStoredParams("SELECT COUNT(*) FROM tarallo_cards WHERE cardlist_id = :id");
-
-		if ($cardCount > 0)
-		{
-			http_response_code(400);
-			exit("The specified list still contains cards and cannot be deleted!");
-		}
-
-		// delete the list
-		self::DeleteCardListInternal($cardListData);
-
-		DB::UpdateBoardModifiedTime($request["board_id"]);
-
-		return $cardListData;
+		return CardList::deleteCardList($request);
 	}
 
 	public static function UpdateBoardTitle($request)
@@ -185,7 +164,7 @@ class API
 		DB::setParam("id", $request["board_id"]);
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET title = :title WHERE id = :id");
 
-		DB::UpdateBoardModifiedTime($request["board_id"]);
+		DB::updateBoardModifiedTime($request["board_id"]);
 
 		// requery and return the board data
 		return Board::GetBoardData($request["board_id"]);
@@ -215,7 +194,7 @@ class API
 		DB::setParam("id", $request["id"]);
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET closed = 1 WHERE id = :id");
 
-		DB::UpdateBoardModifiedTime($request["id"]);
+		DB::updateBoardModifiedTime($request["id"]);
 
 		$boardData["closed"] = 1;
 		return $boardData;
@@ -230,7 +209,7 @@ class API
 		DB::setParam("id", $request["id"]);
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET closed = 0 WHERE id = :id");
 
-		DB::UpdateBoardModifiedTime($request["board_id"]);
+		DB::updateBoardModifiedTime($request["board_id"]);
 
 		$boardData["closed"] = 0;
 		return $boardData;
@@ -671,7 +650,7 @@ class API
 
 		// update the board
 		self::UpdateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
-		DB::UpdateBoardModifiedTime($request["board_id"]);
+		DB::updateBoardModifiedTime($request["board_id"]);
 
 		// return the updated labels
 		$response = array();
@@ -704,7 +683,7 @@ class API
 
 		// update the board
 		self::UpdateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
-		DB::UpdateBoardModifiedTime($request["board_id"]);
+		DB::updateBoardModifiedTime($request["board_id"]);
 
 		// return the updated label
 		$response = array();
@@ -745,7 +724,7 @@ class API
 
 		// update the board
 		self::UpdateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
-		DB::UpdateBoardModifiedTime($request["board_id"]);
+		DB::updateBoardModifiedTime($request["board_id"]);
 
 		// remove the label flag from all the cards of this board
 		DB::setParam("removed_label_mask", ~(1 << $labelIndex));
@@ -796,7 +775,7 @@ class API
 		DB::setParam("card_id", $cardData["id"]);
 		DB::queryWithStoredParams("UPDATE tarallo_cards SET label_mask = :label_mask WHERE id = :card_id");
 
-		DB::UpdateBoardModifiedTime($request["board_id"]);
+		DB::updateBoardModifiedTime($request["board_id"]);
 
 		// return info about the updated label
 		$response = array();
@@ -892,7 +871,7 @@ class API
 			DB::queryWithStoredParams("INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:user_id, :board_id, :user_type)");
 		}
 
-		DB::UpdateBoardModifiedTime($request["board_id"]);
+		DB::updateBoardModifiedTime($request["board_id"]);
 
 		// query back for the updated permission
 		DB::setParam("board_id", $request["board_id"]);
@@ -1059,31 +1038,6 @@ class API
 		DB::setParam("label_colors", $labelColorsString);
 		DB::setParam("board_id", $boardID);
 		DB::queryWithStoredParams("UPDATE tarallo_boards SET label_names = :label_names, label_colors = :label_colors WHERE id = :board_id");
-	}
-
-	private static function DeleteCardListInternal($cardListData)
-	{
-		// delete the list
-		try
-		{
-			DB::beginTransaction();
-
-			CardList::removeCardListFromLL($cardListData);
-
-			// delete the list
-			$deletionQuery = "DELETE FROM tarallo_cardlists WHERE id = :id";
-			DB::setParam("id", $cardListData["id"]);
-			DB::queryWithStoredParams($deletionQuery);
-
-			DB::commit();
-		}
-		catch(Exception $e)
-		{
-			DB::rollBack();
-			throw $e;
-		}
-
-		return $cardListData;
 	}
 
 	private static function CreateNewBoardInternal($title, $labelNames = "", $labelColors = "", $backgroundGUID = null)
