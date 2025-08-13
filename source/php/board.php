@@ -518,4 +518,47 @@ class Board
 
         return $boardData;
     }
+
+    /**
+     * Reopen a board (set closed = 0).
+     * @param array $request Must contain 'id' (board ID).
+     * @return array Updated board data.
+     * @throws InvalidArgumentException On invalid input.
+     * @throws RuntimeException On DB error.
+     */
+    public static function ReopenBoard(array $request): array
+    {
+        if (!isset($request['id']) || !is_numeric($request['id'])) {
+            throw new InvalidArgumentException("Missing or invalid board ID.");
+        }
+
+        $boardID = (int) $request['id'];
+        if ($boardID <= 0) {
+            throw new InvalidArgumentException("Invalid board ID: $boardID");
+        }
+
+        // Load board and optionally check permissions
+        $boardData = self::GetBoardData($boardID /*, Permission::USERTYPE_Owner */);
+
+        try {
+            $rows = DB::query(
+                "UPDATE tarallo_boards SET closed = 0 WHERE id = :id",
+                ['id' => $boardID]
+            );
+
+            if ($rows < 1) {
+                Logger::warning("ReopenBoard: No board updated for ID $boardID (possibly already open)");
+            }
+        } catch (Throwable $e) {
+            Logger::error("ReopenBoard: Failed to reopen board $boardID - " . $e->getMessage());
+            throw new RuntimeException("Database error while reopening board.");
+        }
+
+        DB::UpdateBoardModifiedTime($boardID);
+
+        $boardData['closed'] = 0;
+
+        return $boardData;
+    }
+
 }

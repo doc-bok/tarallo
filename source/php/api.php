@@ -149,39 +149,29 @@ class API
 		return CardList::addCardList($request);
 	}
 
-	public static function DeleteCardList($request)
+	public static function DeleteCardList(array $request): array
 	{
 		return CardList::deleteCardList($request);
 	}
 
-	public static function UpdateBoardTitle($request)
+	public static function UpdateBoardTitle(array $request): array
 	{
 		return Board::updateBoardTitle($request);
 	}
 
-	public static function CreateNewBoard($request)
+	public static function CreateNewBoard(array $request): array
 	{
         return Board::createNewBoard($request);
 	}
 
-	public static function CloseBoard($request)
+	public static function CloseBoard(array $request): array
 	{
 		return Board::closeBoard($request);
 	}
 
-	public static function ReopenBoard($request)
+	public static function ReopenBoard(array $request): array
 	{
-		// query and validate board id
-		$boardData = Board::GetBoardData($request["id"]);
-
-		// mark the board as closed
-		DB::setParam("id", $request["id"]);
-		DB::queryWithStoredParams("UPDATE tarallo_boards SET closed = 0 WHERE id = :id");
-
-		DB::updateBoardModifiedTime($request["board_id"]);
-
-		$boardData["closed"] = 0;
-		return $boardData;
+		return Board::reopenBoard($request);
 	}
 
 	public static function DeleteBoard($request)
