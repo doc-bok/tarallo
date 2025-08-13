@@ -938,7 +938,7 @@ class Board
                 });
 
                 if ($cardsForList) {
-                    usort($cardsForList, [API::class, 'CompareTrelloSortedItems']);
+                    usort($cardsForList, [self::class, 'compareTrelloSortedItems']);
                     self::bulkInsertCardsFromTrello($cardsForList, $newCardlistID, $newBoardID, $labelNames, $nextCardID, $trello['checklists']);
                 }
 
@@ -993,7 +993,7 @@ class Board
                 $chkData = array_values(array_filter($allChecklists, fn($c) => $c['id'] === $chkId))[0] ?? null;
                 if (!$chkData) continue;
 
-                usort($chkData['checkItems'], [API::class, 'CompareTrelloSortedItems']);
+                usort($chkData['checkItems'], [self::class, 'compareTrelloSortedItems']);
                 $clistContent .= "\n## " . $chkData['name'];
                 foreach ($chkData['checkItems'] as $item) {
                     $clistContent .= "\n- [" . ($item['state'] === 'complete' ? 'x' : ' ') . "] " . $item['name'];
@@ -1023,4 +1023,23 @@ class Board
             $params
         );
     }
+
+    /**
+     * Comparator for Trello items based on their "pos" field.
+     * @param array $a Item with a 'pos' key (numeric).
+     * @param array $b Item with a 'pos' key (numeric).
+     * @return int -1 if $a < $b, 1 if $a > $b, 0 if equal.
+     */
+    private static function compareTrelloSortedItems(array $a, array $b): int
+    {
+        $posA = isset($a['pos']) ? (float)$a['pos'] : 0.0;
+        $posB = isset($b['pos']) ? (float)$b['pos'] : 0.0;
+
+        if ($posA === $posB) {
+            return 0;
+        }
+
+        return ($posA < $posB) ? -1 : 1;
+    }
+
 }

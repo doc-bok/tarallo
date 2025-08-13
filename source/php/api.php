@@ -198,97 +198,12 @@ class API
 
 	public static function DeleteBoardLabel($request)
 	{
-		// query and validate board id
-		$boardData = Board::GetBoardData($request["board_id"]);
-
-		// explode board label list
-		$boardLabelNames = explode(",", $boardData["label_names"]);
-		$boardLabelColors = explode(",", $boardData["label_colors"]);
-		$labelCount = count($boardLabelNames);
-		 
-		if (!isset($request["index"]) || $request["index"] >= $labelCount || $request["index"] < 0)
-		{
-			http_response_code(400);
-			exit("Invalid parameters: the label <index> is required, and must be a smaller than the label count.");
-		}
-
-		// remove the label name and color
-		$labelIndex = $request["index"];
-		$boardLabelNames[$labelIndex] = "";
-		$boardLabelColors[$labelIndex] = "";
-
-		// remove unused trailing elements
-		while (strlen($boardLabelNames[$labelCount - 1]) == 0)
-		{
-			array_pop($boardLabelNames);
-			array_pop($boardLabelColors);
-			$labelCount--;
-		}
-
-		// update the board
-		Label::updateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
-		DB::updateBoardModifiedTime($request["board_id"]);
-
-		// remove the label flag from all the cards of this board
-		DB::setParam("removed_label_mask", ~(1 << $labelIndex));
-		DB::setParam("board_id", $request["board_id"]);
-		DB::queryWithStoredParams("UPDATE tarallo_cards SET label_mask = label_mask & :removed_label_mask WHERE board_id = :board_id");
-
-		// return the removed label index
-		$response = array();
-		$response["index"] = $labelIndex;
-		return $response;
+		return Label::deleteBoardLabel($request);
 	}
 
 	public static function SetCardLabel($request)
 	{
-		// query and validate board id
-		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Member);
-		
-
-		if (!isset($request["index"]) || !isset($request["active"]))
-		{
-			http_response_code(400);
-			exit("Missing parameters: both the label <index> and <active> are required.");
-		}
-
-		// explode board label list
-		$boardLabelNames = explode(",", $boardData["label_names"]);
-		$boardLabelColors = explode(",", $boardData["label_colors"]);
-		$labelCount = count($boardLabelNames);
-		$labelIndex = intval($request["index"]);
-		$labelActive = $request["active"] ? 1 : 0;
-
-		if ($labelIndex >= $labelCount || $labelIndex < 0) 
-		{
-			http_response_code(400);
-			exit("The label index was out of bounds!");
-		}
-
-		// query and validate card id
-		$cardData = Card::getCardData($request["board_id"], $request["card_id"]);
-
-		// create the new mask
-		$labelMask = $cardData["label_mask"];
-		$selectMask = 1 << $labelIndex;
-		$labelMask = ($labelMask & ~$selectMask) + $labelActive * $selectMask;
-
-		// update the card
-		DB::setParam("label_mask", $labelMask);
-		DB::setParam("card_id", $cardData["id"]);
-		DB::queryWithStoredParams("UPDATE tarallo_cards SET label_mask = :label_mask WHERE id = :card_id");
-
-		DB::updateBoardModifiedTime($request["board_id"]);
-
-		// return info about the updated label
-		$response = array();
-		$response["card_id"] = $cardData["id"];
-		$response["index"] = $labelIndex;
-		$response["name"] = $boardLabelNames[$labelIndex];
-		$response["color"] = $boardLabelColors[$labelIndex];
-		$response["active"] = ($labelActive !== 0);
-
-		return $response;
+		return Label::setCardLabel($request);
 	}
 
 	public static function GetBoardPermissions($request) {
@@ -524,14 +439,6 @@ class API
 		$response = array();
 		$response["size"] = filesize(File::ftpDir($destFilePath));
 		return $response;
-	}
-
-	private static function CompareTrelloSortedItems($a, $b)
-	{
-		if ($a["pos"] == $b["pos"])
-			return 0;
-
-		return ($a["pos"] < $b["pos"]) ? -1 : 1;
 	}
 }
 

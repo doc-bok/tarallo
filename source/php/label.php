@@ -197,4 +197,132 @@ class Label
         ];
     }
 
+    /**
+     * Delete a label from a board and remove it from all card label masks.
+     * @param array $request Must contain 'board_id' and 'index'.
+     * @return array ['index' => int]
+     */
+    public static function DeleteBoardLabel(array $request): array
+    {
+        if (!isset($request['board_id'], $request['index'])) {
+            throw new InvalidArgumentException("Missing board_id or index");
+        }
+
+        $boardID = (int)$request['board_id'];
+        $labelIndex = (int)$request['index'];
+
+        if ($boardID <= 0) {
+            throw new InvalidArgumentException("Invalid board ID: $boardID");
+        }
+
+        $boardData = Board::GetBoardData($boardID /*, Permission::USERTYPE_Member */);
+
+        $names  = $boardData['label_names'] !== '' ? explode(',', $boardData['label_names']) : [];
+        $colors = $boardData['label_colors'] !== '' ? explode(',', $boardData['label_colors']) : [];
+
+        $labelCount = count($names);
+        if ($labelIndex < 0 || $labelIndex >= $labelCount) {
+            throw new InvalidArgumentException("Label index $labelIndex out of range.");
+        }
+
+        // Remove label name/color
+        $names[$labelIndex]  = '';
+        $colors[$labelIndex] = '';
+
+        // Trim trailing empty slots
+        while ($labelCount > 0 && $names[$labelCount - 1] === '') {
+            array_pop($names);
+            array_pop($colors);
+            $labelCount--;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            Label::UpdateBoardLabelsInternal($boardID, $names, $colors);
+
+            // Clear the label bit from all cards
+            $maskToRemove = ~(1 << $labelIndex);
+            DB::query(
+                "UPDATE tarallo_cards SET label_mask = label_mask & :maskToRemove WHERE board_id = :board_id",
+                [
+                    'maskToRemove' => $maskToRemove,
+                    'board_id'     => $boardID
+                ]
+            );
+
+            DB::UpdateBoardModifiedTime($boardID);
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Logger::error("DeleteBoardLabel: Failed for board $boardID - " . $e->getMessage());
+            throw new RuntimeException("Failed to delete board label");
+        }
+
+        return ['index' => $labelIndex];
+    }
+
+    /**
+     * Toggle a label on a specific card.
+     * @param array $request Must include 'board_id', 'card_id', 'index', 'active'.
+     * @return array Updated label info for the card.
+     */
+    public static function SetCardLabel(array $request): array
+    {
+        foreach (['board_id','card_id','index','active'] as $key) {
+            if (!isset($request[$key])) {
+                throw new InvalidArgumentException("Missing parameter: $key");
+            }
+        }
+
+        $boardID    = (int)$request['board_id'];
+        $cardID     = (int)$request['card_id'];
+        $labelIndex = (int)$request['index'];
+        $labelActive = (bool)$request['active'];
+
+        if ($boardID <= 0 || $cardID <= 0) {
+            throw new InvalidArgumentException("Invalid board or card ID");
+        }
+
+        $boardData = Board::GetBoardData($boardID, Permission::USERTYPE_Member);
+
+        $names  = $boardData['label_names'] !== '' ? explode(',', $boardData['label_names']) : [];
+        $colors = $boardData['label_colors'] !== '' ? explode(',', $boardData['label_colors']) : [];
+
+        if ($labelIndex < 0 || $labelIndex >= count($names)) {
+            throw new InvalidArgumentException("Label index $labelIndex out of range.");
+        }
+
+        $cardData = Card::GetCardData($boardID, $cardID);
+
+        $maskBit = (1 << $labelIndex);
+        if ($labelActive) {
+            $newMask = $cardData['label_mask'] | $maskBit;
+        } else {
+            $newMask = $cardData['label_mask'] & ~$maskBit;
+        }
+
+        try {
+            DB::query(
+                "UPDATE tarallo_cards SET label_mask = :mask WHERE id = :card_id",
+                [
+                    'mask'    => $newMask,
+                    'card_id' => $cardData['id']
+                ]
+            );
+            DB::UpdateBoardModifiedTime($boardID);
+        } catch (Throwable $e) {
+            Logger::error("SetCardLabel: Failed for card $cardID on board $boardID - " . $e->getMessage());
+            throw new RuntimeException("Failed to update card label");
+        }
+
+        return [
+            'card_id' => $cardData['id'],
+            'index'   => $labelIndex,
+            'name'    => $names[$labelIndex],
+            'color'   => $colors[$labelIndex],
+            'active'  => $labelActive
+        ];
+    }
+
 }
