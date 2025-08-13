@@ -140,4 +140,61 @@ class Label
             'index'        => $labelIndex
         ];
     }
+
+    /**
+     * Update a specific label on a board.
+     * @param array $request Must contain 'board_id', 'index', 'name', 'color'.
+     * @return array Updated label info: ['index', 'name', 'color']
+     * @throws InvalidArgumentException On invalid parameters.
+     * @throws RuntimeException On DB error.
+     */
+    public static function updateBoardLabel(array $request): array
+    {
+        // Validate required parameters
+        foreach (['board_id', 'index', 'name', 'color'] as $key) {
+            if (!isset($request[$key])) {
+                throw new InvalidArgumentException("Missing parameter: $key");
+            }
+        }
+
+        $boardID   = (int)$request['board_id'];
+        $labelIndex = (int)$request['index'];
+        $labelName = (string)$request['name'];
+        $labelColor = (string)$request['color'];
+
+        if ($boardID <= 0) {
+            throw new InvalidArgumentException("Invalid board ID: $boardID");
+        }
+
+        // Get board and check access; optionally enforce edit permission
+        $boardData = Board::GetBoardData($boardID /*, Permission::USERTYPE_Member */);
+
+        // Split safely
+        $boardLabelNames  = $boardData['label_names'] !== '' ? explode(',', $boardData['label_names']) : [];
+        $boardLabelColors = $boardData['label_colors'] !== '' ? explode(',', $boardData['label_colors']) : [];
+
+        $labelCount = count($boardLabelNames);
+        if ($labelIndex < 0 || $labelIndex >= $labelCount) {
+            throw new InvalidArgumentException("Label index $labelIndex out of range (0-$labelCount).");
+        }
+
+        // Clean name
+        $boardLabelNames[$labelIndex] = Label::CleanLabelName($labelName);
+        $boardLabelColors[$labelIndex] = strtolower($labelColor);
+
+        try {
+            Label::UpdateBoardLabelsInternal($boardID, $boardLabelNames, $boardLabelColors);
+            DB::UpdateBoardModifiedTime($boardID);
+        } catch (Throwable $e) {
+            Logger::error("updateBoardLabel: Failed for board $boardID, label $labelIndex - " . $e->getMessage());
+            throw new RuntimeException("Failed to update board label");
+        }
+
+        return [
+            'index' => $labelIndex,
+            'name'  => $boardLabelNames[$labelIndex],
+            'color' => $boardLabelColors[$labelIndex]
+        ];
+    }
+
 }

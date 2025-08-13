@@ -193,35 +193,7 @@ class API
 
 	public static function UpdateBoardLabel($request)
 	{
-		// query and validate board id
-		$boardData = Board::GetBoardData((int)$request["board_id"]);
-
-		// explode board label list
-		$boardLabelNames = explode(",", $boardData["label_names"]);
-		$boardLabelColors = explode(",", $boardData["label_colors"]);
-		$labelCount = count($boardLabelNames);
-		 
-		if (!isset($request["index"]) || $request["index"] >= $labelCount || $request["index"] < 0)
-		{
-			http_response_code(400);
-			exit("Invalid parameters: the label <index> is required, and must be a smaller than the label count.");
-		}
-
-		// update the label name and color
-		$labelIndex = $request["index"];
-		$boardLabelNames[$labelIndex] = Label::CleanLabelName($request["name"]);
-		$boardLabelColors[$labelIndex] = $request["color"];
-
-		// update the board
-		Label::updateBoardLabelsInternal($request["board_id"], $boardLabelNames, $boardLabelColors);
-		DB::updateBoardModifiedTime($request["board_id"]);
-
-		// return the updated label
-		$response = array();
-		$response["index"] = $labelIndex;
-		$response["name"] = $boardLabelNames[$labelIndex];
-		$response["color"] = $boardLabelColors[$labelIndex];
-		return $response;
+		return Label::updateBoardLabel($request);
 	}
 
 	public static function DeleteBoardLabel($request)
