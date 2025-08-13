@@ -739,6 +739,7 @@ class API
             http_response_code(401);
             return ['error' => 'Not logged in'];
         }
+
         if ($boardId <= 0 || $listId <= 0) {
             http_response_code(400);
             return ['error' => 'Invalid or missing board_id / moved_cardlist_id'];
@@ -771,6 +772,7 @@ class API
                 http_response_code(400);
                 return ['error' => 'Invalid new_prev_cardlist_id'];
             }
+
             $nextCardListID = (int) $prevListData['next_list_id'];
         } else {
             // Find "first" cardlist in board as the next list
@@ -778,6 +780,7 @@ class API
                 "SELECT id FROM tarallo_cardlists WHERE board_id = :bid AND prev_list_id = 0",
                 ['bid' => $boardId]
             );
+
             $nextCardListID = $nextRec ? (int) $nextRec['id'] : 0;
         }
 
@@ -802,7 +805,7 @@ class API
             self::UpdateBoardModifiedTime($boardId);
 
             DB::commit();
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             DB::rollBack();
             Logger::error("MoveCardList: Failed moving list $listId in board $boardId - " . $e->getMessage());
             http_response_code(500);
@@ -815,25 +818,70 @@ class API
         return self::GetCardlistData($boardId, $listId);
     }
 
-	public static function UpdateCardTitle($request)
-	{
-		// query and validate board id
-		$boardData = self::GetBoardData($request["board_id"], self::USERTYPE_Member);
+    /**
+     * Update a card's title.
+     * @param array $request The request parameters.
+     * @return string[] The updated card data.
+     */
+    public static function UpdateCardTitle(array $request): array
+    {
+        self::EnsureSession();
 
-		// query and validate card id
-		$cardRecord = self::GetCardData($request["board_id"], $request["id"]);
+        $userId = $_SESSION['user_id'] ?? null;
+        $boardId = isset($request['board_id']) ? (int) $request['board_id'] : 0;
+        $cardId  = isset($request['id']) ? (int) $request['id'] : 0;
+        $newTitle = trim($request['title'] ?? '');
 
-		// update the card
-		$titleUpdateQuery = "UPDATE tarallo_cards SET title = :title WHERE id = :id";
-		DB::setParam("title", $request["title"]);
-		DB::setParam("id", $request["id"]);
-		DB::queryWithStoredParams($titleUpdateQuery);
+        // Basic validation
+        if (!$userId) {
+            http_response_code(401);
+            return ['error' => 'Not logged in'];
+        }
 
-		self::UpdateBoardModifiedTime($request["board_id"]);
+        if ($boardId <= 0 || $cardId <= 0 || $newTitle === '') {
+            http_response_code(400);
+            return ['error' => 'Missing or invalid parameters'];
+        }
 
-		$cardRecord["title"] = $request["title"];
-		return self::CardRecordToData($cardRecord);
-	}
+        // Check board membership
+        try {
+            self::GetBoardData($boardId, self::USERTYPE_Member);
+        } catch (RuntimeException $e) {
+            Logger::warning("UpdateCardTitle: User $userId attempted without permission on board $boardId");
+            http_response_code(403);
+            return ['error' => 'Access denied'];
+        }
+
+        // Check that the card belongs to this board
+        try {
+            $cardRecord = self::GetCardData($boardId, $cardId);
+        } catch (RuntimeException $e) {
+            http_response_code(404);
+            return ['error' => 'Card not found in this board'];
+        }
+
+        // Update title
+        try {
+            DB::query(
+                "UPDATE tarallo_cards SET title = :title WHERE id = :id",
+                ['title' => $newTitle, 'id' => $cardId]
+            );
+
+            self::UpdateBoardModifiedTime($boardId);
+        } catch (Throwable $e) {
+            Logger::error("UpdateCardTitle: DB error updating card $cardId in board $boardId - " . $e->getMessage());
+            http_response_code(500);
+            return ['error' => 'Failed to update card title'];
+        }
+
+        // Update local record to reflect change
+        $cardRecord['title'] = $newTitle;
+
+        Logger::info("UpdateCardTitle: User $userId updated title of card $cardId in board $boardId");
+
+        return self::CardRecordToData($cardRecord);
+    }
+
 
 	public static function UpdateCardContent($request)
 	{
