@@ -139,24 +139,9 @@ class API
 		Attachment::proxyAttachment($request);
 	}
 
-	public static function UpdateCardListName($request)
+	public static function UpdateCardListName(array $request): array
 	{
-		// query and validate board id
-		$boardData = Board::GetBoardData((int)$request["board_id"]);
-
-		//query and validate cardlist id
-		$cardlistData = Card::GetCardlistData((int)$request["board_id"], $request["id"]);
-
-		// update the cardlist name
-		DB::setParam("name", $request["name"]);
-		DB::setParam("id", $request["id"]);
-		DB::queryWithStoredParams("UPDATE tarallo_cardlists SET name = :name WHERE id = :id");
-
-		DB::UpdateBoardModifiedTime((int)$request["board_id"]);
-
-		// return the cardlist data
-		$cardlistData["name"] = $request["name"];
-		return $cardlistData;
+		return CardList::updateCardListName($request);
 	}
 
 	public static function AddCardList($request)

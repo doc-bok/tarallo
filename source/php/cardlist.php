@@ -209,4 +209,64 @@ class CardList
             throw new RuntimeException("Failed to update linked list order for new card list");
         }
     }
+
+    /**
+     * Update the name of a card list on a specific board.
+     * @param array $request Must contain 'board_id', 'id', and 'name'.
+     * @return array Updated card list data.
+     * @throws InvalidArgumentException On invalid/missing input.
+     * @throws RuntimeException On DB error.
+     */
+    public static function updateCardListName(array $request): array
+    {
+        // Validate request parameters
+        foreach (['board_id', 'id', 'name'] as $key) {
+            if (!isset($request[$key]) || $request[$key] === '') {
+                throw new InvalidArgumentException("Missing or invalid parameter: $key");
+            }
+        }
+
+        $boardID   = (int) $request['board_id'];
+        $cardlistID = (int) $request['id'];
+        $newName   = trim((string) $request['name']);
+
+        if ($boardID <= 0 || $cardlistID <= 0) {
+            throw new InvalidArgumentException("Invalid board or card list ID.");
+        }
+        if ($newName === '') {
+            throw new InvalidArgumentException("Card list name cannot be empty.");
+        }
+
+        // Check board exists and user has rights
+        Board::GetBoardData($boardID);
+
+        // Check card list exists and belongs to the board
+        $cardlistData = Card::GetCardlistData($boardID, $cardlistID);
+
+        // Run update with safe parameter binding
+        try {
+            $rows = DB::query(
+                "UPDATE tarallo_cardlists SET name = :name WHERE id = :id",
+                [
+                    'name' => $newName,
+                    'id'   => $cardlistID
+                ]
+            );
+
+            if ($rows < 1) {
+                Logger::warning("updateCardListName: No rows updated for card list $cardlistID on board $boardID");
+            }
+        } catch (Throwable $e) {
+            Logger::error("updateCardListName: DB error updating card list $cardlistID - " . $e->getMessage());
+            throw new RuntimeException("Database error updating card list name.");
+        }
+
+        // Mark board as modified
+        DB::UpdateBoardModifiedTime($boardID);
+
+        // Return updated record
+        $cardlistData['name'] = $newName;
+        return $cardlistData;
+    }
+
 }
