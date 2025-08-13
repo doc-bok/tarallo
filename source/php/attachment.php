@@ -782,4 +782,98 @@ class Attachment
         return self::AttachmentRecordToData($attachmentRecord);
     }
 
+    /**
+     * Output an attachment file or its thumbnail as a proxy, validating board access.
+     * @param array $request Must include 'board_id' and 'id', optionally 'thumbnail' (boolean).
+     * @return void
+     * @throws InvalidArgumentException On missing or invalid input.
+     * @throws RuntimeException On permission, record not found, or file access issues.
+     */
+    public static function proxyAttachment(array $request): void
+    {
+        // Validate inputs
+        foreach (['board_id', 'id'] as $key) {
+            if (!isset($request[$key]) || !is_numeric($request[$key])) {
+                throw new InvalidArgumentException("Missing or invalid parameter: $key");
+            }
+        }
+
+        $boardID = (int) $request['board_id'];
+        $attachmentID = (int) $request['id'];
+        $thumbnailRequested = !empty($request['thumbnail']);
+
+        if ($boardID <= 0 || $attachmentID <= 0) {
+            throw new InvalidArgumentException("Invalid board or attachment ID.");
+        }
+
+        // Verify board access as observer
+        try {
+            Board::GetBoardData($boardID, Permission::USERTYPE_Observer);
+        } catch (Throwable $e) {
+            Logger::error("proxyAttachment: Board access denied or error for board $boardID - " . $e->getMessage());
+            throw new RuntimeException("Access denied or board not found.");
+        }
+
+        // Retrieve attachment record safely
+        try {
+            $attachmentRecord = Attachment::GetAttachmentRecord($boardID, $attachmentID);
+        } catch (Throwable $e) {
+            Logger::error("proxyAttachment: Attachment not found $attachmentID for board $boardID - " . $e->getMessage());
+            throw new RuntimeException("Attachment not found.");
+        }
+
+        // Determine attachment file path
+        $attachmentPath = null;
+        if ($thumbnailRequested) {
+            try {
+                $thumbnailPath = Attachment::GetThumbnailFilePathFromRecord($attachmentRecord);
+                if (File::fileExists($thumbnailPath)) {
+                    $attachmentPath = $thumbnailPath;
+                } else {
+                    Logger::warning("proxyAttachment: Thumbnail requested but file missing at $thumbnailPath, falling back to full attachment.");
+                }
+            } catch (Throwable $e) {
+                Logger::warning("proxyAttachment: Failed to get thumbnail path - " . $e->getMessage());
+            }
+        }
+
+        if ($attachmentPath === null) {
+            // Fallback to full attachment
+            try {
+                $fullPath = Attachment::GetAttachmentFilePathFromRecord($attachmentRecord);
+                if (!File::fileExists($fullPath)) {
+                    throw new RuntimeException("Attachment file missing on disk.");
+                }
+                $attachmentPath = $fullPath;
+            } catch (Throwable $e) {
+                Logger::error("proxyAttachment: Attachment file missing or inaccessible - " . $e->getMessage());
+                throw new RuntimeException("Attachment file not found or unreadable.");
+            }
+        }
+
+        // Get MIME type safely
+        $mimeType = File::getMimeType($attachmentRecord['extension']);
+        if (empty($mimeType)) {
+            $mimeType = 'application/octet-stream'; // fallback
+        }
+
+        // Prepare download filename with safe fallback
+        $downloadName = $attachmentRecord['name'] ?? 'attachment';
+        $downloadExt  = $attachmentRecord['extension'] ?? '';
+        $downloadFilename = $downloadName;
+        if ($downloadExt !== '') {
+            $downloadFilename .= '.' . $downloadExt;
+        }
+
+        $isImage = stripos($mimeType, 'image') === 0;
+
+        // Output the file, forcing download unless it's an image
+        try {
+            File::outputFile($attachmentPath, $mimeType, $downloadFilename, !$isImage);
+        } catch (Throwable $e) {
+            Logger::error("proxyAttachment: Failed to output file $attachmentPath - " . $e->getMessage());
+            throw new RuntimeException("Failed to output attachment file.");
+        }
+    }
+
 }

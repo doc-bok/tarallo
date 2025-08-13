@@ -129,34 +129,14 @@ class API
 		return Attachment::deleteAttachment($request);
 	}
 
-	public static function UpdateAttachmentName($request)
+	public static function UpdateAttachmentName(array $request): array
 	{
 		return Attachment::updateAttachmentName($request);
 	}
 
-	public static function ProxyAttachment($request)
+	public static function ProxyAttachment(array $request): void
 	{
-		// query and validate board id
-		$boardData = Board::GetBoardData((int)$request["board_id"], Permission::USERTYPE_Observer);
-
-		// query attachment
-		$attachmentRecord = Attachment::getAttachmentRecord((int)$request["board_id"], (int)$request["id"]);
-
-		// output just the file (or its thumbnail)
-		if (isset($request["thumbnail"]))
-		{
-			$attachmentPath = Attachment::GetThumbnailFilePathFromRecord($attachmentRecord);
-		}
-		if (!isset($request["thumbnail"]) || !File::fileExists($attachmentPath))
-		{
-			$attachmentPath = Attachment::getAttachmentFilePathFromRecord($attachmentRecord);
-		}
-
-		$mimeType = File::getMimeType($attachmentRecord["extension"]);
-		$downloadName = $attachmentRecord["name"] . "." . $attachmentRecord["extension"];
-		$isImage = stripos($mimeType, "image") === 0;
-
-		File::outputFile($attachmentPath, $mimeType, $downloadName, !$isImage);
+		Attachment::proxyAttachment($request);
 	}
 
 	public static function UpdateCardListName($request)
