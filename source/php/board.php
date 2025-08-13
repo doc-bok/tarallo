@@ -399,7 +399,7 @@ class Board
             $background
         );
 
-        return Board::GetBoardData($newBoardID);
+        return self::GetBoardData($newBoardID);
     }
 
     /**
@@ -471,5 +471,51 @@ class Board
         }
 
         return (int)$newBoardID;
+    }
+
+    /**
+     * Mark a board as closed.
+     * @param array $request Must contain 'id' (board ID).
+     * @return array Updated board data.
+     * @throws InvalidArgumentException On missing/invalid parameters.
+     * @throws RuntimeException On DB error.
+     */
+    public static function closeBoard(array $request): array
+    {
+        // Validate input
+        if (!isset($request['id']) || !is_numeric($request['id'])) {
+            throw new InvalidArgumentException("Missing or invalid board ID.");
+        }
+
+        $boardID = (int) $request['id'];
+        if ($boardID <= 0) {
+            throw new InvalidArgumentException("Invalid board ID: $boardID");
+        }
+
+        // Ensure board exists and enforce permissions (adjust required user type as needed)
+        $boardData = self::GetBoardData($boardID /*, Permission::USERTYPE_Owner */);
+
+        // Attempt to mark as closed
+        try {
+            $rows = DB::query(
+                "UPDATE tarallo_boards SET closed = 1 WHERE id = :id",
+                ['id' => $boardID]
+            );
+
+            if ($rows < 1) {
+                Logger::warning("closeBoard: No board updated for ID $boardID (already closed?)");
+            }
+        } catch (Throwable $e) {
+            Logger::error("closeBoard: Failed to close board $boardID - " . $e->getMessage());
+            throw new RuntimeException("Database error while closing board.");
+        }
+
+        // Update last-modified timestamp
+        DB::UpdateBoardModifiedTime($boardID);
+
+        // Reflect the change in the returned board data
+        $boardData['closed'] = 1;
+
+        return $boardData;
     }
 }

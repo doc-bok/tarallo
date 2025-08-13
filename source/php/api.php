@@ -166,17 +166,7 @@ class API
 
 	public static function CloseBoard($request)
 	{
-		// query and validate board id
-		$boardData = Board::GetBoardData($request["id"]);
-
-		// mark the board as closed
-		DB::setParam("id", $request["id"]);
-		DB::queryWithStoredParams("UPDATE tarallo_boards SET closed = 1 WHERE id = :id");
-
-		DB::updateBoardModifiedTime($request["id"]);
-
-		$boardData["closed"] = 1;
-		return $boardData;
+		return Board::closeBoard($request);
 	}
 
 	public static function ReopenBoard($request)
