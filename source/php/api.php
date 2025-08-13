@@ -124,35 +124,9 @@ class API
         return Board::uploadBackground($request);
     }
 
-
-	public static function DeleteAttachment($request)
-	{
-		// query and validate board id
-		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Member);
-
-		// query attachment
-		$attachmentRecord = Attachment::GetAttachmentRecord($request["board_id"], $request["id"]);
-
-		// delete attachments files
-		Attachment::deleteAttachmentFiles($attachmentRecord);
-
-		// delete attachment from db
-		$deletionQuery = "DELETE FROM tarallo_attachments WHERE id = :id";
-		DB::setParam("id", $request["id"]);
-		DB::queryWithStoredParams($deletionQuery);
-
-		// delete from cover image if any
-		DB::setParam("attachment_id", $attachmentRecord["id"]);
-		DB::setParam("card_id", $attachmentRecord["card_id"]);
-		DB::queryWithStoredParams("UPDATE tarallo_cards SET cover_attachment_id = 0 WHERE cover_attachment_id = :attachment_id AND id = :card_id");
-
-		DB::UpdateBoardModifiedTime($request["board_id"]);
-
-		// re-query added attachment and card and return their data
-		$response = Attachment::attachmentRecordToData($attachmentRecord);
-		$cardRecord = Card::getCardData($attachmentRecord["board_id"], $attachmentRecord["card_id"]);
-		$response["card"] = Card::cardRecordToData($cardRecord);
-		return $response;
+	public static function DeleteAttachment(array $request): array
+    {
+		return Attachment::deleteAttachment($request);
 	}
 
 	public static function UpdateAttachmentName($request)
@@ -161,7 +135,7 @@ class API
 		$boardData = Board::GetBoardData($request["board_id"], Permission::USERTYPE_Member);
 
 		// query attachment
-		$attachmentRecord = Attachment::GetAttachmentRecord($request["board_id"], $request["id"]);
+		$attachmentRecord = Attachment::getAttachmentRecord($request["board_id"], $request["id"]);
 
 		// update attachment name
 		$filteredName = Attachment::cleanAttachmentName($request["name"]);
@@ -184,7 +158,7 @@ class API
 		$boardData = Board::GetBoardData((int)$request["board_id"], Permission::USERTYPE_Observer);
 
 		// query attachment
-		$attachmentRecord = Attachment::GetAttachmentRecord((int)$request["board_id"], (int)$request["id"]);
+		$attachmentRecord = Attachment::getAttachmentRecord((int)$request["board_id"], (int)$request["id"]);
 
 		// output just the file (or its thumbnail)
 		if (isset($request["thumbnail"]))

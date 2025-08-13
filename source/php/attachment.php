@@ -454,7 +454,7 @@ class Attachment
         DB::UpdateBoardModifiedTime($boardId);
 
         // Re-fetch attachment record and card data for response
-        $attachmentRecord = self::GetAttachmentRecord($boardId, (int)$attachmentID);
+        $attachmentRecord = self::getAttachmentRecord($boardId, (int)$attachmentID);
         $cardRecord = Card::getCardData($boardId, $cardId);
 
         $response = Attachment::attachmentRecordToData($attachmentRecord);
@@ -514,7 +514,7 @@ class Attachment
      * @return array            Attachment DB row.
      * @throws RuntimeException If not found or board mismatch.
      */
-    public static function GetAttachmentRecord(int $boardID, int $attachmentID): array
+    public static function getAttachmentRecord(int $boardID, int $attachmentID): array
     {
         if ($boardID <= 0 || $attachmentID <= 0) {
             throw new RuntimeException("Invalid board or attachment ID");
@@ -646,4 +646,74 @@ class Attachment
 
         Logger::info("Thumbnail created: $destAbsPath (width: {$thumbWidth}px, height: {$thumbHeight}px)");
     }
+
+    /**
+     * Delete an attachment and clean up related data.
+     * @param array $request Must contain 'board_id' and 'id' keys representing the board and attachment IDs.
+     * @return array Updated attachment data with linked card information.
+     * @throws InvalidArgumentException On missing or invalid parameters.
+     * @throws RuntimeException On failure to delete files or update DB.
+     */
+    public static function deleteAttachment(array $request): array
+    {
+        // Validate inputs
+        foreach (['board_id', 'id'] as $key) {
+            if (empty($request[$key]) || !is_numeric($request[$key])) {
+                throw new InvalidArgumentException("Missing or invalid parameter: $key");
+            }
+        }
+
+        $boardID = (int)$request['board_id'];
+        $attachmentID = (int)$request['id'];
+
+        if ($boardID <= 0 || $attachmentID <= 0) {
+            throw new InvalidArgumentException("Invalid board or attachment ID.");
+        }
+
+        // Confirm board data with appropriate permission
+        Board::GetBoardData($boardID, Permission::USERTYPE_Member);
+
+        // Fetch attachment record safely
+        $attachmentRecord = self::GetAttachmentRecord($boardID, $attachmentID);
+
+        // Begin transaction for DB operations (if your DB class supports it)
+        try {
+            DB::beginTransaction();
+
+            // Delete attachment files (handle errors inside or catch here)
+            self::DeleteAttachmentFiles($attachmentRecord);
+
+            // Delete attachment row from DB
+            DB::query(
+                "DELETE FROM tarallo_attachments WHERE id = :id",
+                ['id' => $attachmentID]
+            );
+
+            // Remove attachment from cards if it's used as a cover image
+            DB::query(
+                "UPDATE tarallo_cards SET cover_attachment_id = 0 WHERE cover_attachment_id = :attachment_id AND id = :card_id",
+                [
+                    'attachment_id' => $attachmentID,
+                    'card_id' => $attachmentRecord['card_id']
+                ]
+            );
+
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Logger::error("deleteAttachment: Failed during delete process for attachment $attachmentID on board $boardID - " . $e->getMessage());
+            throw new RuntimeException("Failed to delete attachment safely.");
+        }
+
+        // Update the board modified timestamp
+        DB::UpdateBoardModifiedTime($boardID);
+
+        // Prepare response data with updated attachment and card info
+        $response = self::AttachmentRecordToData($attachmentRecord);
+        $cardRecord = Card::GetCardData($boardID, $attachmentRecord['card_id']);
+        $response['card'] = Card::CardRecordToData($cardRecord);
+
+        return $response;
+    }
+
 }
