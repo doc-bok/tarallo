@@ -15,3 +15,4 @@ source/php/vendor
 source/php/composer.json
 source/php/composer.lock
 source/boards/
+source/images/

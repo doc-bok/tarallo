@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/attachment.php';
 require_once __DIR__ . '/card.php';
 require_once __DIR__ . '/label.php';
 require_once __DIR__ . '/permission.php';
@@ -74,14 +75,14 @@ class Board
             SELECT id, name, prev_list_id, next_list_id
             FROM tarallo_cardlists
             WHERE board_id = :board_id
-            ORDER BY id ASC
+            ORDER BY id
         ";
             $boardData['cardlists'] = DB::fetchTable($listSQL, ['board_id' => $boardId]);
         }
 
         // Optionally pull cards
         if ($includeCards) {
-            $sql = "SELECT * FROM tarallo_cards WHERE board_id = :board_id ORDER BY id ASC";
+            $sql = "SELECT * FROM tarallo_cards WHERE board_id = :board_id ORDER BY id ";
 
             $cardsRaw = DB::fetchTable($sql, ['board_id' => $boardId]);
             $cards = array_map([Card::class, 'cardRecordToData'], $cardsRaw);
@@ -200,5 +201,96 @@ class Board
 
         // Build and return normalised path with one trailing slash
         return "$baseDir/$id/";
+    }
+
+    /**
+     * Handle uploading a new background image for a board.
+     * @param array $request Must include 'board_id', 'filename', and 'background' (base64).
+     * @return array Updated board data with new background paths.
+     * @throws InvalidArgumentException On invalid inputs.
+     * @throws RuntimeException On file or database errors.
+     */
+    public static function UploadBackground(array $request): array
+    {
+        // Validate required keys
+        foreach (['board_id', 'filename', 'background'] as $key) {
+            if (empty($request[$key]) || !is_string($request[$key])) {
+                throw new InvalidArgumentException("Missing or invalid parameter: $key");
+            }
+        }
+
+        $boardID = (int) $request['board_id'];
+
+        if ($boardID <= 0) {
+            throw new InvalidArgumentException("Invalid board ID.");
+        }
+
+        // Get board data (throws if not found)
+        $boardData = Board::GetBoardData($boardID);
+
+        // Validate and sanitize file extension
+        $fileInfo = pathinfo($request['filename']);
+        if (empty($fileInfo['extension'])) {
+            throw new InvalidArgumentException("Filename has no extension.");
+        }
+
+        $extension = strtolower(preg_replace('/[^a-z0-9]+/', '', $fileInfo['extension']));
+        if (!$extension) {
+            throw new InvalidArgumentException("Invalid file extension.");
+        }
+
+        // Create sanitized unique GUID for image file
+        $guid = uniqid('', true) . '.' . $extension;
+
+        // Decode base64 background image data safely
+        $fileContent = base64_decode($request['background'], true);
+        if ($fileContent === false) {
+            throw new RuntimeException("Failed to decode background image data.");
+        }
+
+        // Paths for new background and thumbnail
+        $newBackgroundPath = Board::getBackgroundUrl($boardID, $guid);
+        $newBackgroundThumbPath = Board::getBackgroundUrl($boardID, $guid, true);
+
+        // Write background file, throw if fails
+        if (!File::writeToFile($newBackgroundPath, $fileContent)) {
+            throw new RuntimeException("Failed to save background image file.");
+        }
+
+        // Generate thumbnail, throw if fails
+        Attachment::createImageThumbnail($newBackgroundPath, $newBackgroundThumbPath);
+
+        // Delete old background files if not default
+        if (stripos($boardData['background_url'], Board::DEFAULT_BG) === false) {
+            File::deleteFile($boardData['background_url']);
+            File::deleteFile($boardData['background_thumb_url']);
+        }
+
+        // Update DB inside try-catch to handle DB errors
+        try {
+            // Use parameter array instead of global DB::setParam()
+            DB::query(
+                "UPDATE tarallo_boards SET background_guid = :background_guid WHERE id = :board_id",
+                [
+                    'background_guid' => $guid,
+                    'board_id'        => $boardID
+                ]
+            );
+
+            DB::UpdateBoardModifiedTime($boardID);
+        } catch (Throwable $e) {
+            // On DB failure, clean up newly created files
+            File::deleteFile($newBackgroundPath);
+            File::deleteFile($newBackgroundThumbPath);
+            Logger::error("UploadBackground: DB update failed for board $boardID - " . $e->getMessage());
+            throw new RuntimeException("Failed to update board background.");
+        }
+
+        // Update $boardData locally with new paths and return
+        $boardData['background_url'] = $newBackgroundPath;
+        $boardData['background_tiled'] = false;
+        $boardData['background_thumb_url'] = $newBackgroundThumbPath;
+
+        return $boardData;
     }
 }

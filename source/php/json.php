@@ -8,7 +8,7 @@ require_once __DIR__ . '/utils.php';
 
 class Json
 {
-    private const DEFAULT_MAX_BYTES = 1048576; // 1 MB
+    private const DEFAULT_MAX_BYTES = 52428800; // 50 MB
 
     /**
      * Get the CONTENT_TYPE string from the request.

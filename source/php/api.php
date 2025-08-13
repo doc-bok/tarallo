@@ -119,49 +119,11 @@ class API
         return Attachment::uploadAttachment($request);
     }
 
-	public static function UploadBackground($request)
-	{
-		// query and validate board id
-		$boardData = Board::GetBoardData($request["board_id"]);
+    public static function UploadBackground(array $request): array
+    {
+        return Board::uploadBackground($request);
+    }
 
-		// validate filename
-		$fileInfo = pathinfo($request["filename"]);
-		if (!isset($fileInfo["extension"]))
-		{
-			http_response_code(400);
-			exit("Invalid image file!");
-		}
-
-		// save new background to file
-		$extension = $fileInfo["extension"];
-		$guid = uniqid("", true). "#" . $extension;
-		$newBackgroundPath = Board::getBackgroundUrl($request["board_id"], $guid);
-		$fileContent = base64_decode($request["background"]);
-		File::writeToFile($newBackgroundPath, $fileContent);
-
-		// save a thumbnail copy of it for board tiles
-		$newBackgroundThumbPath = Board::getBackgroundUrl($request["board_id"], $guid, true);
-		Utils::createImageThumbnail($newBackgroundPath, $newBackgroundThumbPath);
-
-		// delete old background files
-		if (stripos($boardData["background_url"], Board::DEFAULT_BG) === false) 
-		{
-			File::deleteFile($boardData["background_url"]);
-			File::deleteFile($boardData["background_thumb_url"]);
-		}
-
-		// update background in DB
-		DB::setParam("board_id", $request["board_id"]);
-		DB::setParam("background_guid", $guid);
-		DB::queryWithStoredParams("UPDATE tarallo_boards SET background_guid = :background_guid WHERE id = :board_id");
-
-		DB::UpdateBoardModifiedTime($request["board_id"]);
-
-		$boardData["background_url"] = $newBackgroundPath;
-		$boardData["background_tiled"] = false;
-		$boardData["background_thumb_url"] = $newBackgroundThumbPath;
-		return $boardData;
-	}
 
 	public static function DeleteAttachment($request)
 	{
