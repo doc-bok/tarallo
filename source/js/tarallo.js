@@ -39,7 +39,7 @@ class TaralloClient {
 
 	// request the server the current page
     ReloadContent() {
-        TaralloServer.AsyncCall("GetCurrentPage", {}, (response) => this.LoadPage(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+        TaralloServer.asyncCall("GetCurrentPage", {}, (response) => this.LoadPage(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
     }
 
 	SetBackground(backgroundUrl, tiled) {
@@ -57,7 +57,7 @@ class TaralloClient {
 		let args = {};
 		args["username"] = document.getElementById("login-username").value;
 		args["password"] = document.getElementById("login-password").value;
-		TaralloServer.AsyncCall("Login", args, () => this.ReloadContent(), (msg) => this.ShowErrorPopup(msg, "login-error"));
+		TaralloServer.asyncCall("Login", args, () => this.ReloadContent(), (msg) => this.ShowErrorPopup(msg, "login-error"));
 	}
 
 	OnSuccessfulRegistration(jsonResponseObj) {
@@ -71,11 +71,11 @@ class TaralloClient {
 		args["username"] = document.getElementById("login-username").value;
 		args["password"] = document.getElementById("login-password").value;
 		args["display_name"] = document.getElementById("login-display-name").value;
-		TaralloServer.AsyncCall("Register", args, (response) => this.OnSuccessfulRegistration(response), (msg) => this.ShowErrorPopup(msg, "register-error"));
+		TaralloServer.asyncCall("Register", args, (response) => this.OnSuccessfulRegistration(response), (msg) => this.ShowErrorPopup(msg, "register-error"));
 	}
 
 	UiLogout() {
-		TaralloServer.AsyncCall("Logout", {}, () => this.ReloadContent());
+		TaralloServer.asyncCall("Logout", {}, () => this.ReloadContent());
 	}
 
 	UiOpenCard(cardID) {
@@ -91,7 +91,7 @@ class TaralloClient {
 			return;
 		} 
 		
-		TaralloServer.AsyncCall("OpenCard", { "id": cardID }, (response) => this.LoadOpenCard(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("OpenCard", { "id": cardID }, (response) => this.LoadOpenCard(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	// loads the login page as the page content
@@ -325,7 +325,7 @@ class TaralloClient {
 	}
 
 	UiRequestBoardAccess() {
-		TaralloServer.AsyncCall("RequestBoardAccess", [], (response) => this.OnBoardAccessUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("RequestBoardAccess", [], (response) => this.OnBoardAccessUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	LoadOpenCardAttachment(jsonAttachment, parentNode) {
@@ -524,7 +524,7 @@ class TaralloClient {
 		this.UiCancelNewCard(cardlistNode);
 	
 		// submit new card to the server
-		TaralloServer.AsyncCall("AddNewCard", args, (response) => this.OnCardAdded(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("AddNewCard", args, (response) => this.OnCardAdded(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	OnCardAdded(jsonResponseObj) {
@@ -632,7 +632,7 @@ class TaralloClient {
 
 		// make the call if the card has actually moved
 		if (args["moved_card_id"] != args["new_prev_card_id"]) {
-			TaralloServer.AsyncCall("MoveCard", args, (response) => this.OnCardMoved(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+			TaralloServer.asyncCall("MoveCard", args, (response) => this.OnCardMoved(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 		} else {
 			this.draggedCard = null;
 		}
@@ -656,7 +656,7 @@ class TaralloClient {
 			args["deleted_card_id"] = this.draggedCard.getAttribute("dbid");
 
 			// make the call if the card has actually moved
-			TaralloServer.AsyncCall("DeleteCard", args, (response) => this.OnCardDeleted(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+			TaralloServer.asyncCall("DeleteCard", args, (response) => this.OnCardDeleted(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 		} else if (this.draggedCardList !== null) {
 			// trigger cardlist deletion
 			const cardlistID = this.draggedCardList.getAttribute("dbid");
@@ -752,7 +752,7 @@ class TaralloClient {
 			args["new_prev_cardlist_id"] = 0;
 		}
 
-		TaralloServer.AsyncCall("MoveCardList", args, (response) => this.OnCardListMoved(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("MoveCardList", args, (response) => this.OnCardListMoved(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	UiDragCardListEnd(event) {
@@ -779,7 +779,7 @@ class TaralloClient {
 		let args = [];
 		args["id"] = titleElement.closest(".opencard").getAttribute("dbid");
 		args["title"] = titleElement.textContent;
-		TaralloServer.AsyncCall("UpdateCardTitle", args, (response) => this.OnCardUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("UpdateCardTitle", args, (response) => this.OnCardUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	// search the content node for checkboxes, and copy the checked property to the checked attribute, 
@@ -852,7 +852,7 @@ class TaralloClient {
 		let args = [];
 		args["id"] = cardElement.getAttribute("dbid");
 		args["content"] = contentMarkup;
-		TaralloServer.AsyncCall("UpdateCardContent", args, (response) => this.OnCardUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("UpdateCardContent", args, (response) => this.OnCardUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	UiCardCheckboxChanged(checkboxElem, contentElement) {
@@ -864,7 +864,7 @@ class TaralloClient {
 		let args = [];
 		args["id"] = contentElement.closest(".opencard").getAttribute("dbid");
 		args["content"] = contentMarkup;
-		TaralloServer.AsyncCall("UpdateCardContent", args, (response) => this.OnCardUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("UpdateCardContent", args, (response) => this.OnCardUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	UiCardContentToClipboard(contentElem) {
@@ -882,7 +882,7 @@ class TaralloClient {
 		let args = [];
 		args["id"] = btnElem.closest(".opencard").getAttribute("dbid");
 		args["locked"] = btnElem.classList.contains("locked");
-		TaralloServer.AsyncCall("UpdateCardFlags", args, (response) => this.OnCardUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("UpdateCardFlags", args, (response) => this.OnCardUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	ToggleOpenCardLock(opencardElem) {
@@ -963,7 +963,7 @@ class TaralloClient {
 		args["card_id"] = cardID;
 		args["filename"] = file.name;
 		args["attachment"] = await TaralloUtils.FileToBase64(file);
-		TaralloServer.AsyncCall("UploadAttachment", args, (response) => this.OnAttachmentAdded(response), (msg) => {
+		TaralloServer.asyncCall("UploadAttachment", args, (response) => this.OnAttachmentAdded(response), (msg) => {
 			this.RemoveUiAttachmentPlaceholder();
 			this.ShowErrorPopup(msg, "page-error");
 		});
@@ -990,7 +990,7 @@ class TaralloClient {
 	UiDeleteAttachment(attachmentID, attachmentNode) {
 		let args = [];
 		args["id"] = attachmentID;
-		TaralloServer.AsyncCall("DeleteAttachment", args, (response) => this.OnAttachmentDeleted(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("DeleteAttachment", args, (response) => this.OnAttachmentDeleted(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	OnAttachmentUpdated(jsonResponseObj) {
@@ -1003,7 +1003,7 @@ class TaralloClient {
 		let args = [];
 		args["id"] = attachmentID;
 		args["name"] = nameElem.textContent;
-		TaralloServer.AsyncCall("UpdateAttachmentName", args, (response) => this.OnAttachmentUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("UpdateAttachmentName", args, (response) => this.OnAttachmentUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	OnCardListUpdated(jsonResponseObj) {
@@ -1030,7 +1030,7 @@ class TaralloClient {
 		let args = [];
 		args["id"] = cardlistID;
 		args["name"] = nameElem.textContent;
-		TaralloServer.AsyncCall("UpdateCardListName", args, (response) => this.OnCardListUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("UpdateCardListName", args, (response) => this.OnCardListUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	OnCardListAdded(jsonResponseObj) {
@@ -1053,7 +1053,7 @@ class TaralloClient {
 		if (prevListElem !== null) {
 			args["prev_list_id"] = prevListElem.getAttribute("dbid");
 		}
-		TaralloServer.AsyncCall("AddCardList", args, (response) => this.OnCardListAdded(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("AddCardList", args, (response) => this.OnCardListAdded(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	OnCardListDeleted(jsonResponseObj) {
@@ -1075,7 +1075,7 @@ class TaralloClient {
 			cardlistElem.classList.remove("waiting-deletion");
 			this.ShowErrorPopup(msg, "page-error");
 		};
-		TaralloServer.AsyncCall("DeleteCardList", args, (response) => this.OnCardListDeleted(response), onErrorCallback);
+		TaralloServer.asyncCall("DeleteCardList", args, (response) => this.OnCardListDeleted(response), onErrorCallback);
 	}
 
 	OnBoardTitleUpdated(jsonResponseObj) {
@@ -1086,7 +1086,7 @@ class TaralloClient {
 	UiBoardTitleChanged(titleNode) {
 		let args = [];
 		args["title"] = titleNode.textContent;
-		TaralloServer.AsyncCall("UpdateBoardTitle", args, (response) => this.OnBoardTitleUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("UpdateBoardTitle", args, (response) => this.OnBoardTitleUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	OnBoardCreated(jsonResponseObj) {
@@ -1099,7 +1099,7 @@ class TaralloClient {
 	UiCreateNewBoard() {
 		let args = [];
 		args["title"] = "My new board";
-		TaralloServer.AsyncCall("CreateNewBoard", args, (response) => this.OnBoardCreated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("CreateNewBoard", args, (response) => this.OnBoardCreated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	SetProgressPercent(percent) {
@@ -1155,7 +1155,7 @@ class TaralloClient {
 			return;
 		}
 
-		TaralloServer.AsyncCall("ImportBoard", [], (response) => this.OnBoardCreated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("ImportBoard", [], (response) => this.OnBoardCreated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	UiImportBoard() {
@@ -1173,7 +1173,7 @@ class TaralloClient {
 	UiCloseBoard(boardID, boardTileElem) {
 		let args = [];
 		args["id"] = boardID;
-		TaralloServer.AsyncCall("CloseBoard", args, (response) => this.OnBoardClosed(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("CloseBoard", args, (response) => this.OnBoardClosed(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	OnBoardReopened(jsonResponseObj) {
@@ -1183,7 +1183,7 @@ class TaralloClient {
 	UiReopenBoard(boardID) {
 		let args = [];
 		args["id"] = boardID;
-		TaralloServer.AsyncCall("ReopenBoard", args, (response) => this.OnBoardReopened(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("ReopenBoard", args, (response) => this.OnBoardReopened(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	OnBackgroundChanged(jsonResponseObj) {
@@ -1195,7 +1195,7 @@ class TaralloClient {
 		let args = [];
 		args["filename"] = file.name;
 		args["background"] = await TaralloUtils.FileToBase64(file);
-		TaralloServer.AsyncCall("UploadBackground", args, (response) => this.OnBackgroundChanged(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("UploadBackground", args, (response) => this.OnBackgroundChanged(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	UiChangeBackground(boardID) {
@@ -1256,7 +1256,7 @@ class TaralloClient {
 	UiShareBoard(boardID) {
 		let args = [];
 		args["id"] = boardID;
-		TaralloServer.AsyncCall("GetBoardPermissions", args, (response) => this.LoadShareDialog(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("GetBoardPermissions", args, (response) => this.LoadShareDialog(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	SetUiPermission(selectElem, userType) {
@@ -1293,7 +1293,7 @@ class TaralloClient {
 		let args = [];
 		args["user_id"] = userID;
 		args["user_type"] = requestedUserType;
-		TaralloServer.AsyncCall("SetUserPermission", args, (response) => this.OnUserPermissionUpdated(response), (msg) => this.ShowErrorPopup(msg, "share-dialog-popup"));
+		TaralloServer.asyncCall("SetUserPermission", args, (response) => this.OnUserPermissionUpdated(response), (msg) => this.ShowErrorPopup(msg, "share-dialog-popup"));
 	}
 
 	OnBoardDeleted() {
@@ -1304,7 +1304,7 @@ class TaralloClient {
 	UiDeleteBoard(boardID) {
 		let args = [];
 		args["id"] = boardID;
-		TaralloServer.AsyncCall("DeleteBoard", args, (response) => this.OnBoardDeleted(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("DeleteBoard", args, (response) => this.OnBoardDeleted(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	UiShowBoardDeleteConfirmation(boardID) {
@@ -1319,7 +1319,7 @@ class TaralloClient {
 		// upload the new trello export to the server
 		let args = [];
 		args["trello_export"] = await TaralloUtils.JsonFileToObj(jsonFile);
-		TaralloServer.AsyncCall("ImportFromTrello", args, (response) => this.OnBoardCreated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("ImportFromTrello", args, (response) => this.OnBoardCreated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	UiImportFromTrello() {
@@ -1352,7 +1352,7 @@ class TaralloClient {
 	}
 
 	UiCreateLabel() {
-		TaralloServer.AsyncCall("CreateBoardLabel", [], (response) => this.OnBoardLabelsChanged(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("CreateBoardLabel", [], (response) => this.OnBoardLabelsChanged(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	UiCloseLabelSelectionDialog() {
@@ -1370,7 +1370,7 @@ class TaralloClient {
 		args["card_id"] = cardID;
 		args["index"] = index;
 		args["active"] = active;
-		TaralloServer.AsyncCall("SetCardLabel", args, (response) => this.OnOpenCardLabelChanged(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("SetCardLabel", args, (response) => this.OnOpenCardLabelChanged(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	LoadEditLabelDialog(labelIndex) {
@@ -1453,7 +1453,7 @@ class TaralloClient {
 		args["index"] = labelIndex;
 		args["name"] = labelName;
 		args["color"] = labelColor;
-		TaralloServer.AsyncCall("UpdateBoardLabel", args, (response) => this.OnLabelUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("UpdateBoardLabel", args, (response) => this.OnLabelUpdated(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	OnLabelDeleted(jsonResponseObj) {
@@ -1493,7 +1493,7 @@ class TaralloClient {
 		// ask server to delete the label
 		let args = [];
 		args["index"] = labelIndex;
-		TaralloServer.AsyncCall("DeleteBoardLabel", args, (response) => this.OnLabelDeleted(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
+		TaralloServer.asyncCall("DeleteBoardLabel", args, (response) => this.OnLabelDeleted(response), (msg) => this.ShowErrorPopup(msg, "page-error"));
 	}
 
 	UiPaste(pasteEvent) {

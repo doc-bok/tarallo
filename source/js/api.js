@@ -1,81 +1,66 @@
+/**
+ * A class to handle server requests to Tarallo.
+ */
 class TaralloServer {
-	static async JsonRequest(pageUrl, postParams) {	
-		const requestOptions = {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(postParams)
-		};
 
-		let result = { succeeded: false, error: "" };
+    /**
+     * Request a JSON response from the server.
+     * @param pageUrl The URL of the page.
+     * @param postParams The POST parameters.
+     * @returns {Promise<{succeeded: boolean, error: string}|{succeeded: boolean, response: any}>}
+     */
+    static async jsonRequest(pageUrl, postParams) {
+        try {
+            const response = await fetch(pageUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(postParams)
+            });
 
-		activeJsonRequest: {
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(
+                    errorText || `Request to ${pageUrl} failed with ${response.status} (${response.statusText})`
+                );
+            }
 
-			// fetch the response
-			let response;
-			try {
-				response = await fetch(pageUrl, requestOptions);
-			} catch {
-				result.error = "Network error.";
-				break activeJsonRequest;
-			}
+            // Will throw if invalid JSON
+            return { succeeded: true, response: await response.json() };
+        } catch (err) {
+            return { succeeded: false, error: err.message || "Network or JSON parsing error." };
+        }
+    }
 
-			// check response code
-			if (!response.ok) {
-				result.error = await response.text();
-				if (result.error.length === 0) {
-					// set default error message if missing.
-					result.error = `Request failed for page ${pageUrl} with code ${response.status} (${response.statusText})\n`;
-				}
-				break activeJsonRequest;
-			}
+    /**
+     * Make a call to the Tarallo server.
+     * @param apiName The API to call.
+     * @param params The POST parameters.
+     * @returns {Promise<{succeeded: boolean, error: string}|{succeeded: boolean, response: *}>}
+     */
+    static async call(apiName, params = {}) {
+        const postParams = {
+            OP: apiName,
+            ...Object.fromEntries(TaralloUtils.GetQueryStringParams()),
+            ...params
+        };
 
-			// if succeeded, invoke the callback with the json
-			const responseJson = await response.text();
-			try {
-				result.response = JSON.parse(responseJson);
-			} catch {
-				// error parsing the json response, try to print the content
-				result.error = `Json parsing error from page ${pageUrl}:\n`;
-				result.error += responseJson;
-				break activeJsonRequest;
-			}
+        return await TaralloServer.jsonRequest("php/api.php", postParams);
+    }
 
-			result.succeeded = true;
-		}
-
-		if (!result.succeeded) {
-			// error occurred in the request, log
-			console.error(result.error);
-		}
-
-		return result;
-	}
-
-	static async Call(apiName, params) {
-		// add operation name to the params
-		let postParams = { "OP": apiName };
-
-		// add params from query string
-		for (const [key, value] of TaralloUtils.GetQueryStringParams()) {
-			postParams[key] = value;
-		}
-
-		// add user params
-		Object.assign(postParams, params);
-
-		// make the request and return its promise
-		return TaralloServer.JsonRequest("php/api.php", postParams);
-	}
-
-	// call to a server function, made to be used asynchronously, accepting callbacks on success and error
-	static async AsyncCall(apiName, params, successCallback, errorCallback) {
-		// make the request and wait
-		const result = await TaralloServer.Call(apiName, params);
-		// invoke the appropriate callback, depending on the result
-		if (result.succeeded) {
-			successCallback(result.response);
-		} else {
-			errorCallback(result.error);
-		}
-	}
+    /**
+     * Make an asynchronous call to the Tarallo Server.
+     * @param apiName The API to call.
+     * @param params The POST parameters.
+     * @param onSuccess The callback to use on success.
+     * @param onError The callback to use on failure.
+     * @returns {Promise<void>}
+     */
+    static async asyncCall(apiName, params, onSuccess, onError) {
+        const result = await TaralloServer.call(apiName, params);
+        if (result.succeeded) {
+            onSuccess?.(result.response);
+        } else {
+            onError?.(result.error);
+        }
+    }
 }
