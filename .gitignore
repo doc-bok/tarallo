@@ -9,10 +9,9 @@ Thumbs.db
 /mariadb
 /data
 .idea/
-source/php/.env
+source/.env
 source/node_modules
-source/php/vendor
-source/php/composer.json
-source/php/composer.lock
+source/vendor
+source/composer.lock
 source/boards/
 source/images/

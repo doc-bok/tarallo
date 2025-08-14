@@ -1,11 +1,7 @@
 <?php
 
 declare(strict_types=1);
-
-require_once __DIR__ . '/account.php';
-require_once __DIR__ . '/board.php';
-require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/permission.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
 class Page
 {

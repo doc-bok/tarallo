@@ -1,21 +1,7 @@
 <?php
 
 declare(strict_types=1);
-
-require_once __DIR__ . '/account.php';
-require_once __DIR__ . '/attachment.php';
-require_once __DIR__ . '/board.php';
-require_once __DIR__ . '/card.php';
-require_once __DIR__ . '/cardlist.php';
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/file.php';
-require_once __DIR__ . '/json.php';
-require_once __DIR__ . '/label.php';
-require_once __DIR__ . '/page.php';
-require_once __DIR__ . '/permission.php';
-require_once __DIR__ . '/session.php';
-require_once __DIR__ . '/utils.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
 // page initialization
 header('Content-Type: application/json; charset=utf-8');
@@ -230,5 +216,3 @@ class API
 		return File::uploadChunk($request);
 	}
 }
-
-?>

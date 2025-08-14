@@ -1,13 +1,9 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/../vendor/autoload.php';
 
 use Random\RandomException;
-
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/file.php';
-require_once __DIR__ . '/logger.php';
-require_once __DIR__ . '/session.php';
 
 class DatabaseConnectionException extends RuntimeException {}
 
@@ -530,7 +526,7 @@ class DB {
         }
 
         // Define the patch directory (prefer from config)
-        $patchDir = defined('DB_PATCH_DIR') ? DB_PATCH_DIR : __DIR__ . '/dbpatch';
+        $patchDir = defined('DB_PATCH_DIR') ? DB_PATCH_DIR : __DIR__ . '/../dbpatch';
 
         Logger::info("ApplyDBUpdates: Starting from version $cleanVersion");
 

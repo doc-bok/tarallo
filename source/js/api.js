@@ -22,7 +22,7 @@ class TaralloServer {
 			// check response code
 			if (!response.ok) {
 				result.error = await response.text();
-				if (result.error.length == 0) {
+				if (result.error.length === 0) {
 					// set default error message if missing.
 					result.error = `Request failed for page ${pageUrl} with code ${response.status} (${response.statusText})\n`;
 				}

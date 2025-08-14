@@ -2,15 +2,13 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/loglevel.php';
-
 // Load the environment variables from the .env file.
 use Dotenv\Dotenv;
 
-require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
 // Support loading extra env files (like .env.production)
-$dotenv = Dotenv::createImmutable(__DIR__, [
+$dotenv = Dotenv::createImmutable(__DIR__ . '/../', [
     '.env',
     '.env.' . ($_ENV['APP_ENV'] ?? 'production')
 ]);

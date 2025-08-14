@@ -1,5 +1,8 @@
 <?php
 
+declare(strict_types=1);
+require_once __DIR__ . '/../vendor/autoload.php';
+
 class Label
 {
     const DEFAULT_LABEL_COLORS = array("red", "orange", "yellow", "green", "cyan", "azure", "blue", "purple", "pink", "grey");

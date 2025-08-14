@@ -1,11 +1,7 @@
 <?php
 
 declare(strict_types=1);
-
-require_once __DIR__ . '/attachment.php';
-require_once __DIR__ . '/card.php';
-require_once __DIR__ . '/label.php';
-require_once __DIR__ . '/permission.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
 class Board
 {
