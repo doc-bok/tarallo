@@ -7,7 +7,7 @@ export class ListUI {
     /**
      * Ensure we have access to required fields
      */
-    init(cardDND, cardUI) {
+    init({cardDND, cardUI}) {
         this.cardDND = cardDND;
         this.cardUI = cardUI;
     }

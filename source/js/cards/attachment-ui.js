@@ -18,7 +18,7 @@ export class CardAttachmentUI {
     /**
      * Init dependencies
      */
-    init(cardUI) {
+    init({cardUI}) {
         this.cardUI = cardUI;
     }
 

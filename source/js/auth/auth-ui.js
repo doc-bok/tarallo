@@ -10,7 +10,7 @@ export class AuthUI {
     /**
      * Initialise dependencies
      */
-    init(page) {
+    init({page}) {
         this.page = page;
     }
 

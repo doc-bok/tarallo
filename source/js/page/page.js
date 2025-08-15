@@ -18,7 +18,7 @@ export class Page {
     /**
      * Ensure we have access to required fields
      */
-    init(authUI, boardUI, cardDND, cardUI, importUI, labelUI, listUI) {
+    init({authUI, boardUI, cardDND, cardUI, importUI, labelUI, listUI}) {
         this.authUI = authUI;
         this.boardUI = boardUI;
         this.cardDND = cardDND;

@@ -25,7 +25,7 @@ export class CardUI {
     /**
      * Init links to other UI objects
      */
-    init(attachmentUI, cardDND, labelUI) {
+    init({attachmentUI, cardDND, labelUI}) {
         this.attachmentUI = attachmentUI;
         this.cardDND = cardDND;
         this.labelUI = labelUI;

@@ -16,7 +16,7 @@ export class BoardUI {
     /**
      * Setup dependencies
      */
-    init(page, permission) {
+    init({page, permission}) {
         this.page = page;
         this.permission = permission;
     }

@@ -11,7 +11,7 @@ export class CardDnd {
     /**
      * Init UI dependencies
      */
-    init(cardUI, listUI) {
+    init({cardUI, listUI}) {
         this.cardUI = cardUI;
         this.listUI = listUI;
     }

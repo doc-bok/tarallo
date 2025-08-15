@@ -10,7 +10,7 @@ export class ImportUI {
     /**
      * Initialise UI dependencies
      */
-    init(boardUI) {
+    init({boardUI}) {
         this.boardUI = boardUI;
     }
 

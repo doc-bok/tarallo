@@ -1,7 +1,7 @@
 /**
  * Check if we are on a mobile device
  */
-export function IsMobileDevice() {
+export function isMobileDevice() {
     return /Mobi/i.test(window.navigator.userAgent);
 }
 
