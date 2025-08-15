@@ -9,6 +9,7 @@ import {
     SetEventBySelector,
     TrySetEventById
 } from '../core/utils.js';
+import {ShowInfoPopup} from "../core/popup";
 
 /**
  * Class to help with page-level operations.
@@ -74,7 +75,12 @@ export class Page {
         }
 
         // add needed events
-        TrySetEventById("projectbar-logout-btn", "onclick", () => this.authUI.logout(() => this.getCurrentPage(), 'page-popup'));
+        TrySetEventById(
+            "projectbar-logout-btn",
+            "onclick",
+            () => this.authUI.logout({
+                onSuccess: () => this.getCurrentPage()
+            }));
     }
 
     /**
@@ -98,7 +104,21 @@ export class Page {
 
         // setup login button event
         const formNode = document.querySelector("#login-form");
-        SetEventBySelector(formNode, "#login-btn", "onclick", () => this.authUI.login(() => this.getCurrentPage()));
+        SetEventBySelector(
+            formNode,
+            "#login-btn",
+            "onclick",
+            () => {
+                const username = formNode.querySelector('#login-username').value;
+                const password = formNode.querySelector('#login-password').value;
+
+                this.authUI.login({
+                    username: username,
+                    password: password,
+                    onSuccess: () => this.getCurrentPage(),
+                });
+            });
+
         SetEventBySelector(formNode, "#register-page-btn", "onclick", () => this._loadRegisterPage(contentObj));
 
         // add instance message if any
@@ -202,9 +222,30 @@ export class Page {
         ReplaceContentWithTemplate("tmpl-register", contentObj);
         document.title = "Tarallo - Register";
 
-        // setup login button event
+        // Setup register button event
         const formNode = document.querySelector("#login-form");
-        SetEventBySelector(formNode, "#register-btn", "onclick", () => this.authUI.register());
+        SetEventBySelector(
+            formNode,
+            "#register-btn",
+            "onclick",
+            () => {
+                const username = formNode.querySelector("#login-username").value;
+                const password = formNode.querySelector("#login-password").value;
+                const displayName = formNode.querySelector("#login-display-name").value;
+
+                this.authUI.register({
+                    username,
+                    password,
+                    displayName,
+                })
+            },
+            (jsonResponseObj) => {
+                this.loadLoginPage(jsonResponseObj);
+                document.getElementById("login-username").value = jsonResponseObj["username"];
+                ShowInfoPopup("Account successfully created, please login!", "login-error");
+            },
+            );
+
         SetEventBySelector(formNode, "#login-page-btn", "onclick", () => this.loadLoginPage(contentObj));
     }
 }

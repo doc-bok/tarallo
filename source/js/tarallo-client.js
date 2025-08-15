@@ -1,4 +1,4 @@
-import {AuthUI} from "./auth/auth-ui.js";
+import {Auth} from "./auth/auth.js";
 import {Permission} from "./auth/permission.js";
 import {BoardUI} from './boards/board-ui.js';
 import {CardAttachmentUI} from "./cards/attachment-ui.js";
@@ -27,7 +27,7 @@ export class TaralloClient {
      */
     setupInstances() {
         this.attachmentUI = new CardAttachmentUI();
-        this.authUI = new AuthUI();
+        this.authUI = new Auth();
         this.boardUI = new BoardUI();
         this.cardDND = new CardDnd();
         this.cardUI = new CardUI();
@@ -45,10 +45,6 @@ export class TaralloClient {
     initDependencies() {
         this.attachmentUI.init({
             cardUI: this.cardUI
-        });
-
-        this.authUI.init({
-            page: this.page
         });
 
         this.boardUI.init({
