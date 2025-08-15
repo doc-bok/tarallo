@@ -19,9 +19,15 @@ if (!isset($request['OP']) || !method_exists("API", $request['OP'])) {
 }
 
 // call the requested API and echo the result as JSON
-$methodName = "API::" . $request['OP'];
-$response = $methodName($request);
-echo json_encode($response);
+try {
+    $methodName = "API::" . $request['OP'];
+    $response = $methodName($request);
+    echo json_encode($response);
+} catch (Exception $e) {
+    http_response_code(500);
+    $message = $_ENV['APP_ENV'] === 'development' ? $e->getMessage() : 'Server Error';
+    echo json_encode(["server_error" => $message]);
+}
 
 // contains all the tarallo api calls
 class API

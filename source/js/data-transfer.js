@@ -38,9 +38,7 @@ export class DataTransferShim {
      */
     getData(type) {
         const lc = type.toLowerCase();
-        return this._data[lc]
-            ?? (lc === 'text' ? this._data['text/plain'] : '')
-            || '';
+        return (this._data[lc] ?? (lc === 'text' ? this._data['text/plain'] : '')) || '';
     }
 
     /**

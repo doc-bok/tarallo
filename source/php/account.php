@@ -12,6 +12,11 @@ class Account
 
     private const ROLE_ADMIN = 'admin';
 
+    // Constants to maintain consistency
+    private const MIN_DISPLAY_NAME_LENGTH = 3;
+    private const MIN_PASSWORD_LENGTH = 8;
+    private const MIN_USERNAME_LENGTH = 5;
+
     /**
      * Create a new admin account with a unique "admin" username and random password.
      * @return array{id:int,username:string,password:string} Account info (plaintext password only returned here once).
@@ -94,7 +99,7 @@ class Account
         }
 
         // Basic password policy (optional — can be expanded)
-        if (strlen($password) < 8) {
+        if (strlen($password) < self::MIN_PASSWORD_LENGTH) {
             throw new RuntimeException("Password must be at least 8 characters long.");
         }
 
@@ -172,7 +177,7 @@ class Account
         $password     = $request['password'] ?? '';
 
         // Username validation
-        if (strlen($username) < 5) {
+        if (strlen($username) < self::MIN_USERNAME_LENGTH) {
             http_response_code(400);
             return ['error' => 'Username is too short'];
         }
@@ -181,7 +186,7 @@ class Account
             return ['error' => 'Username must be alphanumeric and contain no spaces'];
         }
         // Display name validation
-        if (strlen($displayName) < 3) {
+        if (strlen($displayName) < self::MIN_DISPLAY_NAME_LENGTH) {
             http_response_code(400);
             return ['error' => 'Display name is too short'];
         }
@@ -190,9 +195,9 @@ class Account
             return ['error' => 'Display name must be alphanumeric'];
         }
         // Password validation
-        if (strlen($password) < 5) {
+        if (strlen($password) < self::MIN_PASSWORD_LENGTH) {
             http_response_code(400);
-            return ['error' => 'Password must be at least 5 characters'];
+            return ['error' => 'Password must be at least ' . self::MIN_PASSWORD_LENGTH . ' characters'];
         }
 
         // Prevent duplicate username

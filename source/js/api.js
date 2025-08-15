@@ -1,7 +1,9 @@
+import {GetQueryStringParams} from "./core/utils.js";
+
 /**
  * A class to handle server requests to Tarallo.
  */
-class TaralloServer {
+export class TaralloServer {
 
     /**
      * Request a JSON response from the server.
@@ -40,7 +42,7 @@ class TaralloServer {
     static async call(apiName, params = {}) {
         const postParams = {
             OP: apiName,
-            ...Object.fromEntries(TaralloUtils.GetQueryStringParams()),
+            ...Object.fromEntries(GetQueryStringParams()),
             ...params
         };
 
