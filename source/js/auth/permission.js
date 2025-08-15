@@ -3,6 +3,7 @@
  */
 import {serverAction} from "../core/server.js";
 import {ShowInfoPopup} from "../core/popup.js";
+import {LoadTemplate} from "../core/utils.js";
 
 export class Permission {
 
@@ -10,7 +11,7 @@ export class Permission {
      * Load a user's permission entry
      */
     loadUserPermissionEntry(permissionObj) {
-        const permissionElem = TaralloUtils.LoadTemplate("tmpl-share-dialog-entry", permissionObj);
+        const permissionElem = LoadTemplate("tmpl-share-dialog-entry", permissionObj);
 
         const permissionSelectElem = permissionElem.querySelector(".permission");
         permissionSelectElem.onchange = () => this._userPermissionChanged(permissionSelectElem, permissionObj["user_id"]);

@@ -4,7 +4,7 @@ import {ShowErrorPopup} from "../core/popup.js";
 /**
  * Class to help with auth level operations
  */
-export class Auth {
+export class Account {
 
     /**
      * Registers a new user.
@@ -15,14 +15,14 @@ export class Auth {
      * @param {Function} options.onSuccess - Called on successful registration.
      * @param {Function} options.onError - Called on failed registration.
      */
-    register({username, password, displayName, onSuccess, onError = (msg) => {ShowErrorPopup(msg, 'register-error');}}) {
+    async register({username, password, displayName, onSuccess, onError = (msg) => {ShowErrorPopup(msg, 'register-error');}}) {
         const args = {
             username,
             password,
             display_name: displayName
         };
 
-        asyncCall("Register", args, onSuccess, onError);
+        return await asyncCall("Register", args, onSuccess, onError);
     }
 
     /**
@@ -33,9 +33,9 @@ export class Auth {
      * @param {Function} options.onSuccess - Called on successful login.
      * @param {Function} options.onError - Called on failed login attempt.
      */
-    login({username, password, onSuccess, onError = (msg) => {ShowErrorPopup(msg, 'login-error');}}) {
+    async login({username, password, onSuccess, onError = (msg) => {ShowErrorPopup(msg, 'login-error');}}) {
         const args = { username, password };
-        asyncCall("Register", args, onSuccess, onError);
+        return await asyncCall("Login", args, onSuccess, onError);
     }
 
     /**
@@ -44,7 +44,18 @@ export class Auth {
      * @param {Function} options.onSuccess - Called on successful logout.
      * @param {Function} options.onError - Called on failed logout.
      */
-    logout({onSuccess, onError = (msg) => {ShowErrorPopup(msg, 'page-popup');}}) {
-        asyncCall('Logout', {}, onSuccess, onError);
+    async logout({onSuccess, onError = (msg) => {ShowErrorPopup(msg, 'page-popup');}}) {
+        return await asyncCall('Logout', {}, onSuccess, onError);
+    }
+
+    /**
+     * Sets user permission on the server.
+     * @param {number} userId
+     * @param {string} userType
+     * @returns {Promise<Object>} Resolves with server response
+     */
+    async setUserPermission({userId, userType, onSuccess, onError = (msg) => {ShowErrorPopup(msg, 'share-dialog-popup');}}) {
+        const args = { user_id: userId, user_type: userType };
+        return await asyncCall("SetUserPermission", args, onSuccess, onError);
     }
 }

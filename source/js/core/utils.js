@@ -67,13 +67,13 @@ export function LoadTemplate(templateName, args) {
     return result;
 }
 
-export function * DBLinkedListIterator(resultsArray, indexFiledName, prevIndexFieldName, nextIndexFieldName, whereCondition = () => true) {
+export function * DBLinkedListIterator(resultsArray, indexFiledName, prevIndexFieldName, nextIndexFieldName, whereCondition = (result) => true) {
 
     // indexing of the linked list
     let curID = 0;
     const indexedResults = new Map();
     for (const item of resultsArray) {
-        if (!whereCondition()) {
+        if (!whereCondition(item)) {
             continue;
         }
 

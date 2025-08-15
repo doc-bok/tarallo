@@ -216,22 +216,35 @@ class Permission
             throw new RuntimeException("Must be logged in to request access", 403);
         }
 
-        // Check board access (no permission required to request)
-        $boardData = Board::GetBoardData($boardID);
+        // Check board access
+        $sql = "
+        SELECT user_type
+        FROM tarallo_permissions
+        WHERE board_id = :board_id AND user_id = :user_id
+        LIMIT 1
+    ";
+        $userId = (int) $_SESSION['user_id'];
+
+        $permissionRecord = DB::fetchRow($sql, [
+            'board_id' => $boardID,
+            'user_id'  => $userId
+        ]);
+
+        $userType = $permissionRecord === null ? self::USERTYPE_None : $permissionRecord['user_type'];
 
         // Already has Guest or higher → can't request again
-        if ($boardData['user_type'] >= Permission::USERTYPE_Guest) {
-            throw new RuntimeException("User already has guest or higher access to this board", 400);
+        if ($userType != self::USERTYPE_None) {
+            throw new RuntimeException("User already has blocked or higher access to this board", 400);
         }
 
         // Decide insert vs update
         $params = [
             'user_id'   => $userID,
             'board_id'  => $boardID,
-            'user_type' => Permission::USERTYPE_Guest
+            'user_type' => self::USERTYPE_Guest
         ];
 
-        $sql = $boardData['user_type'] === Permission::USERTYPE_None
+        $sql = $userType === self::USERTYPE_None
             ? "INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:user_id, :board_id, :user_type)"
             : "UPDATE tarallo_permissions SET user_type = :user_type WHERE user_id = :user_id AND board_id = :board_id";
 

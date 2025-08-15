@@ -9,7 +9,7 @@ import {
     SetEventBySelector,
     TrySetEventById
 } from '../core/utils.js';
-import {ShowInfoPopup} from "../core/popup";
+import {ShowInfoPopup} from "../core/popup.js";
 
 /**
  * Class to help with page-level operations.
@@ -237,14 +237,13 @@ export class Page {
                     username,
                     password,
                     displayName,
+                    onSuccess: (jsonResponseObj) => {
+                        this.loadLoginPage(jsonResponseObj);
+                        document.getElementById("login-username").value = jsonResponseObj["username"];
+                        ShowInfoPopup("Account successfully created, please login!", "login-error");
+                    },
                 })
-            },
-            (jsonResponseObj) => {
-                this.loadLoginPage(jsonResponseObj);
-                document.getElementById("login-username").value = jsonResponseObj["username"];
-                ShowInfoPopup("Account successfully created, please login!", "login-error");
-            },
-            );
+            });
 
         SetEventBySelector(formNode, "#login-page-btn", "onclick", () => this.loadLoginPage(contentObj));
     }
