@@ -1,6 +1,6 @@
 import {BlurOnEnter, LoadTemplate, SetEventBySelector} from "../core/utils.js";
 import {serverAction} from "../core/server.js";
-import {ShowErrorPopup} from "../core/popup.js";
+import {showErrorPopup} from "../core/popup.js";
 
 export class ListUI {
 
@@ -91,7 +91,7 @@ export class ListUI {
         cardlistElem.classList.add("waiting-deletion");
         const onErrorCallback = (msg) => {
             cardlistElem.classList.remove("waiting-deletion");
-            ShowErrorPopup(msg, "page-error");
+            showErrorPopup(msg, "page-error");
         };
         serverAction("DeleteCardList", args, (response) => this._onCardListDeleted(response), onErrorCallback);
     }

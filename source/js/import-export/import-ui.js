@@ -1,4 +1,4 @@
-import {ShowErrorPopup} from "../core/popup.js";
+import {showErrorPopup} from "../core/popup.js";
 import {serverAction, serverActionAsync} from "../core/server.js";
 import {FileToBase64, GetContentElement, JsonFileToObj, LoadTemplate, SelectFileDialog} from "../core/utils.js";
 
@@ -55,7 +55,7 @@ export class ImportUI {
         if (!response.succeeded) {
             this._hideLoadingDialog();
             this._setProgressPercent(0);
-            ShowErrorPopup(response.error, "page-error");
+            showErrorPopup(response.error, "page-error");
             return;
         }
 

@@ -1,4 +1,4 @@
-import {ShowErrorPopup, showInfoPopup} from "../core/popup.js";
+import {showErrorPopup, showInfoPopup} from "../core/popup.js";
 import {serverAction} from "../core/server.js";
 import {BlurOnEnter, FileToBase64, LoadTemplate, SelectFileDialog, SetEventBySelector} from "../core/utils.js";
 
@@ -131,7 +131,7 @@ export class CardAttachmentUI {
         args["attachment"] = await FileToBase64(file);
         serverAction("UploadAttachment", args, (response) => this._onAttachmentAdded(response), (msg) => {
             this._removeUiAttachmentPlaceholder();
-            ShowErrorPopup(msg, "page-error");
+            showErrorPopup(msg, "page-error");
         });
         const attachlistElem = document.querySelector(".opencard-attachlist");
         this.loadOpenCardAttachment({"id":0, "name":"uploading..." } , attachlistElem); // empty loading attachment

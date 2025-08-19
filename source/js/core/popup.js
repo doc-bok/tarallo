@@ -1,7 +1,7 @@
 /**
  * Error popup message display
  */
-export function ShowErrorPopup(errorMsg, popupID) {
+export function showErrorPopup(errorMsg, popupID) {
         ShowPopup(errorMsg, popupID, "#d44");
 }
 

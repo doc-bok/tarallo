@@ -9,7 +9,7 @@ import {
     SetEventBySelector,
     TrySetEventById
 } from '../core/utils.js';
-import {showInfoPopup} from "../core/popup.js";
+import {showErrorPopup, showInfoPopup} from "../core/popup.js";
 
 /**
  * Class to help with page-level operations.
@@ -78,9 +78,14 @@ export class Page {
         TrySetEventById(
             "projectbar-logout-btn",
             "onclick",
-            () => this.account.logout({
-                onSuccess: () => this.getCurrentPage()
-            }));
+            async () => {
+                try {
+                    await this.account.logout();
+                    this.getCurrentPage();
+                } catch (e) {
+                    showErrorPopup('Logout failed: ' + e.message, 'page-error');
+                }
+            });
     }
 
     /**
@@ -108,15 +113,16 @@ export class Page {
             formNode,
             "#login-btn",
             "onclick",
-            () => {
+            async () => {
                 const username = formNode.querySelector('#login-username').value;
                 const password = formNode.querySelector('#login-password').value;
 
-                this.account.login({
-                    username: username,
-                    password: password,
-                    onSuccess: () => this.getCurrentPage(),
-                });
+                try {
+                    await this.account.login(username, password);
+                    this.getCurrentPage();
+                } catch (e) {
+                    showErrorPopup("Login failed: " + e.message, 'login-error');
+                }
             });
 
         SetEventBySelector(formNode, "#register-page-btn", "onclick", () => this._loadRegisterPage(contentObj));
@@ -228,21 +234,19 @@ export class Page {
             formNode,
             "#register-btn",
             "onclick",
-            () => {
+            async () => {
                 const username = formNode.querySelector("#login-username").value;
                 const password = formNode.querySelector("#login-password").value;
                 const displayName = formNode.querySelector("#login-display-name").value;
 
-                this.account.register({
-                    username,
-                    password,
-                    displayName,
-                    onSuccess: (jsonResponseObj) => {
-                        this.loadLoginPage(jsonResponseObj);
-                        document.getElementById("login-username").value = jsonResponseObj["username"];
-                        showInfoPopup("Account successfully created, please login!", "login-error");
-                    },
-                })
+                try {
+                    const response = await this.account.register(username, password, displayName);
+                    this.loadLoginPage(response);
+                    document.getElementById("login-username").value = response.username;
+                    showInfoPopup("Account successfully created, please login!", "login-error");
+                } catch (e) {
+                    showErrorPopup("Failed to register account: " + e.message, 'register-error');
+                }
             });
 
         SetEventBySelector(formNode, "#login-page-btn", "onclick", () => this.loadLoginPage(contentObj));

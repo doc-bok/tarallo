@@ -1,4 +1,4 @@
-import {ShowErrorPopup, showInfoPopup} from "../core/popup.js";
+import {showErrorPopup, showInfoPopup} from "../core/popup.js";
 import {serverAction} from "../core/server.js";
 import {
     AddClassToAll,
@@ -174,9 +174,9 @@ export class CardUI {
             // offline, read from cache if available
             if (this.openCardCache[cardID] !== undefined) {
                 this.loadOpenCard(this.openCardCache[cardID]);
-                ShowErrorPopup("No connection, card displayed from cache!", "page-error");
+                showErrorPopup("No connection, card displayed from cache!", "page-error");
             } else {
-                ShowErrorPopup("No connection!", "page-error");
+                showErrorPopup("No connection!", "page-error");
             }
             return;
         }

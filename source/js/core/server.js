@@ -1,4 +1,4 @@
-import { ShowErrorPopup } from './popup.js';
+import { showErrorPopup } from './popup.js';
 import {TaralloServer} from '../api.js';
 
 /**
@@ -47,7 +47,7 @@ export async function asyncCall(apiName, params, onSuccess, onError) {
  */
 export function serverAction(method, args, onSuccess, popupId) {
     TaralloServer.asyncCall(method, args, onSuccess, (msg) => {
-        ShowErrorPopup(msg, popupId);
+        showErrorPopup(msg, popupId);
     });
 }
 
@@ -57,7 +57,7 @@ export function serverAction(method, args, onSuccess, popupId) {
 export async function serverActionAsync(method, args, popupId) {
     const result = await TaralloServer.call(method, args);
     if (!result.succeeded) {
-        ShowErrorPopup(result.error, popupId);
+        showErrorPopup(result.error, popupId);
         return null;
     }
     return result.response;
