@@ -57,12 +57,7 @@ export class Account {
      * @param {Function} options.onError - Called on failed logout.
      * @returns {Promise<Object>} Resolves with server response
      */
-    async setUserPermission({userId, userType, onSuccess, onError = (msg) => {ShowErrorPopup(msg, 'share-dialog-popup');}}) {
-        const args = { user_id: userId, user_type: userType };
-        return await asyncCall("SetUserPermission", args, onSuccess, onError);
-    }
-
-    async setUserPermissionV2(userId, userType) {
+    async setUserPermission(userId, userType) {
         const args = { user_id: userId, user_type: userType };
         return await asyncCallV2("SetUserPermission", args);
     }

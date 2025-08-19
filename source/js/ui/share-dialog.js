@@ -66,7 +66,7 @@ export class ShareDialog {
         selectElem.disabled = true;
 
         try {
-            const response = await this.account.setUserPermissionV2(userId, userType);
+            const response = await this.account.setUserPermission(userId, userType);
             this._onUserPermissionUpdated(response);
         } catch (e) {
             showInfoPopup("Failed to update permission: " + e.message, "share-dialog-popup")
