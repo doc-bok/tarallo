@@ -1,16 +1,27 @@
-/**
- * Class to handle permission operations
- */
+import {LoadTemplate} from "../core/utils.js";
 import {serverAction} from "../core/server.js";
 import {ShowInfoPopup} from "../core/popup.js";
-import {LoadTemplate} from "../core/utils.js";
 
-export class Permission {
+/**
+ * Class that displays a dialog for sharing boards
+ */
+export class ShareDialog {
 
     /**
-     * Load a user's permission entry
+     * Construction
+     * @param {Object} options
+     * @param {Function} options.account - The account API.
+     * @param account
      */
-    loadUserPermissionEntry(permissionObj) {
+    constructor({account}) {
+        this.account = account;
+        this.dialogElem = null;
+    }
+
+    /**
+     * Show the share dialog
+     */
+    show(permissionObj) {
         const permissionElem = LoadTemplate("tmpl-share-dialog-entry", permissionObj);
 
         const permissionSelectElem = permissionElem.querySelector(".permission");

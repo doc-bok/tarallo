@@ -19,8 +19,8 @@ export class Page {
     /**
      * Ensure we have access to required fields
      */
-    init({authUI, boardUI, cardDND, cardUI, importUI, labelUI, listUI}) {
-        this.authUI = authUI;
+    init({account: account, boardUI, cardDND, cardUI, importUI, labelUI, listUI}) {
+        this.account = account;
         this.boardUI = boardUI;
         this.cardDND = cardDND;
         this.cardUI = cardUI;
@@ -78,7 +78,7 @@ export class Page {
         TrySetEventById(
             "projectbar-logout-btn",
             "onclick",
-            () => this.authUI.logout({
+            () => this.account.logout({
                 onSuccess: () => this.getCurrentPage()
             }));
     }
@@ -112,7 +112,7 @@ export class Page {
                 const username = formNode.querySelector('#login-username').value;
                 const password = formNode.querySelector('#login-password').value;
 
-                this.authUI.login({
+                this.account.login({
                     username: username,
                     password: password,
                     onSuccess: () => this.getCurrentPage(),
@@ -233,7 +233,7 @@ export class Page {
                 const password = formNode.querySelector("#login-password").value;
                 const displayName = formNode.querySelector("#login-display-name").value;
 
-                this.authUI.register({
+                this.account.register({
                     username,
                     password,
                     displayName,

@@ -50,8 +50,11 @@ export class Account {
 
     /**
      * Sets user permission on the server.
-     * @param {number} userId
-     * @param {string} userType
+     * @param {Object} options
+     * @param {number} userId - The ID of the user
+     * @param {string} userType - The type of permission to set
+     * @param {Function} options.onSuccess - Called on successful logout.
+     * @param {Function} options.onError - Called on failed logout.
      * @returns {Promise<Object>} Resolves with server response
      */
     async setUserPermission({userId, userType, onSuccess, onError = (msg) => {ShowErrorPopup(msg, 'share-dialog-popup');}}) {

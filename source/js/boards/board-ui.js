@@ -7,6 +7,7 @@ import {
     SetEventBySelector
 } from "../core/utils.js";
 import {serverAction} from "../core/server.js";
+import {ShareDialog} from "../ui/share-dialog.js";
 
 /**
  * Class to help with board-level operations
@@ -16,9 +17,9 @@ export class BoardUI {
     /**
      * Setup dependencies
      */
-    init({page, permission}) {
+    init({account, page}) {
+        this.account = account;
         this.page = page;
-        this.permission = permission;
     }
 
     /**
@@ -165,8 +166,8 @@ export class BoardUI {
                     "class_list": "contrast-text",
                     "hover_text": description
                 };
-                const permissionElem = this.permission.loadUserPermissionEntry(permissionObj);
-                permissionListElem.insertBefore(permissionElem, dialogButtons);
+                const permissionElem = new ShareDialog(this.account);                ;
+                permissionListElem.insertBefore(permissionElem.show(permissionObj), dialogButtons);
             }
 
             // add on registration board permissions
@@ -177,7 +178,8 @@ export class BoardUI {
         for (const permission of jsonResponseObj["permissions"]) {
             if (permission["user_id"] < 0)
                 continue; // skip special
-            permissionListElem.insertBefore(this.permission.loadUserPermissionEntry(permission), dialogButtons);
+            const permissionElem = new ShareDialog(this.account);
+            permissionListElem.insertBefore(permissionElem.show(permission), dialogButtons);
         }
 
         // add the dialog to the content
