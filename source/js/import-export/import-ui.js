@@ -10,8 +10,9 @@ export class ImportUI {
     /**
      * Initialise UI dependencies
      */
-    init({boardUI}) {
+    init({boardUI, page}) {
         this.boardUI = boardUI;
+        this.page = page;
     }
 
     /**
@@ -70,7 +71,7 @@ export class ImportUI {
         args["title"] = title;
         args["msg"] = msg;
         const dialogElem = LoadTemplate("tmpl-loading-dialog", args);
-        GetContentElement().append(dialogElem);
+        this.page.getContentElem().append(dialogElem);
     }
 
     /**

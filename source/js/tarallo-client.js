@@ -6,7 +6,8 @@ import {CardLabelUI} from "./cards/label-ui.js";
 import {CardUI} from "./cards/card-ui.js";
 import {ImportUI} from "./import-export/import-ui.js";
 import {ListUI} from "./lists/list-ui.js";
-import {Page} from './page/page.js';
+import {PageUi} from './page/page-ui.js';
+import {Page} from "./page/page.js";
 
 /**
  * The definition of the Tarallo Client
@@ -34,6 +35,7 @@ export class TaralloClient {
         this.labelUI = new CardLabelUI();
         this.listUI = new ListUI();
         this.page = new Page();
+        this.pageUI = new PageUi();
     }
 
     /**
@@ -47,37 +49,43 @@ export class TaralloClient {
 
         this.boardUI.init({
             account: this.account,
-            page: this.page
+            page: this.page,
+            pageUI: this.pageUI
         });
 
         this.cardUI.init({
             attachmentUI: this.attachmentUI,
             cardDND: this.cardDND,
-            labelUI: this.labelUI}
-        );
+            labelUI: this.labelUI,
+            page: this.page,
+        });
 
         this.cardDND.init({
             cardUI: this.cardUI,
-            listUI: this.listUI
+            listUI: this.listUI,
+            page: this.page,
         });
 
         this.importUI.init({
-            boardUI: this.boardUI
+            boardUI: this.boardUI,
+            page: this.page,
         });
 
         this.listUI.init({
             cardDND: this.cardDND,
-            cardUI: this.cardUI
+            cardUI: this.cardUI,
+            page: this.page
         });
 
-        this.page.init({
+        this.pageUI.init({
             account: this.account,
             boardUI: this.boardUI,
             cardDND: this.cardDND,
             cardUI: this.cardUI,
             importUI: this.importUI,
             labelUI: this.labelUI,
-            listUI: this.listUI
+            listUI: this.listUI,
+            page: this.page
         });
     }
 
@@ -85,6 +93,6 @@ export class TaralloClient {
      * Start the Tarallo client
      */
     start() {
-        this.page.getCurrentPage();
+        this.pageUI.getCurrentPage();
     }
 }

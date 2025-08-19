@@ -3,7 +3,6 @@ import {serverAction} from "../core/server.js";
 import {
     AddClassToAll,
     BlurOnEnter, CloseDialog,
-    GetContentElement,
     LoadTemplate,
     RemoveClassFromAll,
     SetEventBySelector
@@ -25,10 +24,11 @@ export class CardUI {
     /**
      * Init links to other UI objects
      */
-    init({attachmentUI, cardDND, labelUI}) {
+    init({attachmentUI, cardDND, labelUI, page}) {
         this.attachmentUI = attachmentUI;
         this.cardDND = cardDND;
         this.labelUI = labelUI;
+        this.page = page;
     }
 
     /**
@@ -244,7 +244,7 @@ export class CardUI {
         cardElem.ondrop = (e) => this.cardDND.dropAttachment(e);
 
         // append the open card to the page
-        const contentElem = GetContentElement();
+        const contentElem = this.page.getContentElem();
         contentElem.appendChild(openCardElem);
     }
 

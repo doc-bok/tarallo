@@ -1,7 +1,6 @@
 import {
     CloseDialog,
     FileToBase64,
-    GetContentElement,
     LoadTemplate,
     SelectFileDialog,
     SetEventBySelector
@@ -17,9 +16,10 @@ export class BoardUI {
     /**
      * Setup dependencies
      */
-    init({account, page}) {
+    init({account, page, pageUI}) {
         this.account = account;
         this.page = page;
+        this.pageUI = pageUI;
     }
 
     /**
@@ -183,7 +183,7 @@ export class BoardUI {
         }
 
         // add the dialog to the content
-        const contentElem = GetContentElement();
+        const contentElem = this.page.getContentElem();
         contentElem.appendChild(shareDialogElem);
     }
 
@@ -200,7 +200,7 @@ export class BoardUI {
      * Called after a board is reopened.
      */
     onBoardReopened(jsonResponseObj) {
-        this.page.getCurrentPage();
+        this.pageUI.getCurrentPage();
     }
 
     /**
@@ -243,8 +243,8 @@ export class BoardUI {
      */
     _onBoardAccessUpdated(jsonResponseObj) {
         if (jsonResponseObj["access_requested"]) {
-            document.getElementById("unaccessibleboard-request-btn").classList.add("hidden");
-            document.getElementById("unaccessibleboard-waiting-label").classList.remove("hidden");
+            this.page.getUnaccessibleBoardRequestButtonElem().classList.add("hidden");
+            this.page.getUnaccessibleBoardWaitingLabelElem().classList.remove("hidden");
         }
     }
 }

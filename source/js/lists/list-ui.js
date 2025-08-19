@@ -7,9 +7,10 @@ export class ListUI {
     /**
      * Ensure we have access to required fields
      */
-    init({cardDND, cardUI}) {
+    init({cardDND, cardUI, page}) {
         this.cardDND = cardDND;
         this.cardUI = cardUI;
+        this.page = page;
     }
 
     /**
@@ -140,7 +141,7 @@ export class ListUI {
         let args = [];
         args["name"] = "New List";
         args["prev_list_id"] = 0;
-        const prevListElem = document.getElementById("add-cardlist-btn").previousElementSibling;
+        const prevListElem = this.page.getAddCardListButtonElem().previousElementSibling;
         if (prevListElem !== null) {
             args["prev_list_id"] = prevListElem.getAttribute("dbid");
         }
@@ -152,8 +153,8 @@ export class ListUI {
      */
     _onCardListAdded(jsonResponseObj) {
         // create cardlist
-        const boardElem = document.getElementById("board");
-        const newCardlistBtn = document.getElementById("add-cardlist-btn");
+        const boardElem = this.page.getBoardElem();
+        const newCardlistBtn = this.page.getAddCardListButtonElem();
         const newCardlistElem = this.loadCardList(jsonResponseObj);
         boardElem.insertBefore(newCardlistElem, newCardlistBtn);
         // start name editing automatically

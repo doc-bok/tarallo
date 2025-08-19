@@ -8,7 +8,7 @@ export function isMobileDevice() {
 /**
  * Replace the page content (#content div inner html) with the content of the specified template tag id
  */
-export function ReplaceContentWithTemplate(templateName, args) {
+export function replaceContentWithTemplate(templateName, args) {
     const template = document.getElementById(templateName);
     const contentDiv = GetContentElement();
     contentDiv.innerHTML = ReplaceHtmlTemplateArgs(template.innerHTML, args);
@@ -29,7 +29,7 @@ export function TrySetEventById(elemId, eventName, handler) {
 /**
  * Attach an event to an element by ID
  */
-export function SetEventById(elemId, eventName, handler) {
+export function setEventById(elemId, eventName, handler) {
     const elem = document.getElementById(elemId);
     elem[eventName] = (event) => handler(elem, event);
 }

@@ -11,9 +11,10 @@ export class CardDnd {
     /**
      * Init UI dependencies
      */
-    init({cardUI, listUI}) {
+    init({cardUI, listUI, page}) {
         this.cardUI = cardUI;
         this.listUI = listUI;
+        this.page = page;
     }
 
     /**
@@ -21,7 +22,7 @@ export class CardDnd {
      */
     dragCardStart(event) {
         this.draggedCard = event.currentTarget;
-        document.getElementById("projectbar").classList.add("pb-mode-delete");
+        this.page.getProjectBarElem().classList.add("pb-mode-delete");
     }
 
     /**
@@ -86,7 +87,7 @@ export class CardDnd {
      * End dragging a card
      */
     dragCardEnd(event) {
-        document.getElementById("projectbar").classList.remove("pb-mode-delete");
+        this.page.getProjectBarElem().classList.remove("pb-mode-delete");
     }
 
     /**
@@ -163,7 +164,7 @@ export class CardDnd {
             return; // not dragging a cardlist
         }
         this.draggedCardList = event.currentTarget;
-        document.getElementById("projectbar").classList.add("pb-mode-delete");
+        this.page.getProjectBarElem().classList.add("pb-mode-delete");
     }
 
     /**
@@ -230,6 +231,6 @@ export class CardDnd {
      * End card list drag
      */
     dragCardListEnd(event) {
-        document.getElementById("projectbar").classList.remove("pb-mode-delete");
+        this.page.getProjectBarElem().classList.remove("pb-mode-delete");
     }
 }
