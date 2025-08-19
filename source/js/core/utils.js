@@ -111,7 +111,7 @@ export function CloseDialog() {
 /**
  * Convert a file to Base 64 format
  */
-export function FileToBase64(file) {
+export function fileToBase64(file) {
     return new Promise(resolve => {
         // read the file content as a base64 string
         const reader = new FileReader();

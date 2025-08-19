@@ -1,6 +1,6 @@
 import {showErrorPopup} from "../ui/popup.js";
 import {serverAction, serverActionAsync} from "../core/server.js";
-import {FileToBase64, GetContentElement, JsonFileToObj, loadTemplate, SelectFileDialog} from "../core/utils.js";
+import {fileToBase64, GetContentElement, JsonFileToObj, loadTemplate, SelectFileDialog} from "../core/utils.js";
 
 /**
  * Class to handle import/export operations
@@ -44,7 +44,7 @@ export class ImportUI {
             const startByte = i * chunkSize;
             let endByte = startByte + chunkSize;
             endByte = endByte > boardExportZip.size ? boardExportZip.size : endByte;
-            args["data"] = await FileToBase64(boardExportZip.slice(startByte, endByte));
+            args["data"] = await fileToBase64(boardExportZip.slice(startByte, endByte));
             // upload to server
             args["chunkIndex"] = i;
             response = await serverActionAsync("UploadChunk", args);

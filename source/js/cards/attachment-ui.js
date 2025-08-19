@@ -1,6 +1,6 @@
 import {showErrorPopup, showInfoPopup} from "../ui/popup.js";
 import {serverAction} from "../core/server.js";
-import {blurOnEnter, FileToBase64, loadTemplate, SelectFileDialog, setEventBySelector} from "../core/utils.js";
+import {blurOnEnter, fileToBase64, loadTemplate, SelectFileDialog, setEventBySelector} from "../core/utils.js";
 
 /**
  * Class to handle attachment operations
@@ -128,7 +128,7 @@ export class CardAttachmentUI {
         let args = [];
         args["card_id"] = cardID;
         args["filename"] = file.name;
-        args["attachment"] = await FileToBase64(file);
+        args["attachment"] = await fileToBase64(file);
         serverAction("UploadAttachment", args, (response) => this._onAttachmentAdded(response), (msg) => {
             this._removeUiAttachmentPlaceholder();
             showErrorPopup(msg, "page-error");

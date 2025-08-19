@@ -237,7 +237,7 @@ export class PageUi {
         // other events
         setEventBySelector(projectBar, "#board-title", "onblur", (elem) => this.boardUI.boardTitleChanged(elem));
         setEventBySelector(projectBar, "#board-title", "onkeydown", (elem, event) => blurOnEnter(event));
-        setEventBySelector(projectBar, "#board-change-bg-btn", "onclick", () => this.boardUI.changeBackground(id));
+        setEventBySelector(projectBar, "#board-change-bg-btn", "onclick", () => this.boardUI.changeBackground());
         setEventBySelector(projectBar, "#board-share-btn", "onclick", () => this.boardUI.shareBoard(id));
         this._onClick("add-cardlist-btn", () => this.listUI.addCardList());
     }

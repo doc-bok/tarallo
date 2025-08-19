@@ -1,12 +1,13 @@
 import {
     CloseDialog,
-    FileToBase64,
+    fileToBase64,
     loadTemplate,
     SelectFileDialog,
     setEventBySelector
 } from "../core/utils.js";
-import {serverAction} from "../core/server.js";
 import {ShareDialog} from "../ui/share-dialog.js";
+import {showErrorPopup} from "../ui/popup.js";
+import {Board} from "./board.js";
 
 /**
  * Class to help with board-level operations
@@ -18,6 +19,7 @@ export class BoardUI {
      */
     init({account, page, pageUI}) {
         this.account = account;
+        this.board = new Board();
         this.page = page;
         this.pageUI = pageUI;
     }
@@ -42,43 +44,52 @@ export class BoardUI {
         const closedListElem = document.getElementById("closed-boards");
         const createBoardBtn = document.getElementById("new-board-btn");
 
+        const newBoardTileElem = boardData.closed
+            ? loadTemplate("tmpl-closed-boardtile", boardData)
+            : loadTemplate("tmpl-boardtile", boardData);
+
         if (boardData["closed"]) {
-            // add a tile for a closed board
-            const newBoardTileElem = loadTemplate("tmpl-closed-boardtile", boardData);
             closedListElem.appendChild(newBoardTileElem);
         } else {
-            // add tile for a normal board
-            const newBoardTileElem = loadTemplate("tmpl-boardtile", boardData);
             boardListElem.insertBefore(newBoardTileElem, createBoardBtn);
-            setEventBySelector(newBoardTileElem, ".delete-board-btn", "onclick", () => this._closeBoard(boardData["id"]));
+            setEventBySelector(newBoardTileElem, ".delete-board-btn", "onclick", () => this._closeBoard(boardData.id));
         }
     }
 
     /**
      * Close a board
      */
-    _closeBoard(boardID) {
-        let args = [];
-        args["id"] = boardID;
-        serverAction("CloseBoard", args, (response) => this._onBoardClosed(response), 'page-error');
+    async _closeBoard(id) {
+        try {
+            const response = await this.board.close(id);
+            this._onBoardClosed(response);
+        } catch (e) {
+            showErrorPopup('Could not close board: ' + e.message, 'page-error');
+        }
     }
 
     /**
      * Called after a board is closed.
      */
-    _onBoardClosed(jsonResponseObj) {
-        const boardTileElem = document.getElementById("board-tile-" + jsonResponseObj["id"]);
-        boardTileElem.remove();
-        this.loadBoardTile(jsonResponseObj);
+    _onBoardClosed(response) {
+        const boardTileElem = document.getElementById("board-tile-" + response["id"]);
+        if (boardTileElem) {
+            boardTileElem.remove();
+        }
+
+        this.loadBoardTile(response);
     }
 
     /**
      * Create a new board
      */
-    createNewBoard() {
-        let args = [];
-        args["title"] = "My new board";
-        serverAction("CreateNewBoard", args, (response) => this.onBoardCreated(response), "page-error");
+    async createNewBoard() {
+        try {
+            const response = await this.board.create();
+            this.onBoardCreated(response);
+        } catch (e) {
+            showErrorPopup('Could not create new board: ' + e.message, 'page-error');
+        }
     }
 
     /**
@@ -93,12 +104,15 @@ export class BoardUI {
 
     /**
      * Called when a board title is changed
-     * @param titleNode
+     * @param titleNode The node that contains the new title.
      */
-    boardTitleChanged(titleNode) {
-        let args = [];
-        args["title"] = titleNode.textContent;
-        serverAction("UpdateBoardTitle", args, (response) => this._onBoardTitleUpdated(response), "page-error");
+    async boardTitleChanged(titleNode) {
+        try {
+            const response = await this.board.updateTitle(titleNode.textContent);
+            this._onBoardTitleUpdated(response);
+        } catch (e) {
+            showErrorPopup('Could not update board: ' + e.message, 'page-error');
+        }
     }
 
     /**
@@ -112,19 +126,20 @@ export class BoardUI {
     /**
      * Change the background of a board
      */
-    changeBackground(boardID) {
-        SelectFileDialog("image/*", false, (file) => this._onBackgroundSelected(file, boardID));
+    changeBackground() {
+        SelectFileDialog("image/*", false, (file) => this._onBackgroundSelected(file));
     }
 
     /**
      * Called when a background is selected
      */
-    async _onBackgroundSelected(file, boardID) {
-        // upload the new background image to the server
-        let args = [];
-        args["filename"] = file.name;
-        args["background"] = await FileToBase64(file);
-        serverAction("UploadBackground", args, (response) => this._onBackgroundChanged(response), "page-error");
+    async _onBackgroundSelected(file) {
+        try {
+            const response = await this.board.uploadBackground(file.name, await fileToBase64(file));
+            this._onBackgroundChanged(response);
+        } catch (e) {
+            showErrorPopup('Could not upload background: ' + e.message, 'page-error');
+        }
     }
 
     /**
@@ -137,10 +152,13 @@ export class BoardUI {
     /**
      * Share a board
      */
-    shareBoard(boardID) {
-        let args = [];
-        args["id"] = boardID;
-        serverAction("GetBoardPermissions", args, (response) => this._loadShareDialog(response), "page-error");
+    async shareBoard(id) {
+        try {
+            const response = await this.board.getPermissions(id);
+            this._loadShareDialog(response);
+        } catch (e) {
+            showErrorPopup('Could not update board permissions: ' + e.message, 'page-error');
+        }
     }
 
     /**
@@ -152,6 +170,8 @@ export class BoardUI {
         setEventBySelector(shareDialogElem, ".dialog-close-btn", "onclick", () => CloseDialog());
         const permissionListElem = shareDialogElem.querySelector("#share-dialog-list");
         const dialogButtons = permissionListElem.querySelector(".share-dialog-entry");
+
+        const shareDialog = new ShareDialog(this.account);
 
         // add site admin permissions
         if (jsonResponseObj["is_admin"]) {
@@ -166,8 +186,8 @@ export class BoardUI {
                     "class_list": "contrast-text",
                     "hover_text": description
                 };
-                const permissionElem = new ShareDialog(this.account);                ;
-                permissionListElem.insertBefore(permissionElem.show(permissionObj), dialogButtons);
+
+                permissionListElem.insertBefore(shareDialog.show(permissionObj), dialogButtons);
             }
 
             // add on registration board permissions
@@ -176,10 +196,11 @@ export class BoardUI {
 
         // add all permission rows
         for (const permission of jsonResponseObj["permissions"]) {
-            if (permission["user_id"] < 0)
+            if (permission["user_id"] < 0) {
                 continue; // skip special
-            const permissionElem = new ShareDialog(this.account);
-            permissionListElem.insertBefore(permissionElem.show(permission), dialogButtons);
+            }
+
+            permissionListElem.insertBefore(shareDialog.show(permission), dialogButtons);
         }
 
         // add the dialog to the content
@@ -190,16 +211,19 @@ export class BoardUI {
     /**
      * Reopen a board
      */
-    reopenBoard(boardID) {
-        let args = [];
-        args["id"] = boardID;
-        serverAction("ReopenBoard", args, (response) => this.onBoardReopened(response), "page-error");
+    async reopenBoard(id) {
+        try {
+            await this.board.reopen(id);
+            this._onBoardReopened();
+        } catch (e) {
+            showErrorPopup('Could not reopen board: ' + e.message, 'page-error');
+        }
     }
 
     /**
      * Called after a board is reopened.
      */
-    onBoardReopened(jsonResponseObj) {
+    _onBoardReopened() {
         this.pageUI.getCurrentPage();
     }
 
@@ -210,17 +234,25 @@ export class BoardUI {
         const msgElem = document.getElementById("closedboard-delete-label");
         const linkElem = document.getElementById("closedboard-delete-link");
         msgElem.classList.remove("hidden");
-        linkElem.textContent = "Yes, delete everything!";
-        linkElem.onclick = () => this._deleteBoard(boardID);
+
+        // Remove existing click handlers
+        const newLinkElem = linkElem.cloneNode(true);
+        linkElem.parentNode.replaceChild(newLinkElem, linkElem);
+
+        newLinkElem.textContent = "Yes, delete everything!";
+        newLinkElem.onclick = () => this._deleteBoard(boardID);
     }
 
     /**
      * Delete a board
      */
-    _deleteBoard(boardID) {
-        let args = [];
-        args["id"] = boardID;
-        serverAction("DeleteBoard", args, (response) => this._onBoardDeleted(response), "page-error");
+    async _deleteBoard(id) {
+        try {
+            const response = await this.board.delete(id);
+            this._onBoardDeleted(response);
+        } catch (e) {
+            showErrorPopup('Could not delete board: ' + e.message, 'page-error');
+        }
     }
 
     /**
@@ -234,8 +266,13 @@ export class BoardUI {
     /**
      * Request access to a board
      */
-    requestBoardAccess() {
-        serverAction("RequestBoardAccess", [], (response) => this._onBoardAccessUpdated(response), "page-error");
+    async requestBoardAccess() {
+        try {
+            const response = await this.board.requestAccess();
+            this._onBoardAccessUpdated(response);
+        } catch (e) {
+            showErrorPopup('Could not request access to board: ' + e.message, 'page-error');
+        }
     }
 
     /**
