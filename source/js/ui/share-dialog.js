@@ -1,4 +1,4 @@
-import {LoadTemplate} from "../core/utils.js";
+import {loadTemplate} from "../core/utils.js";
 import {showInfoPopup} from "../core/popup.js";
 
 /**
@@ -32,7 +32,7 @@ export class ShareDialog {
      * @private
      */
     _createPermissionEntry(permissionObj) {
-        const permissionElem = LoadTemplate("tmpl-share-dialog-entry", permissionObj);
+        const permissionElem = loadTemplate("tmpl-share-dialog-entry", permissionObj);
         const permissionSelectElem = permissionElem.querySelector(".permission");
 
         // Set the selected position

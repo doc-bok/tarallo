@@ -1,6 +1,6 @@
 import {showErrorPopup, showInfoPopup} from "../core/popup.js";
 import {serverAction} from "../core/server.js";
-import {BlurOnEnter, FileToBase64, LoadTemplate, SelectFileDialog, setEventBySelector} from "../core/utils.js";
+import {blurOnEnter, FileToBase64, loadTemplate, SelectFileDialog, setEventBySelector} from "../core/utils.js";
 
 /**
  * Class to handle attachment operations
@@ -26,7 +26,7 @@ export class CardAttachmentUI {
      * Load attachments for the open card
      */
     loadOpenCardAttachment(jsonAttachment, parentNode) {
-        const attachmentElem = LoadTemplate("tmpl-opencard-attachment", jsonAttachment);
+        const attachmentElem = loadTemplate("tmpl-opencard-attachment", jsonAttachment);
         const url = jsonAttachment["url"];
         const thumbUrl = jsonAttachment["thumbnail"];
 
@@ -37,7 +37,7 @@ export class CardAttachmentUI {
             attachmentElem.querySelector(".loader").remove();
             setEventBySelector(attachmentElem, ".opencard-attachment-delete-btn", "onclick", () => this._deleteAttachment(jsonAttachment["id"], attachmentElem));
             setEventBySelector(attachmentElem, ".attachment-name", "onblur", (elem) => this._attachmentNameChanged(elem, jsonAttachment["id"]));
-            setEventBySelector(attachmentElem, ".attachment-name", "onkeydown", (elem, event) => BlurOnEnter(event));
+            setEventBySelector(attachmentElem, ".attachment-name", "onkeydown", (elem, event) => blurOnEnter(event));
 
             if (thumbUrl) {
                 // prepare attachment with a preview

@@ -11,14 +11,6 @@ export function GetQueryStringParams() {
 }
 
 /**
- * Attach an event to an element by ID
- */
-export function setEventById(elemId, eventName, handler) {
-    const elem = document.getElementById(elemId);
-    elem[eventName] = (event) => handler(elem, event);
-}
-
-/**
  * Attach an event to all elements matching a selector
  */
 export function setEventBySelector(parentElem, selector, eventName, handler) {
@@ -37,10 +29,10 @@ export function GetContentElement() {
  * returns a page element created from the tag template with the specified id
  * replacing all $args with the <args>  replacements array
  */
-export function LoadTemplate(templateName, args) {
+export function loadTemplate(templateName, args) {
     // replace args
     const templateHtml = document.getElementById(templateName).innerHTML;
-    const html = ReplaceHtmlTemplateArgs(templateHtml, args);
+    const html = replaceHtmlTemplateArgs(templateHtml, args);
 
     // convert back to an element
     const template = document.createElement('template');
@@ -50,46 +42,6 @@ export function LoadTemplate(templateName, args) {
         return result[0];
     return result;
 }
-
-export function * DBLinkedListIterator(resultsArray, indexFiledName, prevIndexFieldName, nextIndexFieldName, whereCondition = (result) => true) {
-
-    // indexing of the linked list
-    let curID = 0;
-    const indexedResults = new Map();
-    for (const item of resultsArray) {
-        if (!whereCondition(item)) {
-            continue;
-        }
-
-        if (item[prevIndexFieldName] === 0) {
-            curID = item[indexFiledName]; // save first item id in the linked list
-        }
-        indexedResults.set(item[indexFiledName], item);
-    }
-
-    // iterate over the sorted cardlists
-    let maxCount = indexedResults.size;
-    let curCount = 0;
-    while (curID !== 0)	{
-        if (curCount >= maxCount) {
-            console.error("Invalid DB iterator (loop detected at ID = %d).", curID);
-            break;
-        }
-
-        const curItem = indexedResults.get(curID);
-
-        if (curItem === undefined) {
-            console.error("Invalid DB iterator (invalid pointer detected with ID = %d).", curID);
-            break;
-        }
-
-        yield curItem;
-
-        curID = curItem[nextIndexFieldName];
-        curCount++;
-    }
-}
-
 
 
 /**
@@ -121,7 +73,7 @@ export function SelectFileDialog(contentType, multipleFiles, onSelected) {
 /**
  * Blur on enter
  */
-export function BlurOnEnter(keydownEvent) {
+export function blurOnEnter(keydownEvent) {
     if (keydownEvent.keyCode === 13) {
         keydownEvent.preventDefault();
         keydownEvent.currentTarget.blur();
@@ -175,7 +127,7 @@ export function FileToBase64(file) {
 /**
  * Replace the HTML template arguments
  */
-export function ReplaceHtmlTemplateArgs(templateHtml, args) {
+export function replaceHtmlTemplateArgs(templateHtml, args) {
     // replace args
     let html = templateHtml;
     for (const argName in args) {

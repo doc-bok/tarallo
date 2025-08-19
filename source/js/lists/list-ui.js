@@ -1,4 +1,4 @@
-import {BlurOnEnter, LoadTemplate, setEventBySelector} from "../core/utils.js";
+import {blurOnEnter, loadTemplate, setEventBySelector} from "../core/utils.js";
 import {serverAction} from "../core/server.js";
 import {showErrorPopup} from "../core/popup.js";
 
@@ -17,12 +17,12 @@ export class ListUI {
      * Load a card list
      */
     loadCardList(cardlistData) {
-        const cardlistElem = LoadTemplate("tmpl-cardlist", cardlistData);
+        const cardlistElem = loadTemplate("tmpl-cardlist", cardlistData);
         // events
         setEventBySelector(cardlistElem, ".cardlist-title h3", "onfocus", () => this._nameEditStart(cardlistElem));
         const nameChangedHandler = (elem) => this._nameChanged(cardlistData["id"], elem, cardlistElem);
         setEventBySelector(cardlistElem, ".cardlist-title h3", "onblur", nameChangedHandler);
-        setEventBySelector(cardlistElem, ".cardlist-title h3", "onkeydown", (elem, event) => BlurOnEnter(event));
+        setEventBySelector(cardlistElem, ".cardlist-title h3", "onkeydown", (elem, event) => blurOnEnter(event));
         setEventBySelector(cardlistElem, ".addcard-btn", "onclick", () => this.cardUI.addNewCard(cardlistData["id"], cardlistElem));
         setEventBySelector(cardlistElem, ".editcard-submit-btn", "onclick", () => this.cardUI.newCard(cardlistData["id"], cardlistElem));
         setEventBySelector(cardlistElem, ".editcard-card", "onkeydown", (elem, keydownEvent) => {

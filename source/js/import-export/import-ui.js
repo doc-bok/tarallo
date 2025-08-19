@@ -1,6 +1,6 @@
 import {showErrorPopup} from "../core/popup.js";
 import {serverAction, serverActionAsync} from "../core/server.js";
-import {FileToBase64, GetContentElement, JsonFileToObj, LoadTemplate, SelectFileDialog} from "../core/utils.js";
+import {FileToBase64, GetContentElement, JsonFileToObj, loadTemplate, SelectFileDialog} from "../core/utils.js";
 
 /**
  * Class to handle import/export operations
@@ -70,7 +70,7 @@ export class ImportUI {
         const args = [];
         args["title"] = title;
         args["msg"] = msg;
-        const dialogElem = LoadTemplate("tmpl-loading-dialog", args);
+        const dialogElem = loadTemplate("tmpl-loading-dialog", args);
         this.page.getContentElem().append(dialogElem);
     }
 

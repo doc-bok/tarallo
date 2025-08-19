@@ -1,4 +1,4 @@
-import {LoadTemplate, setEventBySelector} from "../core/utils.js";
+import {loadTemplate, setEventBySelector} from "../core/utils.js";
 import {serverAction} from "../core/server.js";
 
 export class CardLabelUI {
@@ -41,7 +41,7 @@ export class CardLabelUI {
         const labelData = additionalParams;
         labelData["name"] = this._labelNames[labelIndex];
         labelData["color"] = this._labelColors[labelIndex];
-        return LoadTemplate(templateName, labelData);
+        return loadTemplate(templateName, labelData);
     }
 
     /**
@@ -141,13 +141,13 @@ export class CardLabelUI {
         labelEditArgs["index"] = labelIndex;
         labelEditArgs["name"] = this._labelNames[labelIndex];
         labelEditArgs["color"] = this._labelColors[labelIndex];
-        const labelEditDialogElem = LoadTemplate("tmpl-opencard-label-edit-diag", labelEditArgs);
+        const labelEditDialogElem = loadTemplate("tmpl-opencard-label-edit-diag", labelEditArgs);
         const labelEditColorListElem = labelEditDialogElem.querySelector("#opencard-label-edit-color-list");
 
         // load all color selection tiles
         const labelPreviewElem = labelEditDialogElem.querySelector(".label");
         for (const color of this._allColorNames) {
-            const colorTileElem = LoadTemplate("tmpl-opencard-label-edit-color-tile", { "color": color });
+            const colorTileElem = loadTemplate("tmpl-opencard-label-edit-color-tile", { "color": color });
             labelEditColorListElem.appendChild(colorTileElem);
             colorTileElem.onclick = () => this._editLabelColor(color, labelPreviewElem);
         }

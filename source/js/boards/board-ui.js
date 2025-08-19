@@ -1,7 +1,7 @@
 import {
     CloseDialog,
     FileToBase64,
-    LoadTemplate,
+    loadTemplate,
     SelectFileDialog,
     setEventBySelector
 } from "../core/utils.js";
@@ -44,11 +44,11 @@ export class BoardUI {
 
         if (boardData["closed"]) {
             // add a tile for a closed board
-            const newBoardTileElem = LoadTemplate("tmpl-closed-boardtile", boardData);
+            const newBoardTileElem = loadTemplate("tmpl-closed-boardtile", boardData);
             closedListElem.appendChild(newBoardTileElem);
         } else {
             // add tile for a normal board
-            const newBoardTileElem = LoadTemplate("tmpl-boardtile", boardData);
+            const newBoardTileElem = loadTemplate("tmpl-boardtile", boardData);
             boardListElem.insertBefore(newBoardTileElem, createBoardBtn);
             setEventBySelector(newBoardTileElem, ".delete-board-btn", "onclick", () => this._closeBoard(boardData["id"]));
         }
@@ -148,7 +148,7 @@ export class BoardUI {
      */
     _loadShareDialog(jsonResponseObj) {
         // initialize the share dialog
-        const shareDialogElem = LoadTemplate("tmpl-share-dialog", jsonResponseObj);
+        const shareDialogElem = loadTemplate("tmpl-share-dialog", jsonResponseObj);
         setEventBySelector(shareDialogElem, ".dialog-close-btn", "onclick", () => CloseDialog());
         const permissionListElem = shareDialogElem.querySelector("#share-dialog-list");
         const dialogButtons = permissionListElem.querySelector(".share-dialog-entry");

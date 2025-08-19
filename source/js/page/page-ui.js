@@ -1,10 +1,8 @@
 import { asyncCallV2 } from '../core/server.js';
 import {
-    BlurOnEnter,
-    DBLinkedListIterator,
-    LoadTemplate,
-    ReplaceHtmlTemplateArgs,
-    setEventById,
+    blurOnEnter,
+    loadTemplate,
+    replaceHtmlTemplateArgs,
     setEventBySelector
 } from '../core/utils.js';
 import {showErrorPopup, showInfoPopup} from "../core/popup.js";
@@ -86,9 +84,8 @@ export class PageUi {
         }
 
         // add needed events
-        this._trySetEventById(
+        this._onClick(
             "projectbar-logout-btn",
-            "onclick",
             async () => {
                 try {
                     await this.account.logout();
@@ -150,7 +147,7 @@ export class PageUi {
 
         // add instance message if any
         if (instance_msg) {
-            const instanceMsgElem = LoadTemplate("tmpl-instance-msg", {instance_msg})
+            const instanceMsgElem = loadTemplate("tmpl-instance-msg", {instance_msg})
             this.page.getContentElem().prepend(instanceMsgElem);
         }
     }
@@ -214,13 +211,13 @@ export class PageUi {
         this.labelUI.setAllColorNames(all_color_names);
 
         // create card lists
-        for (const cardlist of DBLinkedListIterator(cardlists, "id", "prev_list_id", "next_list_id")) {
+        for (const cardlist of this._dbLinkedListIterator(cardlists, "id", "prev_list_id", "next_list_id")) {
             // create cardlist
             const newCardlistElem = this.listUI.loadCardList(cardlist);
 
             // create owned cards
             const cardlistID = cardlist["id"];
-            for (const cardData of DBLinkedListIterator(cards, "id", "prev_card_id", "next_card_id", card => card["cardlist_id"] === cardlistID)) {
+            for (const cardData of this._dbLinkedListIterator(cards, "id", "prev_card_id", "next_card_id", card => card["cardlist_id"] === cardlistID)) {
                 const newCardElem = this.cardUI.loadCard(cardData, newCardlistElem);
                 // append the new card to the list
                 newCardlistElem.appendChild(newCardElem);
@@ -239,7 +236,7 @@ export class PageUi {
 
         // other events
         setEventBySelector(projectBar, "#board-title", "onblur", (elem) => this.boardUI.boardTitleChanged(elem));
-        setEventBySelector(projectBar, "#board-title", "onkeydown", (elem, event) => BlurOnEnter(event));
+        setEventBySelector(projectBar, "#board-title", "onkeydown", (elem, event) => blurOnEnter(event));
         setEventBySelector(projectBar, "#board-change-bg-btn", "onclick", () => this.boardUI.changeBackground(id));
         setEventBySelector(projectBar, "#board-share-btn", "onclick", () => this.boardUI.shareBoard(id));
         this._onClick("add-cardlist-btn", () => this.listUI.addCardList());
@@ -318,26 +315,15 @@ export class PageUi {
     /**
      * Helper function to load a template and set the title.
      * @param templateId The ID of the template to load.
-     * @param contentObj The response object.
+     * @param content The content for the template.
      * @param title The title of the page.
      * @private
      */
-    _loadTemplateWithTitle(templateId, contentObj, title) {
-        this._replaceContentWithTemplate(templateId, contentObj);
-        document.title = title;
-    }
-
-    /**
-     * Replace the page content (#content div inner html) with the content of
-     * the specified template tag id.
-     * @param templateName The name of the template to load.
-     * @param args The arguments to pass into the template.
-     * @private
-     */
-    _replaceContentWithTemplate(templateName, args) {
-        const template = document.getElementById(templateName);
+    _loadTemplateWithTitle(templateId, content, title) {
+        const template = document.getElementById(templateId);
         const contentDiv = this.page.getContentElem();
-        contentDiv.innerHTML = ReplaceHtmlTemplateArgs(template.innerHTML, args);
+        contentDiv.innerHTML = replaceHtmlTemplateArgs(template.innerHTML, content);
+        document.title = title;
     }
 
     /**
@@ -347,7 +333,10 @@ export class PageUi {
      * @private
      */
     _onClick(id, handler) {
-        setEventById(id, "onclick", handler);
+        const elem = document.getElementById(id);
+        if (elem) {
+            elem.addEventListener('click', (event) => handler(elem, event));
+        }
     }
 
     /**
@@ -356,7 +345,10 @@ export class PageUi {
      */
     _showLoadingSpinner() {
         const spinner = document.getElementById("loading-spinner");
-        if (spinner) spinner.style.display = "flex";
+        if (spinner) {
+            spinner.style.display = "flex";
+            spinner.setAttribute("aria-busy", "true");
+        }
     }
 
     /**
@@ -365,20 +357,64 @@ export class PageUi {
      */
     _hideLoadingSpinner() {
         const spinner = document.getElementById("loading-spinner");
-        if (spinner) spinner.style.display = "none";
+        if (spinner) {
+            spinner.style.display = "none";
+            spinner.removeAttribute("aria-busy");
+        }
     }
 
     /**
-     * Set an event but only if the element exists.
-     * @param elemId The ID of the element.
-     * @param eventName The event to set.
-     * @param handler The function to call on said event.
+     * An iterator for linked lists from a database read.
+     * @param resultsArray The results array.
+     * @param indexFieldName The current index field name.
+     * @param prevIndexFieldName The previous index in the linked list.
+     * @param nextIndexFieldName The next index in the linked list
+     * @param whereCondition The condition for valid members of the linked list.
+     * @returns {Generator<any, void, *>} An iterator that can be used to iterate.
      * @private
      */
-    _trySetEventById(elemId, eventName, handler) {
-        const elem = document.getElementById(elemId);
-        if (elem) {
-            elem[eventName] = (event) => handler(elem, event);
+    * _dbLinkedListIterator(
+        resultsArray,
+        indexFieldName,
+        prevIndexFieldName,
+        nextIndexFieldName,
+        whereCondition = (result) => true) {
+
+        // indexing of the linked list
+        let curID = 0;
+        const indexedResults = new Map();
+        for (const item of resultsArray) {
+            if (!whereCondition(item)) {
+                continue;
+            }
+
+            if (item[prevIndexFieldName] === 0) {
+                curID = item[indexFieldName]; // save first item id in the linked list
+            }
+
+            indexedResults.set(item[indexFieldName], item);
+        }
+
+        // iterate over the sorted cardlists
+        let maxCount = indexedResults.size;
+        let curCount = 0;
+        while (curID !== 0)	{
+            if (curCount >= maxCount) {
+                console.error("Invalid DB iterator (loop detected at ID = %d).", curID);
+                break;
+            }
+
+            const curItem = indexedResults.get(curID);
+
+            if (curItem === undefined) {
+                console.error("Invalid DB iterator (invalid pointer detected with ID = %d).", curID);
+                break;
+            }
+
+            yield curItem;
+
+            curID = curItem[nextIndexFieldName];
+            curCount++;
         }
     }
 }

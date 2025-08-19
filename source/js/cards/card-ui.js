@@ -2,8 +2,8 @@ import {showErrorPopup, showInfoPopup} from "../core/popup.js";
 import {serverAction} from "../core/server.js";
 import {
     AddClassToAll,
-    BlurOnEnter, CloseDialog,
-    LoadTemplate,
+    blurOnEnter, CloseDialog,
+    loadTemplate,
     RemoveClassFromAll,
     setEventBySelector
 } from "../core/utils.js";
@@ -101,7 +101,7 @@ export class CardUI {
     }
 
     loadCard(cardData) {
-        const newCardElem = LoadTemplate("tmpl-card", cardData);
+        const newCardElem = loadTemplate("tmpl-card", cardData);
         const coverImgElem = newCardElem.querySelector("img");
 
         // display moved date if available
@@ -198,7 +198,7 @@ export class CardUI {
         // create card element
         const openCardData = Object.assign({}, jsonResponseObj);
         openCardData["content"] = ContentMarkupToHtml(jsonResponseObj["content"], jsonResponseObj["attachmentList"]); // decode content
-        const openCardElem = LoadTemplate("tmpl-opencard", openCardData);
+        const openCardElem = loadTemplate("tmpl-opencard", openCardData);
 
         // load labels
         let labelMask = jsonResponseObj["label_mask"];
@@ -226,7 +226,7 @@ export class CardUI {
         // events
         setEventBySelector(openCardElem, ".dialog-close-btn", "onclick", () => CloseDialog);
         setEventBySelector(openCardElem, "#opencard-title", "onblur", (elem) => this._cardTitleChanged(elem, openCardData["id"]));
-        setEventBySelector(openCardElem, "#opencard-title", "onkeydown", (elem, event) => BlurOnEnter(event));
+        setEventBySelector(openCardElem, "#opencard-title", "onkeydown", (elem, event) => blurOnEnter(event));
         setEventBySelector(openCardElem, ".opencard-add-label", "onclick", () => this.labelUI.openLabelSelectionDialog());
         setEventBySelector(openCardElem, ".opencard-label-cancel-btn", "onclick", () => this.labelUI.closeLabelSelectionDialog());
         setEventBySelector(openCardElem, ".opencard-label-create-btn", "onclick", () => this.labelUI.createLabel());
