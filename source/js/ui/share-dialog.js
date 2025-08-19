@@ -1,6 +1,5 @@
 import {LoadTemplate} from "../core/utils.js";
-import {serverAction} from "../core/server.js";
-import {ShowInfoPopup} from "../core/popup.js";
+import {showInfoPopup} from "../core/popup.js";
 
 /**
  * Class that displays a dialog for sharing boards
@@ -8,63 +7,81 @@ import {ShowInfoPopup} from "../core/popup.js";
 export class ShareDialog {
 
     /**
-     * Construction
-     * @param {Object} options
-     * @param {Function} options.account - The account API.
-     * @param account
+     * Construct an instance of the share dialog.
+     * @param account The account API.
      */
-    constructor({account}) {
+    constructor(account) {
         this.account = account;
-        this.dialogElem = null;
     }
 
     /**
-     * Show the share dialog
+     * Show the share dialog.
+     * @param permissionObj The permission object as a response from the server.
+     * @returns {Element|HTMLCollection} The DOM object representing the share dialog.
      */
     show(permissionObj) {
-        const permissionElem = LoadTemplate("tmpl-share-dialog-entry", permissionObj);
+        const permissionElem = this._createPermissionEntry(permissionObj);
+        this._attachHandlers(permissionObj, permissionElem);
+        return permissionElem;
+    }
 
+    /**
+     * Create a DOM node.
+     * @param permissionObj The permission object as a response from the server.
+     * @returns {Element|HTMLCollection} The DOM object representing the share dialog.
+     * @private
+     */
+    _createPermissionEntry(permissionObj) {
+        const permissionElem = LoadTemplate("tmpl-share-dialog-entry", permissionObj);
         const permissionSelectElem = permissionElem.querySelector(".permission");
-        permissionSelectElem.onchange = () => this._userPermissionChanged(permissionSelectElem, permissionObj["user_id"]);
-        const selectedOptionElem = permissionSelectElem.querySelector(`option[value='${permissionObj["user_type"]}']`);
-        selectedOptionElem.setAttribute("selected", "true");
+
+        // Set the selected position
+        if (permissionSelectElem.querySelector(`option[value="${permissionObj.user_type}"]`)) {
+            permissionSelectElem.value = permissionObj.user_type;
+        }
 
         return permissionElem;
     }
 
     /**
-     * Called when a user permission changes
+     * Attach the handlers.
+     * @param permissionObj The permission object as a response from the server.
+     * @param permissionElem The DOM node to wire in the events.
+     * @private
      */
-    _userPermissionChanged(selectElem, userID) {
-        const curUserType = selectElem.getAttribute("dbvalue");
-        const requestedUserType = selectElem.value;
-
-        // revert the change (wait confirmation from the server)
-        this._setUiPermission(selectElem, curUserType);
-
-        // request permission change to the server
-        let args = [];
-        args["user_id"] = userID;
-        args["user_type"] = requestedUserType;
-        serverAction("SetUserPermission", args, (response) => this._onUserPermissionUpdated(response), "share-dialog-popup");
+    _attachHandlers(permissionObj, permissionElem) {
+        const selectElem = permissionElem.querySelector(".permission");
+        selectElem.onchange = () => this._userPermissionChanged(selectElem, permissionObj.user_id);
     }
 
     /**
-     * Set a UI permission
+     * Called when a user permission changes in the UI.
+     * @param selectElem The selection element.
+     * @param userId The User ID of the user that changed.
+     * @returns {Promise<void>} A promise updated when the call completes.
+     * @private
      */
-    _setUiPermission(selectElem, userType) {
-        for (let i = 0; i < selectElem.options.length; i++) {
-            if (selectElem.options[i].value === userType) {
-                selectElem.selectedIndex = i;
-                break;
-            }
+    async _userPermissionChanged(selectElem, userId) {
+        const userType = selectElem.value;
+        selectElem.disabled = true;
+
+        try {
+            const response = await this.account.setUserPermissionV2(userId, userType);
+            this._onUserPermissionUpdated(response);
+        } catch (e) {
+            showInfoPopup("Failed to update permission: " + e.message, "share-dialog-popup")
+            selectElem.value = selectElem.dataset.userType;
+        } finally {
+            selectElem.disabled = false;
         }
     }
 
     /**
      * Called after a user permission is updated
+     * @param response The response from the server.
+     * @private
      */
-    _onUserPermissionUpdated(jsonResponseObj) {
+    _onUserPermissionUpdated(response) {
         // check if the share dialog is still open
         const shareDialog = document.getElementById("share-dialog");
         if (!shareDialog) {
@@ -72,9 +89,13 @@ export class ShareDialog {
         }
 
         // search for the permission selection box and update it
-        const selectElem = shareDialog.querySelector(`select[dbuser="${jsonResponseObj["user_id"]}"]`);
-        this._setUiPermission(selectElem, jsonResponseObj["user_type"]);
-        selectElem.setAttribute("dbvalue", jsonResponseObj["user_type"]); // update cached db value
-        ShowInfoPopup("Permissions updated.", "share-dialog-popup");
+
+        const selectElem = shareDialog.querySelector(`select[data-user-id="${response.user_id}"]`);
+        if (selectElem) {
+            selectElem.value = response.user_type;
+            selectElem.dataset.userType = response.user_type;
+        }
+
+        showInfoPopup("Permissions updated.", "share-dialog-popup");
     }
 }

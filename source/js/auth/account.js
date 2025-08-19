@@ -1,4 +1,4 @@
-import {asyncCall} from '../core/server.js';
+import {asyncCall, asyncCallV2} from '../core/server.js';
 import {ShowErrorPopup} from "../core/popup.js";
 
 /**
@@ -60,5 +60,10 @@ export class Account {
     async setUserPermission({userId, userType, onSuccess, onError = (msg) => {ShowErrorPopup(msg, 'share-dialog-popup');}}) {
         const args = { user_id: userId, user_type: userType };
         return await asyncCall("SetUserPermission", args, onSuccess, onError);
+    }
+
+    async setUserPermissionV2(userId, userType) {
+        const args = { user_id: userId, user_type: userType };
+        return await asyncCallV2("SetUserPermission", args);
     }
 }

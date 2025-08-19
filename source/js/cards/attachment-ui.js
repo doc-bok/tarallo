@@ -1,4 +1,4 @@
-import {ShowErrorPopup, ShowInfoPopup} from "../core/popup.js";
+import {ShowErrorPopup, showInfoPopup} from "../core/popup.js";
 import {serverAction} from "../core/server.js";
 import {BlurOnEnter, FileToBase64, LoadTemplate, SelectFileDialog, SetEventBySelector} from "../core/utils.js";
 
@@ -50,7 +50,7 @@ export class CardAttachmentUI {
                     const attachmentName = attachmentElem.querySelector(".attachment-name").textContent;
                     const attachmentMarkup = GetImageMarkup(url, attachmentName, attachmentName);
                     navigator.clipboard.writeText(attachmentMarkup);
-                    ShowInfoPopup("Copied!", "page-error");
+                    showInfoPopup("Copied!", "page-error");
                 });
 
             } else {

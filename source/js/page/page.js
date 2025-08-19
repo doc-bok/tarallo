@@ -9,7 +9,7 @@ import {
     SetEventBySelector,
     TrySetEventById
 } from '../core/utils.js';
-import {ShowInfoPopup} from "../core/popup.js";
+import {showInfoPopup} from "../core/popup.js";
 
 /**
  * Class to help with page-level operations.
@@ -240,7 +240,7 @@ export class Page {
                     onSuccess: (jsonResponseObj) => {
                         this.loadLoginPage(jsonResponseObj);
                         document.getElementById("login-username").value = jsonResponseObj["username"];
-                        ShowInfoPopup("Account successfully created, please login!", "login-error");
+                        showInfoPopup("Account successfully created, please login!", "login-error");
                     },
                 })
             });

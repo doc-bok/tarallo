@@ -1,4 +1,4 @@
-import {ShowErrorPopup, ShowInfoPopup} from "../core/popup.js";
+import {ShowErrorPopup, showInfoPopup} from "../core/popup.js";
 import {serverAction} from "../core/server.js";
 import {
     AddClassToAll,
@@ -406,6 +406,6 @@ export class CardUI {
         const contentMarkup = ContentHtmlToMarkup(contentElem.innerHTML);
         const textContent = DecodeHTMLEntities(contentMarkup);
         navigator.clipboard.writeText(textContent);
-        ShowInfoPopup("Copied!", "page-error");
+        showInfoPopup("Copied!", "page-error");
     }
 }

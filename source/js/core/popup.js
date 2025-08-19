@@ -8,7 +8,7 @@ export function ShowErrorPopup(errorMsg, popupID) {
 /**
  * Info popup message display
  */
-export function ShowInfoPopup(infoMessage, popupID) {
+export function showInfoPopup(infoMessage, popupID) {
     ShowPopup(infoMessage, popupID, "#2aa");
 }
 
