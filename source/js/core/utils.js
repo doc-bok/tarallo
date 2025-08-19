@@ -10,13 +10,6 @@ export function GetQueryStringParams() {
     return new URLSearchParams(queryString);
 }
 
-export function TrySetEventById(elemId, eventName, handler) {
-    const elem = document.getElementById(elemId);
-    if (elem) {
-        elem[eventName] = (event) => handler(elem, event);
-    }
-}
-
 /**
  * Attach an event to an element by ID
  */

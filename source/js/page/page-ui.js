@@ -5,8 +5,7 @@ import {
     LoadTemplate,
     ReplaceHtmlTemplateArgs,
     setEventById,
-    setEventBySelector,
-    TrySetEventById
+    setEventBySelector
 } from '../core/utils.js';
 import {showErrorPopup, showInfoPopup} from "../core/popup.js";
 
@@ -16,7 +15,15 @@ import {showErrorPopup, showInfoPopup} from "../core/popup.js";
 export class PageUi {
 
     /**
-     * Ensure we have access to required fields
+     * Ensure we have access to required fields.
+     * @param account The account API
+     * @param boardUI The board UI
+     * @param cardDND The card drag-and-drop interface
+     * @param cardUI The card UI
+     * @param importUI The import UI
+     * @param labelUI The label UI
+     * @param listUI The list UI
+     * @param page The page helpers
      */
     init({account: account, boardUI, cardDND, cardUI, importUI, labelUI, listUI, page}) {
         this.account = account;
@@ -30,7 +37,7 @@ export class PageUi {
     }
 
     /**
-     * Request the current page from the server
+     * Request the current page from the server.
      */
     async getCurrentPage() {
         try {
@@ -46,12 +53,12 @@ export class PageUi {
 
     /**
      * Load a page from the json response
-     * @param jsonResponseObj
+     * @param response The JSON response object
      * @private
      */
-    _loadPage(jsonResponseObj) {
-        const pageContent = jsonResponseObj["page_content"];
-        const pageName = jsonResponseObj["page_name"];
+    _loadPage(response) {
+        const pageContent = response["page_content"];
+        const pageName = response["page_name"];
         switch (pageName) {
             case "FirstStartup":
                 this._loadFirstStartupPage(pageContent);
@@ -79,7 +86,7 @@ export class PageUi {
         }
 
         // add needed events
-        TrySetEventById(
+        this._trySetEventById(
             "projectbar-logout-btn",
             "onclick",
             async () => {
@@ -93,7 +100,10 @@ export class PageUi {
     }
 
     /**
-     * Load a page that display first startup info about the instance
+     * Load a page that display first startup info about the instance.
+     * @param admin_user The username of the admin account.
+     * @param admin_pass The password of the admin account.
+     * @private
      */
     _loadFirstStartupPage({admin_user, admin_pass}) {
         this._loadTemplateWithTitle(
@@ -106,7 +116,10 @@ export class PageUi {
     }
 
     /**
-     * Loads the login page as the page content
+     * Loads the login page as the page content.
+     * @param instance_msg The message to display for the current instance.
+     * @param user_name (Optional) The username to fill out the form with.
+     * @private
      */
     _loadLoginPage({instance_msg, user_name=''}) {
         // fill page content with the login form
@@ -143,7 +156,10 @@ export class PageUi {
     }
 
     /**
-     * Load a page with the list of the board tiles for each user
+     * Load a page with the list of the board tiles for each user.
+     * @param display_name The user's display name.
+     * @param boards The list of boards.
+     * @private
      */
     _loadBoardListPage({display_name, boards}) {
         this._loadTemplateWithTitle(
@@ -160,7 +176,18 @@ export class PageUi {
         this._onClick("trello-import-btn", () => this.importUI.importFromTrello());
     }
 
-    // load the content of the current board page
+    /**
+     * Load the content of the current board page.
+     * @param title The board's title.
+     * @param id The board's ID.
+     * @param display_name The user's display name.
+     * @param label_names The list of label names.
+     * @param label_colors The list of label colors.
+     * @param all_color_names All available color names.
+     * @param cardlists The card lists.
+     * @param cards The cards.
+     * @private
+     */
     _loadBoardPage({
                        title,
                        id,
@@ -219,7 +246,11 @@ export class PageUi {
     }
 
     /**
-     * Load the closed board page
+     * Load the closed board page.
+     * @param display_name The user's display name.
+     * @param title The name of the closed board.
+     * @param id The ID of the closed board.
+     * @private
      */
     _loadClosedBoardPage({display_name, title, id}) {
         this._loadTemplateWithTitle(
@@ -232,7 +263,10 @@ export class PageUi {
     }
 
     /**
-     * Load the unaccessible board page
+     * Load the unaccessible board page.
+     * @param display_name The user's display name.
+     * @param access_requested Whether or not access has already been requested.
+     * @private
      */
     _loadUnaccessibleBoardPage({display_name, access_requested}) {
         this._loadTemplateWithTitle(
@@ -250,7 +284,7 @@ export class PageUi {
     }
 
     /**
-     * Show the register page
+     * Show the register page.
      */
     _loadRegisterPage() {
         this._loadTemplateWithTitle(
@@ -295,7 +329,10 @@ export class PageUi {
 
     /**
      * Replace the page content (#content div inner html) with the content of
-     * the specified template tag id
+     * the specified template tag id.
+     * @param templateName The name of the template to load.
+     * @param args The arguments to pass into the template.
+     * @private
      */
     _replaceContentWithTemplate(templateName, args) {
         const template = document.getElementById(templateName);
@@ -313,14 +350,35 @@ export class PageUi {
         setEventById(id, "onclick", handler);
     }
 
+    /**
+     * Show a loading spinner.
+     * @private
+     */
     _showLoadingSpinner() {
         const spinner = document.getElementById("loading-spinner");
         if (spinner) spinner.style.display = "flex";
     }
 
+    /**
+     * Hide the loading spinner.
+     * @private
+     */
     _hideLoadingSpinner() {
         const spinner = document.getElementById("loading-spinner");
         if (spinner) spinner.style.display = "none";
     }
 
+    /**
+     * Set an event but only if the element exists.
+     * @param elemId The ID of the element.
+     * @param eventName The event to set.
+     * @param handler The function to call on said event.
+     * @private
+     */
+    _trySetEventById(elemId, eventName, handler) {
+        const elem = document.getElementById(elemId);
+        if (elem) {
+            elem[eventName] = (event) => handler(elem, event);
+        }
+    }
 }
