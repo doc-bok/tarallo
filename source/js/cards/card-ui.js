@@ -1,4 +1,4 @@
-import {showErrorPopup, showInfoPopup} from "../core/popup.js";
+import {showErrorPopup, showInfoPopup} from "../ui/popup.js";
 import {serverAction} from "../core/server.js";
 import {
     AddClassToAll,

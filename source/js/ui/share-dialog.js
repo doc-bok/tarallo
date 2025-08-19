@@ -1,5 +1,5 @@
 import {loadTemplate} from "../core/utils.js";
-import {showInfoPopup} from "../core/popup.js";
+import {showInfoPopup} from "./popup.js";
 
 /**
  * Class that displays a dialog for sharing boards

@@ -5,7 +5,7 @@ import {
     replaceHtmlTemplateArgs,
     setEventBySelector
 } from '../core/utils.js';
-import {showErrorPopup, showInfoPopup} from "../core/popup.js";
+import {showErrorPopup, showInfoPopup} from "../ui/popup.js";
 
 /**
  * Class to help with page-level operations.

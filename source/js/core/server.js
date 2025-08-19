@@ -1,4 +1,4 @@
-import { showErrorPopup } from './popup.js';
+import { showErrorPopup } from '../ui/popup.js';
 import {TaralloServer} from '../api.js';
 
 /**

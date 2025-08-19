@@ -1,4 +1,4 @@
-import {showErrorPopup} from "../core/popup.js";
+import {showErrorPopup} from "../ui/popup.js";
 import {serverAction, serverActionAsync} from "../core/server.js";
 import {FileToBase64, GetContentElement, JsonFileToObj, loadTemplate, SelectFileDialog} from "../core/utils.js";
 

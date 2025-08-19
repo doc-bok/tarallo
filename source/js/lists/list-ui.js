@@ -1,6 +1,6 @@
 import {blurOnEnter, loadTemplate, setEventBySelector} from "../core/utils.js";
 import {serverAction} from "../core/server.js";
-import {showErrorPopup} from "../core/popup.js";
+import {showErrorPopup} from "../ui/popup.js";
 
 export class ListUI {
 
