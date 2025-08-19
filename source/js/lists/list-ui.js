@@ -1,4 +1,4 @@
-import {BlurOnEnter, LoadTemplate, SetEventBySelector} from "../core/utils.js";
+import {BlurOnEnter, LoadTemplate, setEventBySelector} from "../core/utils.js";
 import {serverAction} from "../core/server.js";
 import {showErrorPopup} from "../core/popup.js";
 
@@ -19,19 +19,19 @@ export class ListUI {
     loadCardList(cardlistData) {
         const cardlistElem = LoadTemplate("tmpl-cardlist", cardlistData);
         // events
-        SetEventBySelector(cardlistElem, ".cardlist-title h3", "onfocus", () => this._nameEditStart(cardlistElem));
+        setEventBySelector(cardlistElem, ".cardlist-title h3", "onfocus", () => this._nameEditStart(cardlistElem));
         const nameChangedHandler = (elem) => this._nameChanged(cardlistData["id"], elem, cardlistElem);
-        SetEventBySelector(cardlistElem, ".cardlist-title h3", "onblur", nameChangedHandler);
-        SetEventBySelector(cardlistElem, ".cardlist-title h3", "onkeydown", (elem, event) => BlurOnEnter(event));
-        SetEventBySelector(cardlistElem, ".addcard-btn", "onclick", () => this.cardUI.addNewCard(cardlistData["id"], cardlistElem));
-        SetEventBySelector(cardlistElem, ".editcard-submit-btn", "onclick", () => this.cardUI.newCard(cardlistData["id"], cardlistElem));
-        SetEventBySelector(cardlistElem, ".editcard-card", "onkeydown", (elem, keydownEvent) => {
+        setEventBySelector(cardlistElem, ".cardlist-title h3", "onblur", nameChangedHandler);
+        setEventBySelector(cardlistElem, ".cardlist-title h3", "onkeydown", (elem, event) => BlurOnEnter(event));
+        setEventBySelector(cardlistElem, ".addcard-btn", "onclick", () => this.cardUI.addNewCard(cardlistData["id"], cardlistElem));
+        setEventBySelector(cardlistElem, ".editcard-submit-btn", "onclick", () => this.cardUI.newCard(cardlistData["id"], cardlistElem));
+        setEventBySelector(cardlistElem, ".editcard-card", "onkeydown", (elem, keydownEvent) => {
             if (keydownEvent.keyCode === 13) {
                 keydownEvent.preventDefault();
                 this.cardUI.newCard(cardlistData["id"], cardlistElem)
             }
         });
-        SetEventBySelector(cardlistElem, ".editcard-cancel-btn", "onclick", () => this.cardUI.cancelNewCard(cardlistElem));
+        setEventBySelector(cardlistElem, ".editcard-cancel-btn", "onclick", () => this.cardUI.cancelNewCard(cardlistElem));
 
         // drag and drop events
         const cardlistStartElem = cardlistElem.querySelector(".cardlist-start");

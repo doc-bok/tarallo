@@ -28,7 +28,7 @@ export function setEventById(elemId, eventName, handler) {
 /**
  * Attach an event to all elements matching a selector
  */
-export function SetEventBySelector(parentElem, selector, eventName, handler) {
+export function setEventBySelector(parentElem, selector, eventName, handler) {
     const elem = parentElem.querySelector(selector);
     elem[eventName] = (event) => handler(elem, event);
 }

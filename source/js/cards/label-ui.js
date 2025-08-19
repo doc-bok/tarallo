@@ -1,4 +1,4 @@
-import {LoadTemplate, SetEventBySelector} from "../core/utils.js";
+import {LoadTemplate, setEventBySelector} from "../core/utils.js";
 import {serverAction} from "../core/server.js";
 
 export class CardLabelUI {
@@ -95,8 +95,8 @@ export class CardLabelUI {
             // add it to the selectable ones
             const labelElem = this.loadLabel("tmpl-selectable-label", labelIndex, labelAdditionalParams);
             labelSelectionDiag.insertBefore(labelElem, createLabelBtnElem);
-            SetEventBySelector(labelElem, ".selectable-label", "onclick", () => this._setLabel(cardID, labelIndex, true));
-            SetEventBySelector(labelElem, ".selectable-label-edit-btn", "onclick", () => this._editLabel(labelIndex));
+            setEventBySelector(labelElem, ".selectable-label", "onclick", () => this._setLabel(cardID, labelIndex, true));
+            setEventBySelector(labelElem, ".selectable-label-edit-btn", "onclick", () => this._editLabel(labelIndex));
         }
     }
 
@@ -153,10 +153,10 @@ export class CardLabelUI {
         }
 
         // events
-        SetEventBySelector(labelEditDialogElem, "#opencard-label-edit-cancel-btn", "onclick", () => this._cancelEditLabel(labelEditDialogElem));
-        SetEventBySelector(labelEditDialogElem, "#opencard-label-edit-name", "oninput", (elem, event) => this._editLabelName(event.target.value, labelPreviewElem));
-        SetEventBySelector(labelEditDialogElem, "#opencard-label-edit-save-btn", "onclick", () => this._editLabelSave(labelIndex, labelPreviewElem.innerText, labelPreviewElem.getAttribute("color")));
-        SetEventBySelector(labelEditDialogElem, "#opencard-label-edit-delete-btn", "onclick", (elem) => this._deleteLabel(labelIndex, elem));
+        setEventBySelector(labelEditDialogElem, "#opencard-label-edit-cancel-btn", "onclick", () => this._cancelEditLabel(labelEditDialogElem));
+        setEventBySelector(labelEditDialogElem, "#opencard-label-edit-name", "oninput", (elem, event) => this._editLabelName(event.target.value, labelPreviewElem));
+        setEventBySelector(labelEditDialogElem, "#opencard-label-edit-save-btn", "onclick", () => this._editLabelSave(labelIndex, labelPreviewElem.innerText, labelPreviewElem.getAttribute("color")));
+        setEventBySelector(labelEditDialogElem, "#opencard-label-edit-delete-btn", "onclick", (elem) => this._deleteLabel(labelIndex, elem));
         return labelEditDialogElem;
     }
 

@@ -1,6 +1,6 @@
 import {showErrorPopup, showInfoPopup} from "../core/popup.js";
 import {serverAction} from "../core/server.js";
-import {BlurOnEnter, FileToBase64, LoadTemplate, SelectFileDialog, SetEventBySelector} from "../core/utils.js";
+import {BlurOnEnter, FileToBase64, LoadTemplate, SelectFileDialog, setEventBySelector} from "../core/utils.js";
 
 /**
  * Class to handle attachment operations
@@ -35,9 +35,9 @@ export class CardAttachmentUI {
             // loaded attachment
             attachmentLinkElem.setAttribute("href", url);
             attachmentElem.querySelector(".loader").remove();
-            SetEventBySelector(attachmentElem, ".opencard-attachment-delete-btn", "onclick", () => this._deleteAttachment(jsonAttachment["id"], attachmentElem));
-            SetEventBySelector(attachmentElem, ".attachment-name", "onblur", (elem) => this._attachmentNameChanged(elem, jsonAttachment["id"]));
-            SetEventBySelector(attachmentElem, ".attachment-name", "onkeydown", (elem, event) => BlurOnEnter(event));
+            setEventBySelector(attachmentElem, ".opencard-attachment-delete-btn", "onclick", () => this._deleteAttachment(jsonAttachment["id"], attachmentElem));
+            setEventBySelector(attachmentElem, ".attachment-name", "onblur", (elem) => this._attachmentNameChanged(elem, jsonAttachment["id"]));
+            setEventBySelector(attachmentElem, ".attachment-name", "onkeydown", (elem, event) => BlurOnEnter(event));
 
             if (thumbUrl) {
                 // prepare attachment with a preview
@@ -46,7 +46,7 @@ export class CardAttachmentUI {
                 attachmentLinkElem.querySelector("img").setAttribute("src", thumbUrl);
 
                 // attach event to the copy markup button
-                SetEventBySelector(attachmentElem, ".copy-markup-btn", "onclick", () => {
+                setEventBySelector(attachmentElem, ".copy-markup-btn", "onclick", () => {
                     const attachmentName = attachmentElem.querySelector(".attachment-name").textContent;
                     const attachmentMarkup = GetImageMarkup(url, attachmentName, attachmentName);
                     navigator.clipboard.writeText(attachmentMarkup);

@@ -5,7 +5,7 @@ import {
     BlurOnEnter, CloseDialog,
     LoadTemplate,
     RemoveClassFromAll,
-    SetEventBySelector
+    setEventBySelector
 } from "../core/utils.js";
 
 /**
@@ -224,16 +224,16 @@ export class CardUI {
         }
 
         // events
-        SetEventBySelector(openCardElem, ".dialog-close-btn", "onclick", () => CloseDialog);
-        SetEventBySelector(openCardElem, "#opencard-title", "onblur", (elem) => this._cardTitleChanged(elem, openCardData["id"]));
-        SetEventBySelector(openCardElem, "#opencard-title", "onkeydown", (elem, event) => BlurOnEnter(event));
-        SetEventBySelector(openCardElem, ".opencard-add-label", "onclick", () => this.labelUI.openLabelSelectionDialog());
-        SetEventBySelector(openCardElem, ".opencard-label-cancel-btn", "onclick", () => this.labelUI.closeLabelSelectionDialog());
-        SetEventBySelector(openCardElem, ".opencard-label-create-btn", "onclick", () => this.labelUI.createLabel());
-        SetEventBySelector(openCardElem, ".opencard-content", "onfocus", (elem) => this._cardContentEditing(elem));
-        SetEventBySelector(openCardElem, ".opencard-content", "onblur", (elem) => this._cardContentChanged(elem, openCardData["id"]));
-        SetEventBySelector(openCardElem, ".add-attachment-btn", "onclick", () => this.attachmentUI.addAttachment(openCardData["id"]));
-        SetEventBySelector(openCardElem, ".opencard-lock-btn", "onclick", (elem) => this._cardContentLock(elem, openCardElem));
+        setEventBySelector(openCardElem, ".dialog-close-btn", "onclick", () => CloseDialog);
+        setEventBySelector(openCardElem, "#opencard-title", "onblur", (elem) => this._cardTitleChanged(elem, openCardData["id"]));
+        setEventBySelector(openCardElem, "#opencard-title", "onkeydown", (elem, event) => BlurOnEnter(event));
+        setEventBySelector(openCardElem, ".opencard-add-label", "onclick", () => this.labelUI.openLabelSelectionDialog());
+        setEventBySelector(openCardElem, ".opencard-label-cancel-btn", "onclick", () => this.labelUI.closeLabelSelectionDialog());
+        setEventBySelector(openCardElem, ".opencard-label-create-btn", "onclick", () => this.labelUI.createLabel());
+        setEventBySelector(openCardElem, ".opencard-content", "onfocus", (elem) => this._cardContentEditing(elem));
+        setEventBySelector(openCardElem, ".opencard-content", "onblur", (elem) => this._cardContentChanged(elem, openCardData["id"]));
+        setEventBySelector(openCardElem, ".add-attachment-btn", "onclick", () => this.attachmentUI.addAttachment(openCardData["id"]));
+        setEventBySelector(openCardElem, ".opencard-lock-btn", "onclick", (elem) => this._cardContentLock(elem, openCardElem));
         this._setCardContentEventHandlers(openCardElem.querySelector(".opencard-content"));
 
         // drag drop files over a card events

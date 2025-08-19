@@ -5,7 +5,7 @@ import {
     LoadTemplate,
     ReplaceHtmlTemplateArgs,
     setEventById,
-    SetEventBySelector,
+    setEventBySelector,
     TrySetEventById
 } from '../core/utils.js';
 import {showErrorPopup, showInfoPopup} from "../core/popup.js";
@@ -34,10 +34,13 @@ export class PageUi {
      */
     async getCurrentPage() {
         try {
+            this._showLoadingSpinner();
             const response = await asyncCallV2("GetCurrentPage", {});
             this._loadPage(response);
         } catch (e) {
             showErrorPopup("Failed to load page: " + e.message, "page-error");
+        } finally {
+            this._hideLoadingSpinner();
         }
     }
 
@@ -99,22 +102,22 @@ export class PageUi {
             "Tarallo - First Startup");
 
         // add events
-        setEventById("continue-btn", "onclick", () => this.getCurrentPage());
+        this._onClick("continue-btn", () => this.getCurrentPage());
     }
 
     /**
      * Loads the login page as the page content
      */
-    _loadLoginPage({instance_msg}) {
+    _loadLoginPage({instance_msg, user_name=''}) {
         // fill page content with the login form
         this._loadTemplateWithTitle(
             "tmpl-login",
-            {},
+            {user_name},
             "Tarallo - Login");
 
         // setup login button event
         const formNode = document.querySelector("#login-form");
-        SetEventBySelector(
+        setEventBySelector(
             formNode,
             "#login-btn",
             "onclick",
@@ -130,11 +133,11 @@ export class PageUi {
                 }
             });
 
-        SetEventBySelector(formNode, "#register-page-btn", "onclick", () => this._loadRegisterPage());
+        setEventBySelector(formNode, "#register-page-btn", "onclick", () => this._loadRegisterPage());
 
         // add instance message if any
         if (instance_msg) {
-            const instanceMsgElem = LoadTemplate("tmpl-instance-msg", contentObj)
+            const instanceMsgElem = LoadTemplate("tmpl-instance-msg", {instance_msg})
             this.page.getContentElem().prepend(instanceMsgElem);
         }
     }
@@ -152,9 +155,9 @@ export class PageUi {
             this.boardUI.loadBoardTile(boards[i]);
         }
         // add events
-        setEventById("new-board-btn", "onclick", () => this.boardUI.createNewBoard());
-        setEventById("import-board-btn", "onclick", () => this.importUI.importBoard());
-        setEventById("trello-import-btn", "onclick", () => this.importUI.importFromTrello());
+        this._onClick("new-board-btn", () => this.boardUI.createNewBoard());
+        this._onClick("import-board-btn", () => this.importUI.importBoard());
+        this._onClick("trello-import-btn", () => this.importUI.importFromTrello());
     }
 
     // load the content of the current board page
@@ -208,11 +211,11 @@ export class PageUi {
         projectBar.ondrop = (e) => this.cardDND.dropDelete(e);
 
         // other events
-        SetEventBySelector(projectBar, "#board-title", "onblur", (elem) => this.boardUI.boardTitleChanged(elem));
-        SetEventBySelector(projectBar, "#board-title", "onkeydown", (elem, event) => BlurOnEnter(event));
-        SetEventBySelector(projectBar, "#board-change-bg-btn", "onclick", () => this.boardUI.changeBackground(id));
-        SetEventBySelector(projectBar, "#board-share-btn", "onclick", () => this.boardUI.shareBoard(id));
-        setEventById("add-cardlist-btn", "onclick", () => this.listUI.addCardList());
+        setEventBySelector(projectBar, "#board-title", "onblur", (elem) => this.boardUI.boardTitleChanged(elem));
+        setEventBySelector(projectBar, "#board-title", "onkeydown", (elem, event) => BlurOnEnter(event));
+        setEventBySelector(projectBar, "#board-change-bg-btn", "onclick", () => this.boardUI.changeBackground(id));
+        setEventBySelector(projectBar, "#board-share-btn", "onclick", () => this.boardUI.shareBoard(id));
+        this._onClick("add-cardlist-btn", () => this.listUI.addCardList());
     }
 
     /**
@@ -224,8 +227,8 @@ export class PageUi {
             {display_name},
             "[Closed]" + title);
 
-        setEventById("closedboard-reopen-btn", "onclick", () => this.boardUI.reopenBoard(id));
-        setEventById("closedboard-delete-link", "onclick", () => this.boardUI.showBoardDeleteConfirmation(id));
+        this._onClick("closedboard-reopen-btn", () => this.boardUI.reopenBoard(id));
+        this._onClick("closedboard-delete-link", () => this.boardUI.showBoardDeleteConfirmation(id));
     }
 
     /**
@@ -243,7 +246,7 @@ export class PageUi {
         }
 
         //events
-        setEventById("unaccessibleboard-request-btn", "onclick", () => this.boardUI.requestBoardAccess());
+        this._onClick("unaccessibleboard-request-btn",() => this.boardUI.requestBoardAccess());
     }
 
     /**
@@ -257,7 +260,7 @@ export class PageUi {
 
         // Setup register button event
         const formNode = document.querySelector("#login-form");
-        SetEventBySelector(
+        setEventBySelector(
             formNode,
             "#register-btn",
             "onclick",
@@ -275,7 +278,7 @@ export class PageUi {
                 }
             });
 
-        SetEventBySelector(formNode, "#login-page-btn", "onclick", () => this._loadLoginPage({}));
+        setEventBySelector(formNode, "#login-page-btn", "onclick", () => this._loadLoginPage({}));
     }
 
     /**
@@ -299,4 +302,25 @@ export class PageUi {
         const contentDiv = this.page.getContentElem();
         contentDiv.innerHTML = ReplaceHtmlTemplateArgs(template.innerHTML, args);
     }
+
+    /**
+     * Register an onClick event
+     * @param id The ID of the page element.
+     * @param handler The method to call on click.
+     * @private
+     */
+    _onClick(id, handler) {
+        setEventById(id, "onclick", handler);
+    }
+
+    _showLoadingSpinner() {
+        const spinner = document.getElementById("loading-spinner");
+        if (spinner) spinner.style.display = "flex";
+    }
+
+    _hideLoadingSpinner() {
+        const spinner = document.getElementById("loading-spinner");
+        if (spinner) spinner.style.display = "none";
+    }
+
 }

@@ -3,7 +3,7 @@ import {
     FileToBase64,
     LoadTemplate,
     SelectFileDialog,
-    SetEventBySelector
+    setEventBySelector
 } from "../core/utils.js";
 import {serverAction} from "../core/server.js";
 import {ShareDialog} from "../ui/share-dialog.js";
@@ -50,7 +50,7 @@ export class BoardUI {
             // add tile for a normal board
             const newBoardTileElem = LoadTemplate("tmpl-boardtile", boardData);
             boardListElem.insertBefore(newBoardTileElem, createBoardBtn);
-            SetEventBySelector(newBoardTileElem, ".delete-board-btn", "onclick", () => this._closeBoard(boardData["id"]));
+            setEventBySelector(newBoardTileElem, ".delete-board-btn", "onclick", () => this._closeBoard(boardData["id"]));
         }
     }
 
@@ -149,7 +149,7 @@ export class BoardUI {
     _loadShareDialog(jsonResponseObj) {
         // initialize the share dialog
         const shareDialogElem = LoadTemplate("tmpl-share-dialog", jsonResponseObj);
-        SetEventBySelector(shareDialogElem, ".dialog-close-btn", "onclick", () => CloseDialog());
+        setEventBySelector(shareDialogElem, ".dialog-close-btn", "onclick", () => CloseDialog());
         const permissionListElem = shareDialogElem.querySelector("#share-dialog-list");
         const dialogButtons = permissionListElem.querySelector(".share-dialog-entry");
 
