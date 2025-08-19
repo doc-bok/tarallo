@@ -55,7 +55,7 @@ export class PageUi {
                 this._loadFirstStartupPage(pageContent);
                 break;
             case "Login":
-                this.loadLoginPage(pageContent);
+                this._loadLoginPage(pageContent);
                 break;
             case "BoardList":
                 this._loadBoardListPage(pageContent);
@@ -93,8 +93,8 @@ export class PageUi {
     /**
      * Load a page that display first startup info about the instance
      */
-    _loadFirstStartupPage(contentObj) {
-        replaceContentWithTemplate("tmpl-firststartup", contentObj);
+    _loadFirstStartupPage({admin_user, admin_pass}) {
+        replaceContentWithTemplate("tmpl-firststartup", {admin_user, admin_pass});
         document.title = "Tarallo - First Startup";
 
         // add events
@@ -104,9 +104,9 @@ export class PageUi {
     /**
      * Loads the login page as the page content
      */
-    loadLoginPage(contentObj) {
+    _loadLoginPage({instance_msg}) {
         // fill page content with the login form
-        replaceContentWithTemplate("tmpl-login", contentObj);
+        replaceContentWithTemplate("tmpl-login", {});
         document.title = "Tarallo - Login";
 
         // setup login button event
@@ -127,10 +127,10 @@ export class PageUi {
                 }
             });
 
-        SetEventBySelector(formNode, "#register-page-btn", "onclick", () => this._loadRegisterPage(contentObj));
+        SetEventBySelector(formNode, "#register-page-btn", "onclick", () => this._loadRegisterPage());
 
         // add instance message if any
-        if (contentObj["instance_msg"]) {
+        if (instance_msg) {
             const instanceMsgElem = LoadTemplate("tmpl-instance-msg", contentObj)
             this.page.getContentElem().prepend(instanceMsgElem);
         }
@@ -139,10 +139,9 @@ export class PageUi {
     /**
      * Load a page with the list of the board tiles for each user
      */
-    _loadBoardListPage(contentObj) {
-        replaceContentWithTemplate("tmpl-boardlist", contentObj);
+    _loadBoardListPage({display_name, boards}) {
+        replaceContentWithTemplate("tmpl-boardlist", {display_name});
         document.title = "Tarallo - Boards";
-        const boards = contentObj["boards"];
         for (let i = 0; i < boards.length; i++) {
             this.boardUI.loadBoardTile(boards[i]);
         }
@@ -153,26 +152,36 @@ export class PageUi {
     }
 
     // load the content of the current board page
-    _loadBoardPage(contentObj) {
-        replaceContentWithTemplate("tmpl-board", contentObj);
-        document.title = contentObj["title"];
+    _loadBoardPage({
+                       title,
+                       id,
+                       display_name,
+                       label_names,
+                       label_colors,
+                       all_color_names,
+                       cardlists,
+                       cards
+    }) {
+        replaceContentWithTemplate("tmpl-board", {title, id, display_name});
+        document.title = title;
         const boardElem = this.page.getBoardElem();
         const newCardlistBtn = this.page.getAddCardListButtonElem()
 
-        if (contentObj["label_names"]) {
-            this.labelUI.setLabelNames(contentObj["label_names"].split(","));
-            this.labelUI.setLabelColors(contentObj["label_colors"].split(","));
+        if (label_names) {
+            this.labelUI.setLabelNames(label_names.split(","));
+            this.labelUI.setLabelColors(label_colors.split(","));
         }
-        this.labelUI.setAllColorNames(contentObj["all_color_names"]);
+
+        this.labelUI.setAllColorNames(all_color_names);
 
         // create card lists
-        for (const cardlist of DBLinkedListIterator(contentObj["cardlists"], "id", "prev_list_id", "next_list_id")) {
+        for (const cardlist of DBLinkedListIterator(cardlists, "id", "prev_list_id", "next_list_id")) {
             // create cardlist
             const newCardlistElem = this.listUI.loadCardList(cardlist);
 
             // create owned cards
             const cardlistID = cardlist["id"];
-            for (const cardData of DBLinkedListIterator(contentObj["cards"], "id", "prev_card_id", "next_card_id", card => card["cardlist_id"] === cardlistID)) {
+            for (const cardData of DBLinkedListIterator(cards, "id", "prev_card_id", "next_card_id", card => card["cardlist_id"] === cardlistID)) {
                 const newCardElem = this.cardUI.loadCard(cardData, newCardlistElem);
                 // append the new card to the list
                 newCardlistElem.appendChild(newCardElem);
@@ -188,32 +197,33 @@ export class PageUi {
         projectBar.ondragenter = (e) => this.cardDND.dragDeleteEnter(e);
         projectBar.ondragleave = (e) => this.cardDND.dragDeleteLeave(e);
         projectBar.ondrop = (e) => this.cardDND.dropDelete(e);
+
         // other events
         SetEventBySelector(projectBar, "#board-title", "onblur", (elem) => this.boardUI.boardTitleChanged(elem));
         SetEventBySelector(projectBar, "#board-title", "onkeydown", (elem, event) => BlurOnEnter(event));
-        SetEventBySelector(projectBar, "#board-change-bg-btn", "onclick", () => this.boardUI.changeBackground(contentObj["id"]));
-        SetEventBySelector(projectBar, "#board-share-btn", "onclick", () => this.boardUI.shareBoard(contentObj["id"]));
+        SetEventBySelector(projectBar, "#board-change-bg-btn", "onclick", () => this.boardUI.changeBackground(id));
+        SetEventBySelector(projectBar, "#board-share-btn", "onclick", () => this.boardUI.shareBoard(id));
         setEventById("add-cardlist-btn", "onclick", () => this.listUI.addCardList());
     }
 
     /**
      * Load the closed board page
      */
-    _loadClosedBoardPage(contentObj) {
-        replaceContentWithTemplate("tmpl-closed-board", contentObj);
-        document.title = "[Closed]" + contentObj["title"];
+    _loadClosedBoardPage({display_name, title, id}) {
+        replaceContentWithTemplate("tmpl-closed-board", {display_name});
+        document.title = "[Closed]" + title;
 
-        setEventById("closedboard-reopen-btn", "onclick", () => this.boardUI.reopenBoard(contentObj["id"]));
-        setEventById("closedboard-delete-link", "onclick", () => this.boardUI.showBoardDeleteConfirmation(contentObj["id"]));
+        setEventById("closedboard-reopen-btn", "onclick", () => this.boardUI.reopenBoard(id));
+        setEventById("closedboard-delete-link", "onclick", () => this.boardUI.showBoardDeleteConfirmation(id));
     }
 
     /**
      * Load the unaccessible board page
      */
-    _loadUnaccessibleBoardPage(contentObj) {
-        replaceContentWithTemplate("tmpl-unaccessible-board", contentObj);
+    _loadUnaccessibleBoardPage({display_name, access_requested}) {
+        replaceContentWithTemplate("tmpl-unaccessible-board", {display_name});
         document.title = "Tarallo"
-        if (contentObj["access_requested"]) {
+        if (access_requested) {
             this.page.getUnaccessibleBoardRequestButtonElem().classList.add("hidden");
             this.page.getUnaccessibleBoardWaitingLabelElem().classList.remove("hidden");
         }
@@ -225,9 +235,9 @@ export class PageUi {
     /**
      * Show the register page
      */
-    _loadRegisterPage(contentObj) {
+    _loadRegisterPage() {
         // fill page content with the registration form
-        replaceContentWithTemplate("tmpl-register", contentObj);
+        replaceContentWithTemplate("tmpl-register", {});
         document.title = "Tarallo - Register";
 
         // Setup register button event
@@ -243,7 +253,7 @@ export class PageUi {
 
                 try {
                     const response = await this.account.register(username, password, displayName);
-                    this.loadLoginPage(response);
+                    this._loadLoginPage(response);
                     this.page.getLoginUsernameElem().value = response.username;
                     showInfoPopup("Account successfully created, please login!", "login-error");
                 } catch (e) {
@@ -251,6 +261,6 @@ export class PageUi {
                 }
             });
 
-        SetEventBySelector(formNode, "#login-page-btn", "onclick", () => this.loadLoginPage(contentObj));
+        SetEventBySelector(formNode, "#login-page-btn", "onclick", () => this._loadLoginPage({}));
     }
 }
