@@ -2,9 +2,8 @@ import { asyncCallV2 } from '../core/server.js';
 import {
     BlurOnEnter,
     DBLinkedListIterator,
-    GetContentElement,
     LoadTemplate,
-    replaceContentWithTemplate,
+    ReplaceHtmlTemplateArgs,
     setEventById,
     SetEventBySelector,
     TrySetEventById
@@ -94,8 +93,10 @@ export class PageUi {
      * Load a page that display first startup info about the instance
      */
     _loadFirstStartupPage({admin_user, admin_pass}) {
-        replaceContentWithTemplate("tmpl-firststartup", {admin_user, admin_pass});
-        document.title = "Tarallo - First Startup";
+        this._loadTemplateWithTitle(
+            "tmpl-firststartup",
+            {admin_user, admin_pass},
+            "Tarallo - First Startup");
 
         // add events
         setEventById("continue-btn", "onclick", () => this.getCurrentPage());
@@ -106,8 +107,10 @@ export class PageUi {
      */
     _loadLoginPage({instance_msg}) {
         // fill page content with the login form
-        replaceContentWithTemplate("tmpl-login", {});
-        document.title = "Tarallo - Login";
+        this._loadTemplateWithTitle(
+            "tmpl-login",
+            {},
+            "Tarallo - Login");
 
         // setup login button event
         const formNode = document.querySelector("#login-form");
@@ -140,8 +143,11 @@ export class PageUi {
      * Load a page with the list of the board tiles for each user
      */
     _loadBoardListPage({display_name, boards}) {
-        replaceContentWithTemplate("tmpl-boardlist", {display_name});
-        document.title = "Tarallo - Boards";
+        this._loadTemplateWithTitle(
+            "tmpl-boardlist",
+            {display_name},
+            "Tarallo - Boards");
+
         for (let i = 0; i < boards.length; i++) {
             this.boardUI.loadBoardTile(boards[i]);
         }
@@ -162,8 +168,11 @@ export class PageUi {
                        cardlists,
                        cards
     }) {
-        replaceContentWithTemplate("tmpl-board", {title, id, display_name});
-        document.title = title;
+        this._loadTemplateWithTitle(
+            "tmpl-board",
+            {title, id, display_name},
+            title);
+
         const boardElem = this.page.getBoardElem();
         const newCardlistBtn = this.page.getAddCardListButtonElem()
 
@@ -210,8 +219,10 @@ export class PageUi {
      * Load the closed board page
      */
     _loadClosedBoardPage({display_name, title, id}) {
-        replaceContentWithTemplate("tmpl-closed-board", {display_name});
-        document.title = "[Closed]" + title;
+        this._loadTemplateWithTitle(
+            "tmpl-closed-board",
+            {display_name},
+            "[Closed]" + title);
 
         setEventById("closedboard-reopen-btn", "onclick", () => this.boardUI.reopenBoard(id));
         setEventById("closedboard-delete-link", "onclick", () => this.boardUI.showBoardDeleteConfirmation(id));
@@ -221,8 +232,11 @@ export class PageUi {
      * Load the unaccessible board page
      */
     _loadUnaccessibleBoardPage({display_name, access_requested}) {
-        replaceContentWithTemplate("tmpl-unaccessible-board", {display_name});
-        document.title = "Tarallo"
+        this._loadTemplateWithTitle(
+            "tmpl-unaccessible-board",
+            {display_name},
+            "Tarallo");
+
         if (access_requested) {
             this.page.getUnaccessibleBoardRequestButtonElem().classList.add("hidden");
             this.page.getUnaccessibleBoardWaitingLabelElem().classList.remove("hidden");
@@ -236,9 +250,10 @@ export class PageUi {
      * Show the register page
      */
     _loadRegisterPage() {
-        // fill page content with the registration form
-        replaceContentWithTemplate("tmpl-register", {});
-        document.title = "Tarallo - Register";
+        this._loadTemplateWithTitle(
+            "tmpl-register",
+            {},
+            "Tarallo - Register");
 
         // Setup register button event
         const formNode = document.querySelector("#login-form");
@@ -253,8 +268,7 @@ export class PageUi {
 
                 try {
                     const response = await this.account.register(username, password, displayName);
-                    this._loadLoginPage(response);
-                    this.page.getLoginUsernameElem().value = response.username;
+                    this._loadLoginPage({user_name: response.username});
                     showInfoPopup("Account successfully created, please login!", "login-error");
                 } catch (e) {
                     showErrorPopup("Failed to register account: " + e.message, 'register-error');
@@ -262,5 +276,27 @@ export class PageUi {
             });
 
         SetEventBySelector(formNode, "#login-page-btn", "onclick", () => this._loadLoginPage({}));
+    }
+
+    /**
+     * Helper function to load a template and set the title.
+     * @param templateId The ID of the template to load.
+     * @param contentObj The response object.
+     * @param title The title of the page.
+     * @private
+     */
+    _loadTemplateWithTitle(templateId, contentObj, title) {
+        this._replaceContentWithTemplate(templateId, contentObj);
+        document.title = title;
+    }
+
+    /**
+     * Replace the page content (#content div inner html) with the content of
+     * the specified template tag id
+     */
+    _replaceContentWithTemplate(templateName, args) {
+        const template = document.getElementById(templateName);
+        const contentDiv = this.page.getContentElem();
+        contentDiv.innerHTML = ReplaceHtmlTemplateArgs(template.innerHTML, args);
     }
 }

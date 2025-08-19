@@ -5,15 +5,6 @@ export function isMobileDevice() {
     return /Mobi/i.test(window.navigator.userAgent);
 }
 
-/**
- * Replace the page content (#content div inner html) with the content of the specified template tag id
- */
-export function replaceContentWithTemplate(templateName, args) {
-    const template = document.getElementById(templateName);
-    const contentDiv = GetContentElement();
-    contentDiv.innerHTML = ReplaceHtmlTemplateArgs(template.innerHTML, args);
-}
-
 export function GetQueryStringParams() {
     const queryString = window.location.search;
     return new URLSearchParams(queryString);
