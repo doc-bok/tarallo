@@ -2,19 +2,19 @@
    CSS Variables (Theme Colors)
 =========================== */
 :root {
-    --bg-color-1: #1d232d;
+    --bg-color-1: #5f2b82;
     --bg-color-2: #0006;
     --bg-color-3: #121500;
     --bg-color-4: #fff2;
     --bg-color-5: #ff000080;
 
-    --text-color-1: #aaa;
+    --text-color-1: #e2d35e;
     --text-color-2: #eee;
     --text-color-3: #ac8656;
     --text-color-4: #666;
     --text-color-5: #0df;
 
-    --accent-color-1: #106275;
+    --accent-color-1: #bb21ad;
     --btn-color-1: #55a7ff; /* Fixed typo from --bnt-color-1 */
     --btn-active-color-1: #90c6ff;
 
@@ -31,7 +31,7 @@
 
     --border-radius: 0.6rem;
 
-    --titlebar-height: 3.4rem;
+    --titlebar-height: 47px;
     --titlebar-tools-height: 2.4rem;
 
     --spacing-sm: 0.3rem;
@@ -277,7 +277,14 @@ select:focus-visible {
 #titlebar {
     height: var(--titlebar-height);
     background-color: var(--bg-color-1);
+    background-image: url(../images/header-bg.png);
+    border: solid var(--accent-color-1);
+    border-width: 0 0 3px 0;
     flex-shrink: 0;
+}
+
+#titlebar h1 {
+    margin: 0;
 }
 
 .title-icon {

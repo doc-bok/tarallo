@@ -72,7 +72,7 @@ export class BoardUI {
      * Called after a board is closed.
      */
     _onBoardClosed(response) {
-        const boardTileElem = document.getElementById("board-tile-" + response["id"]);
+        const boardTileElem = document.getElementById("board-tile-" + response.id);
         if (boardTileElem) {
             boardTileElem.remove();
         }
