@@ -1,17 +1,22 @@
+/* ===========================
+   CSS Variables (Theme Colors)
+=========================== */
 :root {
     --bg-color-1: #1d232d;
     --bg-color-2: #0006;
     --bg-color-3: #121500;
     --bg-color-4: #fff2;
     --bg-color-5: #ff000080;
+
     --text-color-1: #aaa;
     --text-color-2: #eee;
     --text-color-3: #ac8656;
     --text-color-4: #666;
     --text-color-5: #0df;
+
     --accent-color-1: #106275;
-    --bnt-color-1: #55a7ff;
-    --bnt-active-color-1: #90c6ff;
+    --btn-color-1: #55a7ff; /* Fixed typo from --bnt-color-1 */
+    --btn-active-color-1: #90c6ff;
 
     --label-color-red: #f87168;
     --label-color-orange: #fea362;
@@ -25,68 +30,31 @@
     --label-color-grey: #8c9bab;
 
     --border-radius: 0.6rem;
+
     --titlebar-height: 3.4rem;
     --titlebar-tools-height: 2.4rem;
+
+    --spacing-sm: 0.3rem;
+    --spacing-md: 0.6rem;
+
     font-size: 16px;
 }
 
-.red {
-    background-color: var(--label-color-red);
+/* ===========================
+   Global Resets & Base Styles
+=========================== */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
 }
 
-.orange {
-    background-color: var(--label-color-orange);
-}
-
-.yellow {
-    background-color: var(--label-color-yellow);
-}
-
-.green {
-    background-color: var(--label-color-green);
-}
-
-.cyan {
-    background-color: var(--label-color-cyan);
-}
-
-.azure {
-    background-color: var(--label-color-azure);
-}
-
-.blue {
-    background-color: var(--label-color-blue);
-}
-
-.purple {
-    background-color: var(--label-color-purple);
-}
-
-.pink {
-    background-color: var(--label-color-pink);
-}
-
-.grey {
-    background-color: var(--label-color-grey);
-}
-
-.contrast-text {
-    color: var(--text-color-5);
-}
-
-.warning {
-    background-color: var(--label-color-yellow);
-}
-
-* {
-    margin: 0;
-    font-family: Sans-Serif;
-    color: var(--text-color-1);
-}
-
-html {
+html, body {
     width: 100%;
     height: 100%;
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--text-color-1);
 }
 
 body {
@@ -96,83 +64,100 @@ body {
     background-size: 85rem;
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: 100vh;
 }
 
-    body.nontiled-bg {
-        background-repeat: no-repeat;
-        background-size: cover;
-        background-position: center;
-    }
+body.nontiled-bg {
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center;
+}
 
+/* ===========================
+   Typography
+=========================== */
 p {
-    color: var(--text-color-1);
     font-size: 0.9rem;
+    color: var(--text-color-1);
+}
+
+h1, h2, h3, h4 {
+    margin: 1rem 0;
 }
 
 h1 {
     padding-top: 0.4rem;
     font-size: 2rem;
     text-align: center;
+    font-weight: bold;
     color: var(--text-color-1);
-    font-weight: bold
 }
 
 h2 {
     font-size: 1.3rem;
-    color: var(--text-color-2);
     font-weight: normal;
-    padding: 0.6rem;
+    padding: var(--spacing-md);
+    color: var(--text-color-2);
 }
 
 h3 {
+    font-size: 1rem;
     color: var(--text-color-1);
-    font-size: 1.0rem;
-    margin: 1.0rem;
 }
 
 h4 {
+    font-size: 1rem;
     color: var(--text-color-2);
-    font-size: 1.0rem;
-    margin: 1.0rem;
 }
 
-input,select {
+/* ===========================
+   Form Elements
+=========================== */
+input, select {
     width: 100%;
-    color: var(--text-color-1);
     height: 2rem;
     font-size: 0.8rem;
     text-align: center;
-    border: solid 0.15rem var(--bg-color-4);
+    color: var(--text-color-1);
+    background-color: var(--bg-color-2);
+    border: 0.15rem solid var(--bg-color-4);
     border-radius: var(--border-radius);
     outline: none;
-    background-color: var(--bg-color-2);
-    box-sizing: border-box;
 }
 
 label {
-    width: 100%;
     display: block;
+    width: 100%;
     text-align: center;
-    color: var(--text-color-1);
     font-size: 1.2rem;
     line-height: 2rem;
+    color: var(--text-color-1);
 }
 
 option {
     background-color: var(--bg-color-1);
 }
 
+/* ===========================
+   Links
+=========================== */
 a, a:visited {
-    color: var(--bnt-color-1);
+    color: var(--btn-color-1);
+    text-decoration: none;
 }
 
-a:hover {
-    color: var(--bnt-active-color-1);
+a:hover,
+a:focus-visible {
+    color: var(--btn-active-color-1);
+    outline-offset: 2px;
+    outline: 2px solid var(--accent-color-1);
 }
 
+/* ===========================
+   Utility Classes
+=========================== */
 .hidden {
-    display: none;
+    display: none !important;
 }
 
 .topmost {
@@ -181,71 +166,114 @@ a:hover {
 
 .vscrollable {
     overflow-y: scroll;
-    scrollbar-width: none;
-}
-
-.dialog {
-    background-color: var(--bg-color-1);
-    border-radius: var(--border-radius);
-    padding: 2rem;
-    border: solid 0.1rem var(--bg-color-4);
-    box-shadow: 0 0 0.4rem #000;
-}
-
-    .dialog h2 {
-        margin-right: 3.0rem;
-    }
-
-    .dialog .close-btn {
-        float: right;
-        border-radius: 1.1rem;
-    }
-
-        .dialog .close-btn:hover {
-            transition: background-color 100ms ease-in;
-        }
-
-.separator {
-    margin-top: 1rem;
-}
-
-.full-width {
-    width: 100%;
+    scrollbar-width: none; /* Firefox */
 }
 
 .text-center {
     text-align: center;
 }
 
-.scrollable-dialog {
-    margin-top: 1rem;
-    margin-left: auto;
-    margin-right: auto;
-    max-height: calc(100% - 7rem);
+.full-width {
+    width: 100%;
 }
 
-.centered-container {
-    position: relative;
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-    height: 100%
+/* ===========================
+   Color Utility Classes (Backgrounds)
+   Consider using data attributes or CSS variables for future enhancements
+=========================== */
+.red { background-color: var(--label-color-red); }
+.orange { background-color: var(--label-color-orange); }
+.yellow { background-color: var(--label-color-yellow); }
+.green { background-color: var(--label-color-green); }
+.cyan { background-color: var(--label-color-cyan); }
+.azure { background-color: var(--label-color-azure); }
+.blue { background-color: var(--label-color-blue); }
+.purple { background-color: var(--label-color-purple); }
+.pink { background-color: var(--label-color-pink); }
+.grey { background-color: var(--label-color-grey); }
+
+.contrast-text {
+    color: var(--text-color-5);
 }
 
-    .centered-container .centered-dialog {
-        flex: 0 1 14rem;
-        display: flex;
-        flex-direction: column;
-        height: fit-content;
-        align-items: center;
-    }
-
-[contentEditable]:focus {
-    outline-style: solid;
-    outline-color: var(--accent-color-1);
-    outline-width: 0.15rem;
+.warning {
+    background-color: var(--label-color-yellow);
 }
+
+/* ===========================
+   Buttons
+=========================== */
+button {
+    border-radius: var(--border-radius);
+    border: none;
+    height: 2.2rem;
+    padding: 0 0.7rem;
+    min-width: 2.2rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    background-color: var(--btn-color-1);
+    color: var(--bg-color-1);
+    transition: background-color 0.1s ease-in;
+    display: inline-block;
+}
+
+button:hover,
+button:focus-visible {
+    background-color: var(--btn-active-color-1);
+    outline-offset: 2px;
+    outline: 2px solid var(--accent-color-1);
+}
+
+.dim-btn {
+    background-color: var(--bg-color-4);
+    color: var(--text-color-1);
+}
+
+.dim-btn:hover,
+.dim-btn:focus-visible {
+    background-color: var(--text-color-4);
+    outline-offset: 2px;
+    outline: 2px solid var(--accent-color-1);
+}
+
+.thin-btn {
+    height: 1.8rem;
+}
+
+.contrast-btn {
+    background-color: var(--btn-color-1);
+    color: var(--bg-color-1);
+}
+
+.contrast-btn:hover,
+.contrast-btn:focus-visible {
+    background-color: var(--btn-active-color-1);
+    outline-offset: 2px;
+    outline: 2px solid var(--accent-color-1);
+}
+
+.close-btn::after {
+    content: "\d7";
+    font-size: 1.5rem;
+    line-height: 2.2rem;
+    text-align: center;
+    vertical-align: sub;
+}
+
+/* ===========================
+   Keyboard Focus Styles (Accessibility)
+=========================== */
+[contentEditable]:focus,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+    outline: 2px solid var(--accent-color-1);
+    outline-offset: 2px;
+}
+
+/* ===========================
+   Core Layout Containers & Components
+=========================== */
 
 #titlebar {
     height: var(--titlebar-height);
@@ -256,7 +284,7 @@ a:hover {
 .title-icon {
     height: 1.0em;
     margin-bottom: -0.1em;
-    margin-left: 0.1em;
+    margin-inline-start: 0.1em;
 }
 
 #content {
@@ -281,15 +309,14 @@ a:hover {
     align-items: center;
 }
 
-    .projectbar-tile h3 {
-        margin-top: 0.2rem;
-        margin-bottom: 0.2rem;
-        margin-left: 0.6rem;
-    }
+.projectbar-tile h3 {
+    margin-block: 0.2rem;
+    margin-inline-start: 0.6rem;
+}
 
-    .projectbar-tile h2 {
-        outline: none;
-    }
+.projectbar-tile h2 {
+    outline: none;
+}
 
 #projectbar-middle {
     flex-grow: 1;
@@ -308,7 +335,8 @@ a:hover {
     box-sizing: border-box;
 }
 
-#board-lists-container, #board {
+#board-lists-container,
+#board {
     flex-grow: 1;
 }
 
@@ -326,6 +354,9 @@ a:hover {
     padding: 0.5rem 0;
 }
 
+/* ===========================
+   Card List and Cards
+=========================== */
 .cardlist {
     max-height: calc(100% - 2rem);
     min-height: 2rem;
@@ -333,34 +364,38 @@ a:hover {
     margin: 0.5rem;
     border-radius: var(--border-radius);
     width: 17rem;
-    flex-grow: 0;
-    flex-shrink: 0;
+    flex: none;
     padding-bottom: 1rem;
-    transition: margin-right 500ms ease-out;
+    transition: margin-inline-end 500ms ease-out;
 }
 
-    .cardlist h3 {
-        border-radius: var(--border-radius);
-        padding: 0.3rem;
-        flex-grow: 1;
-    }
+.cardlist h3 {
+    border-radius: var(--border-radius);
+    padding: var(--spacing-sm);
+    flex-grow: 1;
+}
 
-.card, .addcard-btn {
+.card,
+.addcard-btn {
     box-sizing: border-box;
     width: 90%;
     left: 5%;
     position: relative;
-    margin: 0.5em 0;
+    margin-block: 0.5em;
     padding: 0.5rem;
     border-radius: var(--border-radius);
     overflow: hidden;
-    transition: margin-bottom 500ms ease-out;
+    transition: margin-block-end 500ms ease-out;
 }
 
 .card {
     background: var(--bg-color-1);
     user-select: none;
     cursor: pointer;
+}
+
+.card:hover {
+    outline: 2px solid var(--accent-color-1);
 }
 
 .addcard-btn {
@@ -370,18 +405,6 @@ a:hover {
     user-select: none;
 }
 
-.cardlist-start {
-    width: 100%;
-    position: relative;
-    transition: padding-bottom 500ms ease-out;
-    height: 2rem;
-}
-
-    .cardlist-start.drag-target-card {
-        margin: 0;
-        padding-bottom: 2rem;
-    }
-
 .addcard-btn:hover,
 .opencard-content:hover,
 .opencard > h2:hover,
@@ -390,58 +413,96 @@ a:hover {
     transition: background-color 100ms ease-in;
 }
 
-.card:hover {
-    outline: solid 2px var(--accent-color-1);
-}
-
 .card img {
+    position: relative;
     left: -0.5rem;
     top: -0.5rem;
-    position: relative;
     width: 16rem;
 }
 
-.popup {
-    color: #fff;
-    padding: 1rem;
+.cardlist-start {
+    width: 100%;
+    position: relative;
+    transition: padding-bottom 500ms ease-out;
+    height: 2rem;
+}
+
+.cardlist-start.drag-target-card {
+    margin: 0;
+    padding-bottom: 2rem;
+}
+
+/* ===========================
+   Dialogs and Popups
+=========================== */
+.dialog {
+    background-color: var(--bg-color-1);
     border-radius: var(--border-radius);
-    font-weight: bold;
-    opacity: 0;
+    padding: 2rem;
+    border: 0.1rem solid var(--bg-color-4);
+    box-shadow: 0 0 0.4rem #000;
 }
 
-#page-error {
-    position: absolute;
-    right: 0;
-    bottom: 0;
+.dialog h2 {
+    margin-inline-end: 3rem;
 }
 
-.popup.persistent {
-    opacity: 1;
+.dialog .close-btn {
+    float: right;
+    border-radius: 1.1rem;
 }
 
-.popup.popup-animate {
-    animation: popup-anim 6s linear;
+.dialog .close-btn:hover,
+.dialog .close-btn:focus-visible {
+    transition: background-color 100ms ease-in;
+    outline-offset: 2px;
+    outline: 2px solid var(--accent-color-1);
 }
 
-@keyframes popup-anim {
-    0% {
-        opacity: 0;
-    }
-
-    2% {
-        opacity: 1;
-    }
-
-    40% {
-        opacity: 1;
-    }
-
-    100% {
-        opacity: 0;
-    }
+.separator {
+    margin-top: 1rem;
 }
 
-#boards, #closed-boards {
+.scrollable-dialog {
+    margin-top: 1rem;
+    margin-inline: auto;
+    max-height: calc(100% - 7rem);
+}
+
+/* ===========================
+   Centered Modal Containers
+=========================== */
+.centered-container {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+}
+
+.centered-container .centered-dialog {
+    flex: 0 1 14rem;
+    display: flex;
+    flex-direction: column;
+    height: fit-content;
+    align-items: center;
+}
+
+/* ===========================
+   Editable Content Focus Style
+=========================== */
+[contentEditable]:focus {
+    outline-style: solid;
+    outline-color: var(--accent-color-1);
+    outline-width: 0.15rem;
+}
+
+/* ===========================
+   Board Tiles and Lists
+=========================== */
+#boards,
+#closed-boards {
     display: flex;
     flex-wrap: wrap;
     margin-bottom: 4rem;
@@ -456,72 +517,86 @@ a:hover {
     flex-grow: 0;
     flex-shrink: 1;
     overflow: hidden;
+    cursor: pointer;
+    transition: box-shadow 0.3s ease;
 }
 
-    .boardtile:hover {
-        box-shadow: inset 0 0 2em #0008
-    }
+.boardtile:hover {
+    box-shadow: inset 0 0 2em #0008;
+}
 
-    .boardtile .backdrop {
-        background: linear-gradient(0, #0000 25%, var(--bg-color-1) 100%);
-        overflow: hidden;
-        display: flex;
-        align-content: start;
-        width: 100%;
-        height: 100%;
-        border-radius: var(--border-radius);
-    }
+.boardtile .backdrop {
+    background: linear-gradient(0, #0000 25%, var(--bg-color-1) 100%);
+    overflow: hidden;
+    display: flex;
+    align-content: start;
+    width: 100%;
+    height: 100%;
+    border-radius: var(--border-radius);
+}
 
-    .boardtile .delete-board-btn {
-        width: 1.6rem;
-        height: 1.6rem;
-        margin: 0.4rem 0.8rem;
-        cursor: pointer;
-        opacity: 0;
-        flex: 0 0 auto;
-    }
+.boardtile .delete-board-btn {
+    width: 1.6rem;
+    height: 1.6rem;
+    margin: 0.4rem 0.8rem;
+    cursor: pointer;
+    opacity: 0;
+    flex: 0 0 auto;
+    transition: opacity 0.3s ease;
+}
 
-    .mobile .boardtile .delete-board-btn {
-        opacity: 1;
-    }
+.mobile .boardtile .delete-board-btn {
+    opacity: 1;
+}
 
-    .boardtile a {
-        text-decoration: none;
-        margin-right: 1rem;
-        flex-grow: 1;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-    }
+.boardtile:hover .delete-board-btn {
+    opacity: 1;
+}
 
-    .boardtile .last-edit-date {
-        color: var(--text-color-1);
-        margin: 0 1rem;
-        width: 100%;
-        display: block;
-        background-color: var(--bg-color-1);
-        border-radius: var(--border-radius);
-        padding: 0.2rem;
-    }
+.boardtile a {
+    text-decoration: none;
+    margin-inline-end: 1rem;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    color: inherit;
+}
 
-    .boardtile:hover .delete-board-btn {
-        opacity: 1;
-    }
+.boardtile .last-edit-date {
+    color: var(--text-color-1);
+    margin: 0 1rem;
+    width: 100%;
+    background-color: var(--bg-color-1);
+    border-radius: var(--border-radius);
+    padding: 0.2rem;
+    display: block;
+}
 
-    .boardtile.closed {
-        background-color: var(--bg-color-3);
-        opacity: 0.7;
-    }
+.boardtile.closed {
+    background-color: var(--bg-color-3);
+    opacity: 0.7;
+}
 
-.inline-link, .inline-link:visited {
+/* ===========================
+   Inline and Popup Links
+=========================== */
+.inline-link,
+.inline-link:visited {
     color: var(--text-color-3);
     display: inline-block;
 }
 
-    .inline-link:hover {
-        color: var(--text-color-1);
-    }
+.inline-link:hover,
+.inline-link:focus-visible {
+    color: var(--text-color-1);
+    outline-offset: 2px;
+    outline: 2px solid var(--accent-color-1);
+}
 
+/* ===========================
+   Dialog Container & Open Card Layout
+=========================== */
 #dialog-container {
     position: absolute;
     left: 0;
@@ -536,78 +611,103 @@ a:hover {
     max-width: 40rem;
     min-height: 30rem;
 }
-    .opencard #opencard-content-toolbar {
-        display: flex;
-        align-items: baseline;
-    }
 
-        .opencard #opencard-content-toolbar .icon {
-            flex: 0 0 2rem;
-            height: 1.4rem;
-        }
+.opencard #opencard-content-toolbar {
+    display: flex;
+    align-items: baseline;
+}
 
-    .opencard.drag-target-attachment {
-        outline: 0.2rem solid var(--accent-color-1);
-    }
+.opencard #opencard-content-toolbar .icon {
+    flex: 0 0 2rem;
+    height: 1.4rem;
+}
 
+.opencard.drag-target-attachment {
+    outline: 0.2rem solid var(--accent-color-1);
+}
+
+/* ===========================
+   Open Card Contents
+=========================== */
 .opencard-content {
     padding: 0.5rem;
     font-size: 0.9rem;
     line-height: 1.5rem;
-    margin: 1.0rem;
+    margin: 1rem;
     border-radius: var(--border-radius);
 }
 
-    .opencard-content input[type=checkbox] {
-        width: 1.3rem;
-        height: 1.3rem;
-        vertical-align: sub;
-        accent-color: var(--bnt-color-1);
-        margin-left: -2.0rem;
-    }
+.opencard-content input[type="checkbox"] {
+    width: 1.3rem;
+    height: 1.3rem;
+    vertical-align: sub;
+    accent-color: var(--btn-color-1);
+    margin-left: -2rem;
+}
 
-    .opencard-content h2, .opencard-content h3, .opencard-content h4, .opencard-content p {
-        margin-left: 0;
-        padding-left: 0;
-    }
+.opencard-content h2,
+.opencard-content h3,
+.opencard-content h4,
+.opencard-content p {
+    margin-left: 0;
+    padding-left: 0;
+}
 
-    .opencard-content h4 {
-        color: var(--text-color-3);
-    }
+.opencard-content h4 {
+    color: var(--text-color-3);
+}
 
-    .opencard-content h4 {
-        color: var(--text-color-3);
-    }
+.opencard-content b {
+    color: var(--text-color-2);
+}
 
-    .opencard-content b {
-        color: var(--text-color-2);
-    }
+.opencard-content .monospace {
+    font-family: monospace;
+    background-color: var(--bg-color-2);
+    color: var(--text-color-3);
+    padding: 0 0.5rem;
+}
 
-    .opencard-content .monospace {
-        font-family: monospace;
-        background-color: var(--bg-color-2);
-        color: var(--text-color-3);
-    }
+.opencard-content .monospace p {
+    color: var(--text-color-3);
+}
 
-        .opencard-content .monospace p {
-            color: var(--text-color-3);
-        }
+.opencard-content .multiline-container {
+    position: relative;
+}
 
-    .opencard-content span.monospace {      
-        padding: 0rem 0.5rem;
-    }
+.opencard-content .multiline-container .monospace {
+    margin-top: 0.5rem;
+    padding: 1rem 0 0.5rem 2rem;
+    border-left: 0.5rem solid var(--bg-color-4);
+    overflow-x: auto;
+}
 
-    .opencard-content .multiline-container {
-        position: relative;
-    }
+.opencard-content .multiline-container .copy-btn {
+    position: absolute;
+    right: 0;
+    padding: 0.5rem;
+    background: var(--bg-color-3);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+}
 
-        .opencard-content .multiline-container .monospace {
-            margin-top: 0.5rem;
-            padding: 1.0rem 0rem 0.5rem 2rem;
-            border-left: solid 0.5rem var(--bg-color-4);
-            overflow-x: auto;
-            box-sizing: border-box;
-        }
+.opencard-content .multiline-container .copy-btn svg {
+    height: 1.4rem;
+    width: 1.4rem;
+}
+
+.opencard-content .content-img {
+    max-width: 100%;
+    border-radius: var(--border-radius);
+}
+
+.opencard-content li {
+    padding: 0.5rem 0;
+    border-bottom: 0.1rem solid var(--bg-color-4);
+}
+
+/* Keyword Highlights */
 
 .keyword1 {
     color: var(--label-color-blue);
@@ -623,34 +723,9 @@ a:hover {
     font-weight: bold;
 }
 
-        .opencard-content .multiline-container .copy-btn {
-            position: absolute;
-            right: 0;
-            padding: 0.5rem;
-            background: var(--bg-color-3);
-            border-radius: var(--border-radius);
-        }
-
-            .opencard-content .multiline-container .copy-btn svg {
-                height: 1.4rem;
-                width: 1.4rem;
-            }
-
-    .opencard-content .content-img {
-        max-width: 100%;
-        border-radius: var(--border-radius);
-    }
-
-
-    .opencard-content li {
-        padding: 0.5rem 0;
-        border-bottom: solid 0.1rem var(--bg-color-4);
-    }
-
-.opencard h2 {
-    border-radius: var(--border-radius);
-}
-
+/* ===========================
+   Open Card Attachments & Labellist
+=========================== */
 .opencard-attachlist {
     display: flex;
     flex-direction: column;
@@ -659,161 +734,80 @@ a:hover {
 
 .opencard-attachment {
     height: 5rem;
-    flex-grow: 0;
-    flex-shrink: 0;
-    padding: 0.5rem;
     display: flex;
+    padding: 0.5rem;
+    border-radius: var(--border-radius);
+    flex: none;
+}
+
+.opencard-attachment .opencard-attachment-link {
+    position: relative;
+}
+
+.opencard-attachment-link img,
+.opencard-attachment-link svg {
+    width: 5rem;
+    height: 5rem;
+    border-radius: var(--border-radius);
+    margin-inline-end: 1rem;
+    object-fit: cover;
+}
+
+.opencard-attachment .ext {
+    position: absolute;
+    width: 5rem;
+    height: 3rem;
+    line-height: 5rem;
+    padding-top: 1.5rem;
+    text-align: center;
+    color: var(--text-color-2);
+    text-transform: uppercase;
+    font-weight: bold;
+}
+
+.opencard-attachment .attachment-name {
+    font-weight: bold;
+    margin-inline-end: 0.5rem;
+    padding: 0.3rem;
     border-radius: var(--border-radius);
 }
 
-    .opencard-attachment .opencard-attachment-link {
-        position: relative;
-    }
-
-        .opencard-attachment .opencard-attachment-link img,
-        .opencard-attachment .opencard-attachment-link svg {
-            width: 5rem;
-            height: 5rem;
-            border-radius: var(--border-radius);
-            margin-right: 1rem;
-            object-fit: cover;
-        }
-
-        .opencard-attachment .opencard-attachment-link .ext {
-            position: absolute;
-            text-align: center;
-            width: 5rem;
-            height: 3rem;
-            line-height: 5rem;
-            padding-top: 1.5rem;
-            color: var(--text-color-2);
-            text-transform: uppercase;
-            font-weight: bold;
-        }
-
-    .opencard-attachment .attachment-name {
-        font-weight: bold;
-        margin-right: 0.5rem;
-        padding: 0.3rem;
-        border-radius: var(--border-radius);
-    }
-
 .opencard-attachment-desc {
-    flex-grow: 1;
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    flex-grow: 1;
 }
 
 .opencard-attachment-desc .toolbar {
-    display:flex;
+    display: flex;
 }
 
 .opencard-attachment-btns {
     display: flex;
-    flex-grow: 0;
-    flex-shrink: 0;
-    width: 1.6rem;
     flex-direction: column;
+    width: 1.6rem;
+    flex-shrink: 0;
+    flex-grow: 0;
 }
 
 .opencard-attachment-btn {
     flex: 0 0 1.6rem;
-    display: none;
     cursor: pointer;
+    display: none;
 }
 
 .opencard-attachment:hover .opencard-attachment-btn {
-    display: inherit;
+    display: block;
 }
 
 .opencard-labellist {
     margin-top: 0.5rem;
 }
 
-button {
-    border-radius: var(--border-radius);
-    border-style: none;
-    height: 2.2rem;
-    padding: 0 0.7rem;
-    display: inline-block;
-    min-width: 2.2rem;
-    font-size: 0.8rem;
-    cursor: pointer;
-}
-
-    button:hover {
-        transition: background-color 100ms ease-in;
-    }
-
-.dim-btn {
-    background-color: var(--bg-color-4);
-    color: var(--text-color-1)
-}
-
-    .dim-btn:hover {
-        background-color: var(--text-color-4);
-    }
-
-.thin-btn {
-    height: 1.8rem;
-}
-
-.close-btn::after {
-    content: "\d7";
-    font-size: 1.5rem;
-    line-height: 2.2rem;
-    text-align: center;
-    vertical-align: sub;
-}
-
-.contrast-btn {
-    background-color: var(--bnt-color-1);
-    color: var(--bg-color-1);
-}
-
-    .contrast-btn:hover {
-        background-color: var(--bnt-active-color-1);
-    }
-
-.editcard-container {
-    box-sizing: border-box;
-    width: 90%;
-    left: 5%;
-    position: relative;
-    border-radius: var(--border-radius);
-    overflow: hidden;
-}
-
-.editcard-card {
-    outline: 0px solid transparent;
-    min-height: 4rem;
-    font-size: 0.9rem;
-}
-
-.card.editcard-card:hover {
-    padding: 0.5rem;
-    border-color: transparent;
-    border-style: none;
-    cursor: text;
-}
-
-.editcard-card::before {
-    color: var(--text-color-4);
-}
-
-.editcard-card:empty:not(:focus):before {
-    content: attr(placeholder);
-}
-
-.drag-target-card {
-    margin-bottom: 3rem;
-}
-
-.drag-target-cardlist {
-    margin-right: 3rem;
-}
-
+/* ===========================
+   Icons
+=========================== */
 .icon {
     fill: var(--text-color-1);
     stroke: var(--text-color-1);
@@ -833,54 +827,52 @@ button {
     color: var(--bg-color-4);
 }
 
+/* ===========================
+   Project Bar Bin Icon Transition
+=========================== */
 #projectbar .bin-icon {
     opacity: 0;
     width: var(--titlebar-tools-height);
     height: var(--titlebar-tools-height);
-    margin-left: auto;
-    margin-right: auto;
+    margin-inline: auto;
     display: block;
+    transition: opacity 500ms ease;
 }
 
 #projectbar.pb-mode-delete .bin-icon {
     opacity: 1;
-    transition: opacity 500ms ease;
 }
 
 #projectbar.pb-mode-delete {
     background-color: var(--bg-color-5);
-    transition: background-color 500ms ease;
-    transition: padding 300ms ease
+    transition: background-color 500ms ease, padding 300ms ease;
 }
 
-    #projectbar.pb-mode-delete.drag-target-bar {
-        padding-bottom: 2rem;
-    }
-
-.add-attachment-btn {
-    margin-left: 0.8rem;
+#projectbar.pb-mode-delete.drag-target-bar {
+    padding-bottom: 2rem;
 }
 
+/* ===========================
+   Loader Animation
+=========================== */
 .loader {
     width: 4rem;
     height: 4rem;
     border-radius: 2.5rem;
-    margin-right: 1rem;
+    margin-inline-end: 1rem;
     border: 0.5em solid var(--bg-color-1);
     border-top: 0.5em solid var(--bg-color-4);
     animation: spin 1.5s linear infinite;
 }
 
 @keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
+    0% { transform: rotate(0deg);}
+    100% { transform: rotate(360deg);}
 }
 
+/* ===========================
+   Additional UI Components
+=========================== */
 #add-cardlist-btn.cardlist {
     background-color: var(--bg-color-2);
     padding-bottom: 0;
@@ -890,7 +882,7 @@ button {
 .delete-list-btn {
     width: 1.5rem;
     height: 1.5rem;
-    margin-right: 1rem;
+    margin-inline-end: 1rem;
     cursor: pointer;
     display: none;
     padding-bottom: 0.3rem;
@@ -901,9 +893,9 @@ button {
     align-items: center;
 }
 
-    .cardlist-title:hover .delete-list-btn {
-        display: inline-block;
-    }
+.cardlist-title:hover .delete-list-btn {
+    display: inline-block;
+}
 
 .boardtile-btn {
     background: linear-gradient(0deg, var(--bg-color-3) 0%, var(--bg-color-1) 100%);
@@ -912,20 +904,22 @@ button {
     display: block;
 }
 
-    .boardtile-btn h4 {
-        margin-top: 2rem;
-    }
+.boardtile-btn h4 {
+    margin-top: 2rem;
+}
 
-#closedboard, #unaccessibleboard {
+#closedboard,
+#unaccessibleboard {
     align-items: center;
     justify-content: space-between;
     flex-basis: 20rem;
     height: 14rem;
 }
 
-    #closedboard button, #unaccessibleboard button {
-        width: 8rem;
-    }
+#closedboard button,
+#unaccessibleboard button {
+    width: 8rem;
+}
 
 #closedboard-delete-label {
     text-align: center;
@@ -960,44 +954,51 @@ button {
 
 .label-diag {
     position: absolute;
-    flex-direction: column;    
+    display: flex;
+    flex-direction: column;
     margin-top: 1rem;
     gap: 0.2rem;
 }
 
-    .label-diag:not(.hidden) {
-        display: flex;
-    }
+.label-diag:not(.hidden) {
+    display: flex;
+}
 
-    .label-diag .label-row {
-        width: 12rem;
-    }
+.label-diag .label-row {
+    width: 12rem;
+}
 
-@media (height <= 42rem) {
+/* Responsive for small height screens */
+@media (max-height: 42rem) {
     .label-diag {
-        top: 1rem; /* avoid these dialogs going out of screen on some small devices */
+        top: 1rem; /* prevent dialogs going off screen on small devices */
     }
 }
 
-
+/* ===========================
+   Selectable Label Container
+=========================== */
 .selectable-label-container {
     display: flex;
     flex-wrap: nowrap;
     gap: 0.2rem;
 }
 
-    .selectable-label-container .selectable-label {
-        flex: 1 1 auto;
-    }
+.selectable-label-container .selectable-label {
+    flex: 1 1 auto;
+}
 
-    .selectable-label-container #selectable-label-edit-btn {
-        flex: 0 0;
-    }
+.selectable-label-container #selectable-label-edit-btn {
+    flex: 0 0 auto;
+}
 
-    .selectable-label-container button {
-        margin-right: 0;
-    }
+.selectable-label-container button {
+    margin-inline-end: 0;
+}
 
+/* ===========================
+   Dialogs & Messages List
+=========================== */
 #share-dialog {
     max-width: 30rem;
 }
@@ -1008,50 +1009,53 @@ button {
     gap: 0.5rem;
 }
 
-    #share-dialog-list .share-dialog-entry {
-        display: flex;
-    }
+#share-dialog-list .share-dialog-entry {
+    display: flex;
+}
 
-    #share-dialog-list .share-dialog-item {
-        flex: 0 1 10rem;
-    }
+#share-dialog-list .share-dialog-item {
+    flex: 0 1 10rem;
+}
 
 #instance-message {
     margin: 1rem auto 0 auto;
     background-color: var(--accent-color-1);
 }
 
+/* ===========================
+   Progress Bar Animation
+=========================== */
 #progress-bar {
     position: absolute;
-    background-image: linear-gradient(90deg, var(--bnt-active-color-1) 0%, var(--accent-color-1) 50%, var(--bnt-active-color-1) 100%);
+    background-image: linear-gradient(90deg, var(--btn-active-color-1) 0%, var(--accent-color-1) 50%, var(--btn-active-color-1) 100%);
     height: 0.4rem;
     background-size: 50rem;
-    animation: progress-bar-amin 3s linear infinite;
+    animation: progress-bar-anim 3s linear infinite;
     transition: width ease-out 1s;
 }
 
-@keyframes progress-bar-amin {
+@keyframes progress-bar-anim {
     0% {
         background-position-x: 0rem;
     }
-
     100% {
         background-position-x: 100rem;
     }
 }
 
+/* ===========================
+   Loading Spinner Overlay
+=========================== */
 #loading-spinner {
-    display:none;
+    display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
+    inset: 0;
     background-color: var(--bg-color-1);
     background-image: url("../images/tarallo-bg.jpg");
     justify-content: center;
     align-items: center;
     z-index: 9999;
+    display: flex; /* for centering spinner */
 }
 
 #loading-spinner .spinner {
@@ -1061,9 +1065,4 @@ button {
     border-top: 6px solid #3498db;
     border-radius: 50%;
     animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
 }

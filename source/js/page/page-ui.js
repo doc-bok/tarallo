@@ -102,10 +102,10 @@ export class PageUi {
      * @param admin_pass The password of the admin account.
      * @private
      */
-    _loadFirstStartupPage({admin_user, admin_pass}) {
+    _loadFirstStartupPage({admin_user, admin_pass, db_version}) {
         this._loadTemplateWithTitle(
             "tmpl-firststartup",
-            {admin_user, admin_pass},
+            {admin_user, admin_pass, db_version},
             "Tarallo - First Startup");
 
         // add events
@@ -118,11 +118,11 @@ export class PageUi {
      * @param user_name (Optional) The username to fill out the form with.
      * @private
      */
-    _loadLoginPage({instance_msg, user_name=''}) {
+    _loadLoginPage({instance_msg, user_name='', db_version}) {
         // fill page content with the login form
         this._loadTemplateWithTitle(
             "tmpl-login",
-            {user_name},
+            {user_name, db_version},
             "Tarallo - Login");
 
         // setup login button event
@@ -143,7 +143,7 @@ export class PageUi {
                 }
             });
 
-        setEventBySelector(formNode, "#register-page-btn", "onclick", () => this._loadRegisterPage());
+        setEventBySelector(formNode, "#register-page-btn", "onclick", () => this._loadRegisterPage({db_version}));
 
         // add instance message if any
         if (instance_msg) {
@@ -158,10 +158,10 @@ export class PageUi {
      * @param boards The list of boards.
      * @private
      */
-    _loadBoardListPage({display_name, boards}) {
+    _loadBoardListPage({display_name, boards, db_version}) {
         this._loadTemplateWithTitle(
             "tmpl-boardlist",
-            {display_name},
+            {display_name, db_version},
             "Tarallo - Boards");
 
         for (let i = 0; i < boards.length; i++) {
@@ -283,10 +283,10 @@ export class PageUi {
     /**
      * Show the register page.
      */
-    _loadRegisterPage() {
+    _loadRegisterPage({db_version}) {
         this._loadTemplateWithTitle(
             "tmpl-register",
-            {},
+            {db_version},
             "Tarallo - Register");
 
         // Setup register button event
