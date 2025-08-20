@@ -22,23 +22,6 @@ export async function asyncCallV2(apiName, params) {
 // ===== Legacy =====
 
 /**
- * Make an asynchronous call to the Tarallo Server.
- * @param apiName The API to call.
- * @param params The POST parameters.
- * @param onSuccess The callback to use on success.
- * @param onError The callback to use on failure.
- * @returns {Promise<void>}
- */
-export async function asyncCall(apiName, params, onSuccess, onError) {
-    const result = await TaralloServer.call(apiName, params);
-    if (result.succeeded) {
-        onSuccess?.(result.response);
-    } else {
-        onError?.(result.error);
-    }
-}
-
-/**
  * Calls the Tarallo API method with standardised error handling
  * @param {string} method - API operation name
  * @param {Object} args - key/value parameters

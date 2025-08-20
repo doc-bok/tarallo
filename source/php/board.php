@@ -129,8 +129,8 @@ class Board
         $title           = (string)($boardRecord['title'] ?? '');
         $closed          = !empty($boardRecord['closed']);
         $backgroundGuid  = $boardRecord['background_guid'] ?? null;
-        $labelNames      = $boardRecord['label_names'] ?? [];
-        $labelColors     = $boardRecord['label_colors'] ?? [];
+        $labelNames      = $boardRecord['label_names'] ?? '';
+        $labelColors     = $boardRecord['label_colors'] ?? '';
         $lastModified    = isset($boardRecord['last_modified_time'])
             ? (int)$boardRecord['last_modified_time']
             : time();
@@ -144,8 +144,8 @@ class Board
             'background_url'       => self::getBackgroundUrl($id, $backgroundGuid),
             'background_thumb_url' => self::getBackgroundUrl($id, $backgroundGuid, true),
             'background_tiled'     => !$backgroundGuid,
-            'label_names'          => is_array($labelNames) ? $labelNames : json_decode($labelNames, true),
-            'label_colors'         => is_array($labelColors) ? $labelColors : json_decode($labelColors, true),
+            'label_names'          => $labelNames,
+            'label_colors'         => $labelColors,
             'all_color_names'      => Label::DEFAULT_LABEL_COLORS,
             'last_modified_date'   => date('d M Y', $lastModified), // could delegate formatting to caller
         ];

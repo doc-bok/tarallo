@@ -2,7 +2,7 @@ import {Account} from "./auth/account.js";
 import {BoardUI} from './boards/board-ui.js';
 import {CardAttachmentUI} from "./cards/attachment-ui.js";
 import {CardDnd} from "./cards/card-dnd.js";
-import {CardLabelUI} from "./cards/label-ui.js";
+import {CardLabelUI} from "./labels/label-ui.js";
 import {CardUI} from "./cards/card-ui.js";
 import {ImportUI} from "./import-export/import-ui.js";
 import {ListUI} from "./lists/list-ui.js";

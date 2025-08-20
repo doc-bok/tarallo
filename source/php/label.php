@@ -106,8 +106,8 @@ class Label
         $boardData = Board::GetBoardData($boardID /*, Permission::USERTYPE_Member */);
 
         // Split label sets safely
-        $boardLabelNames  = $boardData['label_names'] !== '' ? explode(',', $boardData['label_names']) : [];
-        $boardLabelColors = $boardData['label_colors'] !== '' ? explode(',', $boardData['label_colors']) : [];
+        $boardLabelNames  = $boardData['label_names'] !== null ? explode(',', $boardData['label_names']) : [];
+        $boardLabelColors = $boardData['label_colors'] !== null ? explode(',', $boardData['label_colors']) : [];
 
         $labelCount = count($boardLabelNames);
 
@@ -125,7 +125,7 @@ class Label
 
         // Assign default colour; keep name empty
         $newLabelColor = Label::DEFAULT_LABEL_COLORS[$labelIndex % count(Label::DEFAULT_LABEL_COLORS)];
-        $boardLabelNames[$labelIndex]  = '';  // Leave name blank until user renames
+        $boardLabelNames[$labelIndex]  = $newLabelColor;  // Default to color name
         $boardLabelColors[$labelIndex] = $newLabelColor;
 
         // Persist update
@@ -173,8 +173,8 @@ class Label
         $boardData = Board::GetBoardData($boardID /*, Permission::USERTYPE_Member */);
 
         // Split safely
-        $boardLabelNames  = $boardData['label_names'] !== '' ? explode(',', $boardData['label_names']) : [];
-        $boardLabelColors = $boardData['label_colors'] !== '' ? explode(',', $boardData['label_colors']) : [];
+        $boardLabelNames  = $boardData['label_names'] !== null ? explode(',', $boardData['label_names']) : [];
+        $boardLabelColors = $boardData['label_colors'] !== null ? explode(',', $boardData['label_colors']) : [];
 
         $labelCount = count($boardLabelNames);
         if ($labelIndex < 0 || $labelIndex >= $labelCount) {
@@ -289,8 +289,8 @@ class Label
 
         $boardData = Board::GetBoardData($boardID, Permission::USERTYPE_Member);
 
-        $names  = $boardData['label_names'] !== '' ? explode(',', $boardData['label_names']) : [];
-        $colors = $boardData['label_colors'] !== '' ? explode(',', $boardData['label_colors']) : [];
+        $names  = $boardData['label_names'] !== null ? explode(',', $boardData['label_names']) : [];
+        $colors = $boardData['label_colors'] !== null ? explode(',', $boardData['label_colors']) : [];
 
         if ($labelIndex < 0 || $labelIndex >= count($names)) {
             throw new InvalidArgumentException("Label index $labelIndex out of range.");

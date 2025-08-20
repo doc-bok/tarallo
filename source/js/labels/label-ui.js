@@ -1,5 +1,6 @@
 import {loadTemplate, setEventBySelector} from "../core/utils.js";
-import {serverAction} from "../core/server.js";
+import {Label} from "./label.js";
+import {showErrorPopup} from "../ui/popup.js";
 
 export class CardLabelUI {
 
@@ -8,6 +9,7 @@ export class CardLabelUI {
      */
     constructor() {
         this._allColorNames = [];
+        this.label = new Label();
         this._labelNames = [];
         this._labelColors = [];
     }
@@ -37,7 +39,7 @@ export class CardLabelUI {
     /**
      * Load a label
      */
-    loadLabel(templateName, labelIndex, additionalParams = []) {
+    loadLabel(templateName, labelIndex, additionalParams = {}) {
         const labelData = additionalParams;
         labelData["name"] = this._labelNames[labelIndex];
         labelData["color"] = this._labelColors[labelIndex];
@@ -103,12 +105,13 @@ export class CardLabelUI {
     /**
      * Set a label
      */
-    _setLabel(cardID, index, active) {
-        let args = [];
-        args["card_id"] = cardID;
-        args["index"] = index;
-        args["active"] = active;
-        serverAction("SetCardLabel", args, (response) => this._onOpenCardLabelChanged(response), "page-error");
+    async _setLabel(cardId, labelIndex, active) {
+        try {
+            const response = await this.label.set(cardId, labelIndex, active);
+            this._onOpenCardLabelChanged(response);
+        } catch (e) {
+            showErrorPopup(`Could set label "${labelIndex}" on card with ID "${cardId}": ${e.message}`, 'page-error');
+        }
     }
 
     /**
@@ -193,34 +196,39 @@ export class CardLabelUI {
     /**
      * Save an edited label
      */
-    _editLabelSave(labelIndex, labelName, labelColor) {
-        let args = [];
-        args["index"] = labelIndex;
-        args["name"] = labelName;
-        args["color"] = labelColor;
-        serverAction("UpdateBoardLabel", args, (response) => this._onLabelUpdated(response), "page-error");
+    async _editLabelSave(labelIndex, labelName, labelColor) {
+        try {
+            const response = await this.label.update(labelIndex, labelName, labelColor);
+            this._onLabelUpdated(response);
+        } catch (e) {
+            showErrorPopup(`Could not update label "${labelIndex}": ${e}`, 'page-error');
+        }
     }
 
     /**
      * Delete a label
      */
-    _deleteLabel(labelIndex, buttonElem) {
+    async _deleteLabel(labelIndex, buttonElem) {
         const confirmed = buttonElem.getAttribute("confirmed");
         if (confirmed === 0) { // first confirmation
             buttonElem.textContent = "This label will be removed from all cards, are you sure?";
             buttonElem.setAttribute("confirmed", 1);
             return;
         }
+
         if (confirmed === 1) { // second confirmation
             buttonElem.textContent = "Are you really sure? there is no undo!";
             buttonElem.setAttribute("confirmed", 2);
             return;
         }
 
-        // ask server to delete the label
-        let args = [];
-        args["index"] = labelIndex;
-        serverAction("DeleteBoardLabel", args, (response) => this._onLabelDeleted(response),  "page-error");
+        // Ask server to delete the label.
+        try {
+            const response = await this.label.delete(labelIndex);
+            this._onLabelDeleted(response);
+        } catch (e) {
+            showErrorPopup(`Could not delete label "${labelIndex}": ${e}`, 'page-error');
+        }
     }
 
     /**
@@ -293,8 +301,13 @@ export class CardLabelUI {
     /**
      * Create a label
      */
-    createLabel() {
-        serverAction("CreateBoardLabel", [], (response) => this._onBoardLabelsChanged(response), "page-error");
+    async createLabel() {
+        try {
+            const response = await this.label.create();
+            this._onBoardLabelsChanged(response);
+        } catch (e) {
+            showErrorPopup(`Could not create label: ${e}`, 'page-error');
+        }
     }
 
     /**

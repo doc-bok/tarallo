@@ -273,7 +273,6 @@ export class CardAttachmentUI {
                 });
                 pasteEvent.preventDefault();
             }
-
         }
     }
 }
