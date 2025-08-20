@@ -1,4 +1,4 @@
-import {asyncCallV2} from "../core/server.js";
+import {asyncCall} from "../core/server.js";
 
 /**
  * Class to handle API calls for card lists.
@@ -12,7 +12,7 @@ export class List {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async create(name, prevListId) {
-        return await asyncCallV2('AddCardList', {name, prev_list_id: prevListId});
+        return await asyncCall('AddCardList', {name, prev_list_id: prevListId});
     }
 
     /**
@@ -22,7 +22,7 @@ export class List {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async updateName(id, name) {
-        return await asyncCallV2('UpdateCardListName', {id, name});
+        return await asyncCall('UpdateCardListName', {id, name});
     }
 
     /**
@@ -32,7 +32,7 @@ export class List {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async move(movedCardListId, newPrevCardListId) {
-        return await asyncCallV2(
+        return await asyncCall(
             'MoveCardList',
             {
                 moved_cardlist_id: movedCardListId,
@@ -46,6 +46,6 @@ export class List {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async delete(id) {
-        return await asyncCallV2('DeleteCardList', {id});
+        return await asyncCall('DeleteCardList', {id});
     }
 }

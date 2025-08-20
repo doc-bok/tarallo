@@ -1,4 +1,4 @@
-import { asyncCallV2 } from '../core/server.js';
+import { asyncCall } from '../core/server.js';
 import {
     blurOnEnter,
     loadTemplate,
@@ -40,7 +40,7 @@ export class PageUi {
     async getCurrentPage() {
         try {
             this._showLoadingSpinner();
-            const response = await asyncCallV2("GetCurrentPage", {});
+            const response = await asyncCall("GetCurrentPage", {});
             this._loadPage(response);
         } catch (e) {
             showErrorPopup("Failed to load page: " + e.message, "page-error");

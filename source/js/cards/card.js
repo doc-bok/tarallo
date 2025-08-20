@@ -1,4 +1,4 @@
-import {asyncCallV2} from "../core/server.js";
+import {asyncCall} from "../core/server.js";
 
 /**
  * Class to handle server operations for cards.
@@ -12,7 +12,7 @@ export class Card {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async create(cardListId, title) {
-        return await asyncCallV2('AddNewCard', {cardlist_id: cardListId, title})
+        return await asyncCall('AddNewCard', {cardlist_id: cardListId, title})
     }
 
     /**
@@ -21,7 +21,7 @@ export class Card {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async open(id) {
-        return await asyncCallV2('OpenCard', {id});
+        return await asyncCall('OpenCard', {id});
     }
 
     /**
@@ -32,7 +32,7 @@ export class Card {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async move(movedCardId, newPrevCardId, destinationCardListId) {
-        return await asyncCallV2(
+        return await asyncCall(
             'MoveCard',
             {
                 moved_card_id: movedCardId,
@@ -48,7 +48,7 @@ export class Card {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async updateTitle(id, title) {
-        return await asyncCallV2('UpdateCardTitle', {id, title});
+        return await asyncCall('UpdateCardTitle', {id, title});
     }
 
     /**
@@ -58,7 +58,7 @@ export class Card {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async updateFlags(id, locked) {
-        return await asyncCallV2('UpdateCardFlags', {id, locked});
+        return await asyncCall('UpdateCardFlags', {id, locked});
     }
 
     /**
@@ -68,7 +68,7 @@ export class Card {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async updateContent(id, content) {
-        return await asyncCallV2('UpdateCardContent', {id, content});
+        return await asyncCall('UpdateCardContent', {id, content});
     }
 
     /**
@@ -77,6 +77,6 @@ export class Card {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async delete(id) {
-        return await asyncCallV2('DeleteCard', {deleted_card_id: id});
+        return await asyncCall('DeleteCard', {deleted_card_id: id});
     }
 }

@@ -1,4 +1,4 @@
-import {asyncCallV2} from "../core/server.js";
+import {asyncCall} from "../core/server.js";
 
 /**
  * Handles server operations for labels.
@@ -10,7 +10,7 @@ export class Label {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async create() {
-        return await asyncCallV2("CreateBoardLabel", {})
+        return await asyncCall("CreateBoardLabel", {})
     }
 
     /**
@@ -21,7 +21,7 @@ export class Label {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async update(index, name, color) {
-        return await asyncCallV2('UpdateBoardLabel', {index, name, color});
+        return await asyncCall('UpdateBoardLabel', {index, name, color});
     }
 
     /**
@@ -32,7 +32,7 @@ export class Label {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async set(cardId, index, active) {
-        return await asyncCallV2('SetCardLabel', {card_id: cardId, index, active});
+        return await asyncCall('SetCardLabel', {card_id: cardId, index, active});
     }
 
     /**
@@ -41,6 +41,6 @@ export class Label {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async delete(index) {
-        return await  asyncCallV2('DeleteBoardLabel', {index});
+        return await  asyncCall('DeleteBoardLabel', {index});
     }
 }

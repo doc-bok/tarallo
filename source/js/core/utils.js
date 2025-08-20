@@ -145,7 +145,7 @@ export function replaceHtmlTemplateArgs(templateHtml, args) {
 /**
  * Convert a Json file to an object
  */
-export function JsonFileToObj(file) {
+export function jsonFileToObj(file) {
     return new Promise(resolve => {
         // read the file content as a base64 string
         const reader = new FileReader();

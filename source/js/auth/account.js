@@ -1,4 +1,4 @@
-import {asyncCallV2} from '../core/server.js';
+import {asyncCall} from '../core/server.js';
 
 /**
  * Class to help with auth level operations
@@ -19,7 +19,7 @@ export class Account {
             display_name: displayName
         };
 
-        return await asyncCallV2("Register", args);
+        return await asyncCall("Register", args);
     }
 
     /**
@@ -30,14 +30,14 @@ export class Account {
      */
     async login(username, password) {
         const args = { username, password };
-        return await asyncCallV2("Login", args);
+        return await asyncCall("Login", args);
     }
 
     /**
      * Logs a user out of the session.
      */
     async logout() {
-        return await asyncCallV2('Logout', {});
+        return await asyncCall('Logout', {});
     }
 
     /**
@@ -48,6 +48,6 @@ export class Account {
      */
     async setUserPermission(userId, userType) {
         const args = { user_id: userId, user_type: userType };
-        return await asyncCallV2("SetUserPermission", args);
+        return await asyncCall("SetUserPermission", args);
     }
 }

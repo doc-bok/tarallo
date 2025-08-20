@@ -4,7 +4,7 @@ import {CardAttachmentUI} from "./attachment/attachment-ui.js";
 import {CardDnd} from "./cards/card-dnd.js";
 import {CardLabelUI} from "./labels/label-ui.js";
 import {CardUI} from "./cards/card-ui.js";
-import {ImportUI} from "./import-export/import-ui.js";
+import {ImportExportUi} from "./import-export/import-export-ui.js";
 import {ListUI} from "./lists/list-ui.js";
 import {PageUi} from './page/page-ui.js';
 import {Page} from "./page/page.js";
@@ -31,7 +31,7 @@ export class TaralloClient {
         this.boardUI = new BoardUI();
         this.cardDnd = new CardDnd();
         this.cardUI = new CardUI();
-        this.importUI = new ImportUI();
+        this.importUI = new ImportExportUi();
         this.labelUI = new CardLabelUI();
         this.listUI = new ListUI();
         this.page = new Page();

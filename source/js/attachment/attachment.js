@@ -1,4 +1,4 @@
-import {asyncCallV2} from "../core/server.js";
+import {asyncCall} from "../core/server.js";
 
 /**
  * Class to handle Attachment API calls.
@@ -13,7 +13,7 @@ export class Attachment {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async upload(cardId, filename, attachment) {
-        return await asyncCallV2('UploadAttachment', {card_id: cardId, filename, attachment});
+        return await asyncCall('UploadAttachment', {card_id: cardId, filename, attachment});
     }
 
     /**
@@ -23,7 +23,7 @@ export class Attachment {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async updateName(id, name) {
-        return await asyncCallV2('UpdateAttachmentName', {id, name});
+        return await asyncCall('UpdateAttachmentName', {id, name});
     }
 
     /**
@@ -32,6 +32,6 @@ export class Attachment {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async delete(id) {
-        return await asyncCallV2('DeleteAttachment', {id});
+        return await asyncCall('DeleteAttachment', {id});
     }
 }

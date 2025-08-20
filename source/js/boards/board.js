@@ -1,4 +1,4 @@
-import {asyncCallV2} from "../core/server.js";
+import {asyncCall} from "../core/server.js";
 
 /**
  * Class to handle API calls for boards.
@@ -10,7 +10,7 @@ export class Board {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async create() {
-        return await asyncCallV2('CreateNewBoard', {title: 'My New Board'});
+        return await asyncCall('CreateNewBoard', {title: 'My New Board'});
     }
 
     /**
@@ -19,7 +19,7 @@ export class Board {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async getPermissions(id) {
-        return await asyncCallV2('GetBoardPermissions', {id});
+        return await asyncCall('GetBoardPermissions', {id});
     }
 
     /**
@@ -27,7 +27,7 @@ export class Board {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async requestAccess() {
-        return await asyncCallV2('RequestBoardAccess', {});
+        return await asyncCall('RequestBoardAccess', {});
     }
 
     /**
@@ -36,7 +36,7 @@ export class Board {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async updateTitle(title) {
-        return await asyncCallV2('UpdateBoardTitle', {title});
+        return await asyncCall('UpdateBoardTitle', {title});
     }
 
     /**
@@ -46,7 +46,7 @@ export class Board {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async uploadBackground(filename, background) {
-        return await asyncCallV2('UploadBackground', {filename, background});
+        return await asyncCall('UploadBackground', {filename, background});
     }
 
     /**
@@ -55,7 +55,7 @@ export class Board {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async close(id) {
-        return await asyncCallV2('CloseBoard', {id});
+        return await asyncCall('CloseBoard', {id});
     }
 
     /**
@@ -64,7 +64,7 @@ export class Board {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async reopen(id) {
-        return await asyncCallV2('ReopenBoard', {id});
+        return await asyncCall('ReopenBoard', {id});
     }
 
     /**
@@ -73,6 +73,6 @@ export class Board {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async delete(id) {
-        return await asyncCallV2('DeleteBoard', {id});
+        return await asyncCall('DeleteBoard', {id});
     }
 }
