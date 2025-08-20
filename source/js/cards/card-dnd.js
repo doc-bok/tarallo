@@ -1,5 +1,3 @@
-import {serverAction} from "../core/server.js";
-
 /**
  * Handles drag/drop UI operations
  */
@@ -8,18 +6,20 @@ export class CardDnd {
     draggedCard = null;
 
     /**
-     * Init UI dependencies
+     * Init UI dependencies.
+     * @param cardUI The Card UI.
+     * @param page The page API.
      */
-    init({cardUI, listUI, page}) {
+    init({cardUI, page}) {
         this.cardUI = cardUI;
-        this.listUI = listUI;
         this.page = page;
     }
 
     /**
-     * Start dragging a card
+     * Start dragging a card.
+     * @param event The drag event.
      */
-    dragCardStart(event) {
+    start(event) {
         this.draggedCard = event.currentTarget;
         const projectBar = this.page.getProjectBarElem();
         projectBar.classList.add("pb-mode-delete");
@@ -27,9 +27,10 @@ export class CardDnd {
     }
 
     /**
-     * Enter drag card state
+     * Enter drag card state.
+     * @param event The drag event.
      */
-    dragCardEnter(event) {
+    enter(event) {
         if (this.draggedCard === null) {
             return; // not dragging a cardlist
         }
@@ -39,9 +40,10 @@ export class CardDnd {
     }
 
     /**
-     * Leave the drag card state
+     * Leave the drag card state.
+     * @param event The drag event.
      */
-    dragCardLeave(event) {
+    leave(event) {
         // discard leave events if we are just leaving a child
         if (event.currentTarget.contains(event.relatedTarget)) {
             return;
@@ -56,9 +58,10 @@ export class CardDnd {
     }
 
     /**
-     * Drop a card somewhere
+     * Drop a card somewhere.
+     * @param event The drag event.
      */
-    dropCard(event) {
+    async dropMove(event) {
         event.currentTarget.classList.remove("drag-target-card");
 
         // check that a dragged card has been saved
@@ -67,41 +70,61 @@ export class CardDnd {
         }
 
         // fill call args
-        let args = [];
-        args["moved_card_id"] = this.draggedCard.getAttribute("dbid");
+        const movedCardId = this.draggedCard.getAttribute("dbid");
+        let newPrevCardId = 0;
         if (event.currentTarget.matches(".card")) {
-            args["new_prev_card_id"] = event.currentTarget.getAttribute("dbid");
-        } else {
-            args["new_prev_card_id"] = 0;
+            newPrevCardId = event.currentTarget.getAttribute("dbid");
         }
-        args["dest_cardlist_id"] = event.currentTarget.closest(".cardlist").getAttribute("dbid");
+
+        const destCardListId= event.currentTarget.closest(".cardlist").getAttribute("dbid");
 
         // make the call if the card has actually moved
-        if (args["moved_card_id"] !== args["new_prev_card_id"]) {
-            serverAction("MoveCard", args, (response) => this._onCardMoved(response), "page-error");
+        if (movedCardId !== newPrevCardId) {
+            await this.cardUI.moveCard(movedCardId, newPrevCardId, destCardListId);
         } else {
             this.draggedCard = null;
         }
     }
 
     /**
-     * End dragging a card
+     * Called when a card is moved.
      */
-    dragCardEnd(event) {
-        this.page.getProjectBarElem().classList.remove("pb-mode-delete");
-    }
-
-    /**
-     * Called when a card is moved
-     */
-    _onCardMoved(jsonResponseObj) {
+    onCardMoved() {
         this.draggedCard.remove(); // remove from the old position
-        this.cardUI.onCardAdded(jsonResponseObj); // add back in the new position
         this.draggedCard = null;
     }
 
     /**
+     * Drop on delete.
+     * @param event The drag event.
+     */
+    async dropDelete(event) {
+        event.currentTarget.classList.remove("drag-target-bar");
+
+        if (this.draggedCard !== null) { // drag-delete card
+            const id = this.draggedCard.getAttribute("dbid");
+            await this.cardUI.deleteCard(id);
+        }
+    }
+
+    /**
+     * Called when a card is deleted.
+     */
+    onCardDeleted() {
+        this.draggedCard.remove();
+        this.draggedCard = null;
+    }
+
+    /**
+     * End dragging a card.
+     */
+    end() {
+        this.page.getProjectBarElem().classList.remove("pb-mode-delete");
+    }
+
+    /**
      * Drag a file to attach
+     * TODO: Move to attachmentDnd?
      */
     dragOverAttachment(event) {
         event.preventDefault();
@@ -109,6 +132,7 @@ export class CardDnd {
 
     /**
      * Drag to delete
+     * TODO: Move to delete element handler? Or page-dnd?
      */
     dragDeleteEnter(event) {
         event.currentTarget.classList.add("drag-target-bar");
@@ -117,6 +141,7 @@ export class CardDnd {
 
     /**
      * End drag to delete
+     * TODO: Move to delete element handler? Or page-dnd?
      */
     dragDeleteLeave(event) {
         // discard leave events if we are just leaving a child
@@ -126,34 +151,5 @@ export class CardDnd {
 
         event.currentTarget.classList.remove("drag-target-bar");
         event.preventDefault();
-    }
-
-    /**
-     * Drop on delete
-     */
-    dropDelete(event) {
-        event.currentTarget.classList.remove("drag-target-bar");
-
-        if (this.draggedCard !== null) { // drag-delete card
-            // fill call args
-            let args = [];
-            args["deleted_card_id"] = this.draggedCard.getAttribute("dbid");
-
-            // make the call if the card has actually moved
-            serverAction("DeleteCard", args, (response) => this._onCardDeleted(response), "page-error");
-        } else if (this.draggedCardList !== null) {
-            // trigger cardlist deletion
-            const cardlistID = this.draggedCardList.getAttribute("dbid");
-            this.listUI.deleteCardList(cardlistID, this.draggedCardList);
-            this.draggedCardList = null;
-        }
-    }
-
-    /**
-     * Called when a card is deleted
-     */
-    _onCardDeleted(jsonResponseObj) {
-        this.draggedCard.remove();
-        this.draggedCard = null;
     }
 }

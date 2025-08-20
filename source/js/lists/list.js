@@ -11,7 +11,7 @@ export class List {
      * @param prevListId The id of the previous card on the linked list.
      * @returns {Promise<*>} Updated when operation completes.
      */
-    async add(name, prevListId) {
+    async create(name, prevListId) {
         return await asyncCallV2('AddCardList', {name, prev_list_id: prevListId});
     }
 

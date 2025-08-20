@@ -302,7 +302,7 @@ function HtmlNodeToMarkup(htmlNode) {
 }
 
 // converts an html string into db markup language and returns it
-function ContentHtmlToMarkup(html) {
+function contentHtmlToMarkup(html) {
     
     const parsingDiv = document.createElement("div");
     parsingDiv.innerHTML = html;
@@ -318,7 +318,7 @@ function ContentHtmlToMarkup(html) {
 // converts an html string into db markup language and returns it.
 // differently from ContentHtmlToMarkup() preserve some html tags that make it esier to edit it.
 function ContentHtmlToMarkupEditing(html) {
-    let editableMarkup = ContentHtmlToMarkup(html);
+    let editableMarkup = contentHtmlToMarkup(html);
 
     // preserve new lines
     editableMarkup = editableMarkup.replaceAll("\n", "<br>");

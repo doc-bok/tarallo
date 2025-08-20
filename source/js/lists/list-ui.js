@@ -12,7 +12,7 @@ export class ListUI {
      * @param page The page API.
      */
     init({cardDND: cardDnd, cardUI, page}) {
-        this.cardDND = cardDnd;
+        this.cardDnd = cardDnd;
         this.cardUI = cardUI;
         this.list = new List();
         this.listDnd = new ListDnd(this, page)
@@ -79,9 +79,9 @@ export class ListUI {
         // drag and drop events
         const cardlistStartElem = cardlistElem.querySelector(".cardlist-start");
         cardlistStartElem.ondragover = (e) => e.preventDefault();
-        cardlistStartElem.ondragenter = (e) => this.cardDND.dragCardEnter(e);
-        cardlistStartElem.ondragleave = (e) => this.cardDND.dragCardLeave(e);
-        cardlistStartElem.ondrop = (e) => this.cardDND.dropCard(e);
+        cardlistStartElem.ondragenter = (e) => this.cardDnd.enter(e);
+        cardlistStartElem.ondragleave = (e) => this.cardDnd.leave(e);
+        cardlistStartElem.ondrop = (e) => this.cardDnd.dropMove(e);
 
         // events
         cardlistElem.ondragstart = (e) => this.listDnd.start(e);
@@ -102,7 +102,7 @@ export class ListUI {
         const prevListId = this.page.getAddCardListButtonElem().previousElementSibling?.getAttribute("dbid") || 0;
 
         try {
-            const response = await this.list.add('New List', prevListId);
+            const response = await this.list.create('New List', prevListId);
             this._onCardListAdded(response);
         } catch (e) {
             showErrorPopup(`Could not add card list: ${e.message}`, 'page-error');

@@ -26,7 +26,7 @@ export class PageUi {
     init({account: account, boardUI, cardDND, cardUI, importUI, labelUI, listUI, page}) {
         this.account = account;
         this.boardUI = boardUI;
-        this.cardDND = cardDND;
+        this.cardDnd = cardDND;
         this.cardUI = cardUI;
         this.importUI = importUI;
         this.labelUI = labelUI;
@@ -230,9 +230,9 @@ export class PageUi {
         // project bar drag drop events
         const projectBar = this.page.getProjectBarElem();
         projectBar.ondragover = (e) => e.preventDefault();
-        projectBar.ondragenter = (e) => this.cardDND.dragDeleteEnter(e);
-        projectBar.ondragleave = (e) => this.cardDND.dragDeleteLeave(e);
-        projectBar.ondrop = (e) => this.cardDND.dropDelete(e);
+        projectBar.ondragenter = (e) => this.cardDnd.dragDeleteEnter(e);
+        projectBar.ondragleave = (e) => this.cardDnd.dragDeleteLeave(e);
+        projectBar.ondrop = (e) => this.cardDnd.dropDelete(e);
 
         // other events
         setEventBySelector(projectBar, "#board-title", "onblur", (elem) => this.boardUI.boardTitleChanged(elem));

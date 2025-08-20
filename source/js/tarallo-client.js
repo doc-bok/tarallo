@@ -29,7 +29,7 @@ export class TaralloClient {
         this.account = new Account();
         this.attachmentUI = new CardAttachmentUI();
         this.boardUI = new BoardUI();
-        this.cardDND = new CardDnd();
+        this.cardDnd = new CardDnd();
         this.cardUI = new CardUI();
         this.importUI = new ImportUI();
         this.labelUI = new CardLabelUI();
@@ -55,14 +55,13 @@ export class TaralloClient {
 
         this.cardUI.init({
             attachmentUI: this.attachmentUI,
-            cardDND: this.cardDND,
+            cardDnd: this.cardDnd,
             labelUI: this.labelUI,
             page: this.page,
         });
 
-        this.cardDND.init({
+        this.cardDnd.init({
             cardUI: this.cardUI,
-            listUI: this.listUI,
             page: this.page,
         });
 
@@ -72,7 +71,7 @@ export class TaralloClient {
         });
 
         this.listUI.init({
-            cardDND: this.cardDND,
+            cardDnd: this.cardDnd,
             cardUI: this.cardUI,
             page: this.page
         });
@@ -80,7 +79,7 @@ export class TaralloClient {
         this.pageUI.init({
             account: this.account,
             boardUI: this.boardUI,
-            cardDND: this.cardDND,
+            cardDnd: this.cardDnd,
             cardUI: this.cardUI,
             importUI: this.importUI,
             labelUI: this.labelUI,
