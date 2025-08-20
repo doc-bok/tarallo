@@ -2,7 +2,7 @@ import {showErrorPopup, showInfoPopup} from "../ui/popup.js";
 import {
     AddClassToAll,
     blurOnEnter,
-    CloseDialog,
+    closeDialog,
     loadTemplate,
     RemoveClassFromAll,
     setEventBySelector
@@ -251,7 +251,7 @@ export class CardUI {
         }
 
         // events
-        setEventBySelector(openCardElem, ".dialog-close-btn", "onclick", () => CloseDialog());
+        setEventBySelector(openCardElem, ".dialog-close-btn", "onclick", () => closeDialog('card-dialog-container'));
         setEventBySelector(openCardElem, "#opencard-title", "onblur", (elem) => this._cardTitleChanged(elem, openCardData["id"]));
         setEventBySelector(openCardElem, "#opencard-title", "onkeydown", (elem, event) => blurOnEnter(event));
         setEventBySelector(openCardElem, ".opencard-add-label", "onclick", () => this.labelUI.openLabelSelectionDialog());

@@ -492,9 +492,7 @@ select:focus-visible {
    Editable Content Focus Style
 =========================== */
 [contentEditable]:focus {
-    outline-style: solid;
-    outline-color: var(--accent-color-1);
-    outline-width: 0.15rem;
+    outline: var(--accent-color-1) solid 0.15rem;
 }
 
 /* ===========================
@@ -596,7 +594,7 @@ select:focus-visible {
 /* ===========================
    Dialog Container & Open Card Layout
 =========================== */
-#dialog-container {
+.dialog-container {
     position: absolute;
     left: 0;
     top: var(--titlebar-height);
@@ -1035,7 +1033,7 @@ select:focus-visible {
 
 @keyframes progress-bar-anim {
     0% {
-        background-position-x: 0rem;
+        background-position-x: 0;
     }
     100% {
         background-position-x: 100rem;
@@ -1046,7 +1044,6 @@ select:focus-visible {
    Loading Spinner Overlay
 =========================== */
 #loading-spinner {
-    display: none;
     position: fixed;
     inset: 0;
     background-color: var(--bg-color-1);

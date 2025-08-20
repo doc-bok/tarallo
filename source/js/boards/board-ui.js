@@ -1,5 +1,5 @@
 import {
-    CloseDialog,
+    closeDialog,
     fileToBase64,
     loadTemplate,
     selectFileDialog,
@@ -167,7 +167,7 @@ export class BoardUI {
     _loadShareDialog(jsonResponseObj) {
         // initialize the share dialog
         const shareDialogElem = loadTemplate("tmpl-share-dialog", jsonResponseObj);
-        setEventBySelector(shareDialogElem, ".dialog-close-btn", "onclick", () => CloseDialog());
+        setEventBySelector(shareDialogElem, ".dialog-close-btn", "onclick", () => closeDialog('share-dialog-container'));
         const permissionListElem = shareDialogElem.querySelector("#share-dialog-list");
         const dialogButtons = permissionListElem.querySelector(".share-dialog-entry");
 

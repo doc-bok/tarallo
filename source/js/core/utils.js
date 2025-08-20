@@ -103,8 +103,8 @@ export function RemoveClassFromAll(parentNode, cssSelector, className) {
 /**
  * Close a dialogue
  */
-export function CloseDialog() {
-    const openCardElem = document.getElementById("dialog-container");
+export function closeDialog(containerElemId) {
+    const openCardElem = document.getElementById(containerElemId);
     openCardElem.remove();
 }
 
