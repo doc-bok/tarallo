@@ -55,6 +55,9 @@ class Page
 
         $boardData['display_name'] = $displayName;
 
+        // Add the database version
+        $boardData['db_version'] = DB::getDBSetting('db_version');
+
         if (!empty($boardData['closed'])) {
             return [
                 'page_name'    => 'ClosedBoard',
@@ -109,10 +112,10 @@ class Page
         return [
             'page_name'    => 'BoardList',
             'page_content' => array_merge($settings, [
-                'boards'           => $boardList,
-                'background_url'   => self::DEFAULT_BG,
-                'background_tiled' => true,
-                'display_name'     => $displayName
+                'boards'            => $boardList,
+                'background_url'    => self::DEFAULT_BG,
+                'background_tiled'  => true,
+                'display_name'      => $displayName
             ])
         ];
     }

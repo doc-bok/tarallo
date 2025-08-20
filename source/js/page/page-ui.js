@@ -55,8 +55,8 @@ export class PageUi {
      * @private
      */
     _loadPage(response) {
-        const pageContent = response["page_content"];
-        const pageName = response["page_name"];
+        const pageContent = response.page_content;
+        const pageName = response.page_name;
         switch (pageName) {
             case "FirstStartup":
                 this._loadFirstStartupPage(pageContent);
@@ -76,6 +76,12 @@ export class PageUi {
             case "UnaccessibleBoard":
                 this._loadUnaccessibleBoardPage(pageContent);
                 break;
+        }
+
+        // Update the footer.
+        const footerElem = this.page.getFooterElem();
+        if (footerElem) {
+            footerElem.innerHTML = replaceHtmlTemplateArgs(footerElem.innerHTML, pageContent);
         }
 
         // update background if required

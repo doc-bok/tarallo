@@ -28,11 +28,11 @@ export class Page {
     }
 
     /**
-     * Get the login form's username element.
-     * @returns {HTMLElement} The HTML element.
+     * Get the footer element from the DOM.
+     * @returns {HTMLElement} The footer element.
      */
-    getLoginUsernameElem() {
-        return document.getElementById("login-username");
+    getFooterElem() {
+        return document.getElementById("footer");
     }
 
     /**
