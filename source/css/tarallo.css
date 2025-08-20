@@ -15,8 +15,8 @@
     --text-color-5: #0df;
 
     --accent-color-1: #bb21ad;
-    --btn-color-1: #55a7ff; /* Fixed typo from --bnt-color-1 */
-    --btn-active-color-1: #90c6ff;
+    --btn-color-1: #0d0d0d;
+    --btn-active-color-1: #2d2d2d;
 
     --label-color-red: #f87168;
     --label-color-orange: #fea362;
@@ -148,8 +148,7 @@ a, a:visited {
 a:hover,
 a:focus-visible {
     color: var(--btn-active-color-1);
-    outline-offset: 2px;
-    outline: 2px solid var(--accent-color-1);
+    text-decoration: underline;
 }
 
 /* ===========================
@@ -241,12 +240,13 @@ button:focus-visible {
 
 .contrast-btn {
     background-color: var(--btn-color-1);
-    color: var(--bg-color-1);
+    color: var(--text-color-3);
 }
 
 .contrast-btn:hover,
 .contrast-btn:focus-visible {
     background-color: var(--btn-active-color-1);
+    color: var(--text-color-1);
     outline-offset: 2px;
     outline: 2px solid var(--accent-color-1);
 }
@@ -330,7 +330,7 @@ select:focus-visible {
 }
 
 #login-form, #register-form {
-    flex-basis: 13rem;
+    flex-basis: 18rem;
 }
 
 #first-startup-diag {
@@ -594,8 +594,7 @@ select:focus-visible {
 .inline-link:hover,
 .inline-link:focus-visible {
     color: var(--text-color-1);
-    outline-offset: 2px;
-    outline: 2px solid var(--accent-color-1);
+    text-decoration: underline;
 }
 
 /* ===========================

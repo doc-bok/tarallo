@@ -132,7 +132,7 @@ export class PageUi {
      * @param user_name (Optional) The username to fill out the form with.
      * @private
      */
-    _loadLoginPage({instance_msg, user_name=''}) {
+    _loadLoginPage({instance_msg, user_name = ''}) {
         // fill page content with the login form
         this._loadTemplateWithTitle(
             "tmpl-login",
@@ -140,22 +140,12 @@ export class PageUi {
             "Tarallo - Login");
 
         // setup login button event
-        const formNode = document.querySelector("#login-form");
+        const formNode = this.page.getLoginFormElem();
         setEventBySelector(
             formNode,
             "#login-btn",
             "onclick",
-            async () => {
-                const username = formNode.querySelector('#login-username').value;
-                const password = formNode.querySelector('#login-password').value;
-
-                try {
-                    await this.account.login(username, password);
-                    await this.getCurrentPage();
-                } catch (e) {
-                    showErrorPopup("Login failed: " + e.message, 'login-error');
-                }
-            });
+            () => this._login())
 
         setEventBySelector(formNode, "#register-page-btn", "onclick", () => this._loadRegisterPage({}));
 
@@ -208,7 +198,7 @@ export class PageUi {
                        all_color_names,
                        cardlists,
                        cards
-    }) {
+                   }) {
         this._loadTemplateWithTitle(
             "tmpl-board",
             {title, id, display_name},
@@ -291,7 +281,7 @@ export class PageUi {
         }
 
         //events
-        this._onClick("unaccessibleboard-request-btn",() => this.boardUI.requestBoardAccess());
+        this._onClick("unaccessibleboard-request-btn", () => this.boardUI.requestBoardAccess());
     }
 
     /**
@@ -412,7 +402,7 @@ export class PageUi {
         // iterate over the sorted cardlists
         let maxCount = indexedResults.size;
         let curCount = 0;
-        while (curID !== 0)	{
+        while (curID !== 0) {
             if (curCount >= maxCount) {
                 console.error("Invalid DB iterator (loop detected at ID = %d).", curID);
                 break;
@@ -429,6 +419,21 @@ export class PageUi {
 
             curID = curItem[nextIndexFieldName];
             curCount++;
+        }
+    }
+
+    async _login() {
+        const formNode = this.page.getLoginFormElem();
+        if (formNode) {
+        const username = formNode.querySelector('#login-username').value;
+        const password = formNode.querySelector('#login-password').value;
+
+        try {
+            await this.account.login(username, password);
+            await this.getCurrentPage();
+        } catch (e) {
+            showErrorPopup("Login failed: " + e.message, 'login-error');
+        }
         }
     }
 }

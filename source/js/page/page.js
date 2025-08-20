@@ -36,6 +36,14 @@ export class Page {
     }
 
     /**
+     * Get the login form.
+     * @returns {HTMLElement} The login form element.
+     */
+    getLoginFormElem() {
+        return document.getElementById("login-form");
+    }
+
+    /**
      * Get the project bar button.
      * @returns {HTMLElement} The HTML element.
      */

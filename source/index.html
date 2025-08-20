@@ -7,52 +7,75 @@
     <link rel="icon" type="image/png" sizes="64x64" href="images/favicon-large.png">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
     <link href="css/tarallo.css" rel="stylesheet" type="text/css" />
+
+    <!-- Template loaded for first startup -->
     <template id="tmpl-firststartup">
         <div class="centered-container">
-            <div id="first-startup-diag" class="centered-dialog dialog">
+            <form id="first-startup-diag" class="centered-dialog dialog">
                 <h1>Welcome to Tarallo!</h1>
                 <p class="dim-text">Your Tarallo instance has just been initialized.</p>
                 <p class="separator">A new administrator account has been created:</p>
-                <label>Username</label>
-                <input value="$admin_user" readonly>
-                <label>Password</label>
-                <input value="$admin_pass" readonly>
+                <label>
+                    Username
+                    <input value="$admin_user" readonly>
+                </label>
+                <label>
+                    Password
+                    <input value="$admin_pass" readonly>
+                </label>
                 <p class="popup persistent warning text-center">NB: This account credentials won't be shown again so save them!</p>
-                <button id="continue-btn" class="contrast-btn separator">Continue to Tarallo</button>
-            </div>
+                <button type="submit" id="continue-btn" class="contrast-btn separator">Continue to Tarallo</button>
+            </form>
         </div>
     </template>
+
+    <!-- Template loaded for login page -->
     <template id="tmpl-login">
         <div class="centered-container">
-            <div id="login-form" class="centered-dialog dialog">
-                <label>Username</label>
-                <input type="text" id="login-username" placeholder="Username" value="$user_name" />
-                <label>Password</label>
-                <input type="password" id="login-password" placeholder="Password" />
-                <button id="login-btn" class="contrast-btn separator full-width">Login</button>
-                <a id="register-page-btn" class="inline-link separator" href="#">register a new account</a>
+            <form id="login-form" class="centered-dialog dialog">
+                <label>
+                    Username
+                    <input type="text" id="login-username" placeholder="Username" value="$user_name" />
+                </label>
+                <label>
+                    Password
+                   <input type="password" id="login-password" placeholder="Password" />
+                </label>
+                <button type="submit" id="login-btn" class="contrast-btn separator full-width">Login</button>
+                <a id="register-page-btn" class="inline-link separator" href="#">Register a New Account</a>
                 <p id="login-error" class="popup separator"></p>
-            </div>
+            </form>
         </div>
     </template>
+
+    <!--- Template loaded for an instance message -->
     <template id="tmpl-instance-msg">
         <div id="instance-message" class="popup persistent">$instance_msg</div>
     </template>
+
+    <!-- Template loaded for the register page -->
     <template id="tmpl-register">
         <div class="centered-container">
-            <div id="register-form" class="centered-dialog dialog">
-                <label>Username</label>
-                <input type="text" id="register-username" placeholder="Username" />
-                <label>Display Name</label>
-                <input type="text" id="login-display-name" placeholder="Name Surname" />
-                <label>Password</label>
-                <input type="password" id="register-password" placeholder="Password" />
-                <button id="register-btn" class="contrast-btn separator full-width">Register</button>
-                <a id="login-page-btn" class="inline-link separator" href="#">go back to login page</a>
+            <form id="register-form" class="centered-dialog dialog">
+                <label>
+                    Username
+                    <input type="text" id="register-username" placeholder="Username" />
+                </label>
+                <label>
+                    Display Name
+                    <input type="text" id="login-display-name" placeholder="Name Surname" />
+                </label>
+                <label>
+                    Password
+                    <input type="password" id="register-password" placeholder="Password" />
+                </label>
+                <button type="submit" id="register-btn" class="contrast-btn separator full-width">Register</button>
+                <a id="login-page-btn" class="inline-link separator" href="#">Go Back to Login Page</a>
                 <p id="register-error" class="popup separator"></p>
-            </div>
+            </form>
         </div>
     </template>
+
     <template id="tmpl-boardlist">
         <div id="board-lists-container" class="vscrollable">
             <div id="boards">
