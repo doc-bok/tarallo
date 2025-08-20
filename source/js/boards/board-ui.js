@@ -2,7 +2,7 @@ import {
     CloseDialog,
     fileToBase64,
     loadTemplate,
-    SelectFileDialog,
+    selectFileDialog,
     setEventBySelector
 } from "../core/utils.js";
 import {ShareDialog} from "../ui/share-dialog.js";
@@ -127,7 +127,7 @@ export class BoardUI {
      * Change the background of a board
      */
     changeBackground() {
-        SelectFileDialog("image/*", false, (file) => this._onBackgroundSelected(file));
+        selectFileDialog("image/*", false, (file) => this._onBackgroundSelected(file));
     }
 
     /**

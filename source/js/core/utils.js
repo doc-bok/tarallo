@@ -50,7 +50,7 @@ export function loadTemplate(templateName, args) {
  * @param multipleFiles
  * @param onSelected
  */
-export function SelectFileDialog(contentType, multipleFiles, onSelected) {
+export function selectFileDialog(contentType, multipleFiles, onSelected) {
     return new Promise(() => {
         let input = document.createElement('input');
         input.type = 'file';

@@ -1,6 +1,6 @@
 import {Account} from "./auth/account.js";
 import {BoardUI} from './boards/board-ui.js';
-import {CardAttachmentUI} from "./cards/attachment-ui.js";
+import {CardAttachmentUI} from "./attachment/attachment-ui.js";
 import {CardDnd} from "./cards/card-dnd.js";
 import {CardLabelUI} from "./labels/label-ui.js";
 import {CardUI} from "./cards/card-ui.js";

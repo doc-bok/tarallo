@@ -1,6 +1,6 @@
 import {showErrorPopup} from "../ui/popup.js";
 import {serverAction, serverActionAsync} from "../core/server.js";
-import {fileToBase64, JsonFileToObj, loadTemplate, SelectFileDialog} from "../core/utils.js";
+import {fileToBase64, JsonFileToObj, loadTemplate, selectFileDialog} from "../core/utils.js";
 
 /**
  * Class to handle import/export operations
@@ -19,7 +19,7 @@ export class ImportUI {
      * Imports a board
      */
     importBoard() {
-        SelectFileDialog("application/zip", false, (boardExportZip) => {
+        selectFileDialog("application/zip", false, (boardExportZip) => {
             this._onBoardExportSelected(boardExportZip);
         });
     }
@@ -93,7 +93,7 @@ export class ImportUI {
     }
 
     importFromTrello() {
-        SelectFileDialog("application/json", false, (jsonFile) => this._onTrelloExportSelected(jsonFile));
+        selectFileDialog("application/json", false, (jsonFile) => this._onTrelloExportSelected(jsonFile));
     }
 
     async _onTrelloExportSelected(jsonFile) {
