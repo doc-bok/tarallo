@@ -119,7 +119,7 @@ export class BoardUI {
      * Called when a board title is updated
      */
     _onBoardTitleUpdated(jsonResponseObj) {
-        const boardTitleElem = document.getElementById("projectbar-left").querySelector("h2");
+        const boardTitleElem = document.getElementById("project-bar-left").querySelector("h2");
         boardTitleElem.textContent = jsonResponseObj["title"];
     }
 

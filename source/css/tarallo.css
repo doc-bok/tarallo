@@ -293,7 +293,7 @@ select:focus-visible {
     overflow-y: hidden;
 }
 
-#projectbar {
+#project-bar {
     background-color: var(--bg-color-2);
     display: flex;
     align-items: center;
@@ -317,7 +317,7 @@ select:focus-visible {
     outline: none;
 }
 
-#projectbar-middle {
+#project-bar-middle {
     flex-grow: 1;
     height: var(--titlebar-tools-height);
 }
@@ -829,7 +829,7 @@ select:focus-visible {
 /* ===========================
    Project Bar Bin Icon Transition
 =========================== */
-#projectbar .bin-icon {
+#project-bar .bin-icon {
     opacity: 0;
     width: var(--titlebar-tools-height);
     height: var(--titlebar-tools-height);
@@ -838,16 +838,16 @@ select:focus-visible {
     transition: opacity 500ms ease;
 }
 
-#projectbar.pb-mode-delete .bin-icon {
+#project-bar.pb-mode-delete .bin-icon {
     opacity: 1;
 }
 
-#projectbar.pb-mode-delete {
+#project-bar.pb-mode-delete {
     background-color: var(--bg-color-5);
     transition: background-color 500ms ease, padding 300ms ease;
 }
 
-#projectbar.pb-mode-delete.drag-target-bar {
+#project-bar.pb-mode-delete.drag-target-bar {
     padding-bottom: 2rem;
 }
 

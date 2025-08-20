@@ -40,7 +40,7 @@ export class Page {
      * @returns {HTMLElement} The HTML element.
      */
     getProjectBarElem() {
-        return document.getElementById("projectbar");
+        return document.getElementById("project-bar");
     }
 
     /**

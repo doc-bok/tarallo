@@ -11,7 +11,7 @@ export class ListUI {
      * @param cardUI The card UI.
      * @param page The page API.
      */
-    init({cardDND: cardDnd, cardUI, page}) {
+    init({cardDnd, cardUI, page}) {
         this.cardDnd = cardDnd;
         this.cardUI = cardUI;
         this.list = new List();

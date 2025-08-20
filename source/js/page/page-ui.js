@@ -6,6 +6,7 @@ import {
     setEventBySelector
 } from '../core/utils.js';
 import {showErrorPopup, showInfoPopup} from "../ui/popup.js";
+import {ProjectBar} from "../ui/project-bar.js";
 
 /**
  * Class to help with page-level operations.
@@ -16,22 +17,23 @@ export class PageUi {
      * Ensure we have access to required fields.
      * @param account The account API
      * @param boardUI The board UI
-     * @param cardDND The card drag-and-drop interface
+     * @param cardDnd The card drag-and-drop interface
      * @param cardUI The card UI
      * @param importUI The import UI
      * @param labelUI The label UI
      * @param listUI The list UI
      * @param page The page helpers
      */
-    init({account: account, boardUI, cardDND, cardUI, importUI, labelUI, listUI, page}) {
+    init({account: account, boardUI, cardDnd, cardUI, importUI, labelUI, listUI, page}) {
         this.account = account;
         this.boardUI = boardUI;
-        this.cardDnd = cardDND;
+        this.cardDnd = cardDnd;
         this.cardUI = cardUI;
         this.importUI = importUI;
         this.labelUI = labelUI;
         this.listUI = listUI;
         this.page = page;
+        this._projectBar = new ProjectBar();
     }
 
     /**
@@ -55,25 +57,37 @@ export class PageUi {
      * @private
      */
     _loadPage(response) {
+
         const pageContent = response.page_content;
         const pageName = response.page_name;
         switch (pageName) {
             case "FirstStartup":
+                this._projectBar.hide();
                 this._loadFirstStartupPage(pageContent);
                 break;
+
             case "Login":
+                this._projectBar.hide();
                 this._loadLoginPage(pageContent);
                 break;
+
             case "BoardList":
+                this._projectBar.showSimple(pageContent);
                 this._loadBoardListPage(pageContent);
                 break;
+
             case "Board":
+                this._projectBar.showFull(pageContent);
                 this._loadBoardPage(pageContent);
                 break;
+
             case "ClosedBoard":
+                this._projectBar.showSimple(pageContent);
                 this._loadClosedBoardPage(pageContent);
                 break;
+
             case "UnaccessibleBoard":
+                this._projectBar.showSimple(pageContent);
                 this._loadUnaccessibleBoardPage(pageContent);
                 break;
         }
@@ -84,14 +98,8 @@ export class PageUi {
             footerElem.innerHTML = replaceHtmlTemplateArgs(footerElem.innerHTML, pageContent);
         }
 
-        // update background if required
-        if (pageContent["background_url"] !== undefined) {
-            this.boardUI.setBackground(pageContent["background_url"], pageContent["background_tiled"]);
-        }
-
-        // add needed events
-        this._onClick(
-            "projectbar-logout-btn",
+        // Hook up logout event.
+        this._projectBar.setLogoutEvent(
             async () => {
                 try {
                     await this.account.logout();
