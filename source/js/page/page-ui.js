@@ -108,10 +108,10 @@ export class PageUi {
      * @param admin_pass The password of the admin account.
      * @private
      */
-    _loadFirstStartupPage({admin_user, admin_pass, db_version}) {
+    _loadFirstStartupPage({admin_user, admin_pass}) {
         this._loadTemplateWithTitle(
             "tmpl-firststartup",
-            {admin_user, admin_pass, db_version},
+            {admin_user, admin_pass},
             "Tarallo - First Startup");
 
         // add events
@@ -124,11 +124,11 @@ export class PageUi {
      * @param user_name (Optional) The username to fill out the form with.
      * @private
      */
-    _loadLoginPage({instance_msg, user_name='', db_version}) {
+    _loadLoginPage({instance_msg, user_name=''}) {
         // fill page content with the login form
         this._loadTemplateWithTitle(
             "tmpl-login",
-            {user_name, db_version},
+            {user_name},
             "Tarallo - Login");
 
         // setup login button event
@@ -149,7 +149,7 @@ export class PageUi {
                 }
             });
 
-        setEventBySelector(formNode, "#register-page-btn", "onclick", () => this._loadRegisterPage({db_version}));
+        setEventBySelector(formNode, "#register-page-btn", "onclick", () => this._loadRegisterPage({}));
 
         // add instance message if any
         if (instance_msg) {
@@ -164,10 +164,10 @@ export class PageUi {
      * @param boards The list of boards.
      * @private
      */
-    _loadBoardListPage({display_name, boards, db_version}) {
+    _loadBoardListPage({display_name, boards}) {
         this._loadTemplateWithTitle(
             "tmpl-boardlist",
-            {display_name, db_version},
+            {display_name},
             "Tarallo - Boards");
 
         for (let i = 0; i < boards.length; i++) {
@@ -289,21 +289,21 @@ export class PageUi {
     /**
      * Show the register page.
      */
-    _loadRegisterPage({db_version}) {
+    _loadRegisterPage({}) {
         this._loadTemplateWithTitle(
             "tmpl-register",
-            {db_version},
+            {},
             "Tarallo - Register");
 
         // Setup register button event
-        const formNode = document.querySelector("#login-form");
+        const formNode = document.querySelector("#register-form");
         setEventBySelector(
             formNode,
             "#register-btn",
             "onclick",
             async () => {
-                const username = formNode.querySelector("#login-username").value;
-                const password = formNode.querySelector("#login-password").value;
+                const username = formNode.querySelector("#register-username").value;
+                const password = formNode.querySelector("#register-password").value;
                 const displayName = formNode.querySelector("#login-display-name").value;
 
                 try {
