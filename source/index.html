@@ -97,11 +97,11 @@
     <template id="tmpl-boardtile">
         <div class="boardtile" style="background-image: url('$background_thumb_url')" id="board-tile-$id">
             <div class="backdrop">
+                <svg class="delete-board-btn contrast-icon"><use href="#icon-trashbin" /></svg>
                 <a href="?board_id=$id">
                     <h4>$title</h4>
                     <p class="last-edit-date">Last edit: $last_modified_date</p>
                 </a>
-                <svg class="delete-board-btn contrast-icon"><use href="#icon-trashbin" /></svg>
             </div>
         </div>
     </template>
@@ -297,13 +297,15 @@
         <h1>Tarall<img class="title-icon" src="images/favicon-large.png" /></h1>
     </div>
 
+    <!-- The Project Bar -->
     <div id="project-bar">
         <div id="project-bar-left" class="projectbar-tile">
             <h2 id="board-title" contenteditable="true" spellcheck="false">$title</h2>
             <h3>
-                <a id="board-change-bg-btn" class="inline-link" href="#">background</a>
-                <a id="board-share-btn" class="inline-link" href="#">share</a>
-                <a id="board-export-btn" class="inline-link" href="php/api.php?OP=ExportBoard&board_id=$id">export</a>
+                <a class="inline-link" href="?">Back to Boards</a> |
+                <a id="board-change-bg-btn" class="inline-link" href="#">Change Background</a> |
+                <a id="board-share-btn" class="inline-link" href="#">Edit Permissions</a> |
+                <a id="board-export-btn" class="inline-link" href="php/api.php?OP=ExportBoard&board_id=$id">Export Board</a>
             </h3>
         </div>
 
@@ -311,11 +313,10 @@
             <svg class="bin-icon contrast-icon"><use href="#icon-trashbin" /></svg>
         </div>
 
-        <div id="projectbar-right" class="projectbar-tile">
+        <div id="project-bar-right" class="projectbar-tile">
             <h3>
-                $display_name
-                <a class="inline-link" href="?">boards</a>
-                <a id="project-bar-logout-btn" class="inline-link" href="#">log out</a>
+                Logged in as $display_name |
+                <a id="project-bar-logout-btn" class="inline-link" href="#">Log Out</a>
             </h3>
         </div>
     </div>
