@@ -8,6 +8,7 @@
     --bg-color-4: #fff2;
     --bg-color-5: #ff000080;
     --bg-color-6: #333;
+    --bg-color-7: #ff000050;
 
     --text-color-1: #e2d35e;
     --text-color-2: #eee;
@@ -980,12 +981,13 @@ select:focus-visible {
 
 .label {
     color: var(--bg-color-2);
+    font-weight: bold;
 }
 
 .card-label {
     border-radius: var(--border-radius);
     font-size: 0.8rem;
-    padding: 0.05rem 0.5rem;
+    padding: 0.5rem 1rem;
     color: var(--bg-color-6);
 }
 
@@ -1115,4 +1117,20 @@ select:focus-visible {
     border-top: 6px solid #3498db;
     border-radius: 50%;
     animation: spin 1s linear infinite;
+}
+
+/* ===========================
+   Page Error Popup
+=========================== */
+
+#page-error {
+    margin: 0;
+    border: 1px solid black;
+    background: url('../images/error.svg') no-repeat left 1em center;
+    padding-left: 4rem;
+    display: none;
+}
+
+#page-error:hover {
+    opacity: 0.5;
 }

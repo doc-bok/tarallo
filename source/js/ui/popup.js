@@ -2,20 +2,20 @@
  * Error popup message display
  */
 export function showErrorPopup(errorMsg, popupID) {
-        ShowPopup(errorMsg, popupID, "#d44");
+        showPopup(errorMsg, popupID, "#d44");
 }
 
 /**
  * Info popup message display
  */
 export function showInfoPopup(infoMessage, popupID) {
-    ShowPopup(infoMessage, popupID, "#2aa");
+    showPopup(infoMessage, popupID, "#2aa");
 }
 
 /**
  * Show a Popup
  */
-export function ShowPopup(msg, popupID, color) {
+export function showPopup(msg, popupID, color) {
     if (typeof popupID !== 'undefined') {
         // fill the error displaying element
         const popupElem = document.getElementById(popupID);
@@ -27,5 +27,8 @@ export function ShowPopup(msg, popupID, color) {
         popupElem.offsetHeight; /* trigger reflow */
         popupElem.style.animation = null;
         popupElem.classList.add("popup-animate");
+        popupElem.style.display = "block";
+
+        popupElem.onclick = () => popupElem.style.display = "none";
     }
 }
