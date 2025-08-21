@@ -7,6 +7,7 @@
     --bg-color-3: #121500;
     --bg-color-4: #fff2;
     --bg-color-5: #ff000080;
+    --bg-color-6: #333;
 
     --text-color-1: #e2d35e;
     --text-color-2: #eee;
@@ -323,10 +324,6 @@ select:focus-visible {
     outline: none;
 }
 
-#project-bar-left, #project-bar-closed {
-    margin-left: 1rem;
-}
-
 #board-title {
     margin-left: 1rem;
     background: var(--bg-color-2);
@@ -334,9 +331,13 @@ select:focus-visible {
     border-radius: var(--border-radius);
 }
 
-#project-bar-middle {
+#project-bar-left, #project-bar-closed {
     flex-grow: 1;
-    height: var(--titlebar-tools-height);
+}
+
+#project-bar-middle {
+    height: 4em;
+    margin: auto;
 }
 
 #project-bar-right {
@@ -412,7 +413,7 @@ select:focus-visible {
 }
 
 .card {
-    background: var(--bg-color-1);
+    background: var(--bg-color-6);
     user-select: none;
     cursor: pointer;
 }
@@ -463,7 +464,7 @@ select:focus-visible {
    Dialogs and Popups
 =========================== */
 .dialog {
-    background-color: var(--bg-color-1);
+    background-color: var(--bg-color-6);
     border-radius: var(--border-radius);
     padding: 2rem;
     border: 0.1rem solid var(--bg-color-4);
@@ -674,8 +675,8 @@ select:focus-visible {
     padding: 0.5rem;
     font-size: 0.9rem;
     line-height: 1.5rem;
-    margin: 1rem;
     border-radius: var(--border-radius);
+    background: var(--bg-color-4);
 }
 
 .opencard-content input[type="checkbox"] {
@@ -774,7 +775,6 @@ select:focus-visible {
 }
 
 .opencard-attachment {
-    height: 5rem;
     display: flex;
     padding: 0.5rem;
     border-radius: var(--border-radius);
@@ -893,6 +893,11 @@ select:focus-visible {
     padding-bottom: 2rem;
 }
 
+#project-bar.pb-mode-delete #project-bar-left,
+#project-bar.pb-mode-delete #project-bar-right {
+    display: none !important;
+}
+
 /* ===========================
    Loader Animation
 =========================== */
@@ -974,13 +979,18 @@ select:focus-visible {
 }
 
 .label {
-    color: var(--bg-color-1);
+    color: var(--bg-color-2);
 }
 
 .card-label {
     border-radius: var(--border-radius);
     font-size: 0.8rem;
     padding: 0.05rem 0.5rem;
+    color: var(--bg-color-6);
+}
+
+.card img {
+    border: 2px solid var(--bg-color-1);
 }
 
 .opencard-label {
@@ -988,8 +998,8 @@ select:focus-visible {
 }
 
 .card-moved-date {
+    color: var(--text-color-3);
     font-size: 0.9rem;
-    font-weight: bold;
     margin: 0 0.5rem;
 }
 

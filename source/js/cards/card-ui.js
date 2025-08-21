@@ -2,7 +2,7 @@ import {showErrorPopup, showInfoPopup} from "../ui/popup.js";
 import {
     blurOnEnter,
     closeDialog,
-    loadTemplate,
+    loadTemplate, selectAllInnerText,
     setEventBySelector,
     setOnClickEventBySelector,
     setOnEnterEventBySelector
@@ -145,7 +145,7 @@ export class CardUI {
         const newCardNode = this.loadCard(response);
 
         // Add it to the cardlist node, after the prev card id.
-        const cardlistNode = document.getElementById(`cardlist-" + ${response.cardlist_id}`);
+        const cardlistNode = document.getElementById(`cardlist-${response.cardlist_id}`);
         if (!cardlistNode){
             showErrorPopup(`Couldn't find Card List with ID "${response.cardlist_id}`, 'page-error');
             return;
@@ -302,16 +302,66 @@ export class CardUI {
         }
 
         // events
-        setEventBySelector(openCardElem, ".dialog-close-btn", "onclick", () => closeDialog('card-dialog-container'));
-        setEventBySelector(openCardElem, "#opencard-title", "onblur", (elem) => this._cardTitleChanged(elem, openCardData["id"]));
-        setEventBySelector(openCardElem, "#opencard-title", "onkeydown", (elem, event) => blurOnEnter(event));
-        setEventBySelector(openCardElem, ".opencard-add-label", "onclick", () => this.labelUI.openLabelSelectionDialog());
-        setEventBySelector(openCardElem, ".opencard-label-cancel-btn", "onclick", () => this.labelUI.closeLabelSelectionDialog());
-        setEventBySelector(openCardElem, ".opencard-label-create-btn", "onclick", () => this.labelUI.createLabel());
-        setEventBySelector(openCardElem, ".opencard-content", "onfocus", (elem) => this._cardContentEditing(elem));
-        setEventBySelector(openCardElem, ".opencard-content", "onblur", (elem) => this._cardContentChanged(elem, openCardData["id"]));
-        setEventBySelector(openCardElem, ".add-attachment-btn", "onclick", () => this.attachmentUI.addAttachment(openCardData["id"]));
-        setEventBySelector(openCardElem, ".opencard-lock-btn", "onclick", (elem) => this._cardContentLock(elem, openCardElem));
+        setOnClickEventBySelector(
+            openCardElem,
+            ".dialog-close-btn",
+            () => closeDialog('card-dialog-container'));
+
+        setOnClickEventBySelector(
+            openCardElem,
+            '#opencard-title',
+            () => selectAllInnerText('opencard-title')
+        )
+
+        setEventBySelector(
+            openCardElem,
+            "#opencard-title",
+            "onblur",
+            (elem) => this._cardTitleChanged(elem, openCardData["id"]));
+
+        setEventBySelector(
+            openCardElem,
+            "#opencard-title",
+            "onkeydown",
+            (elem, event) => blurOnEnter(event));
+
+        setOnClickEventBySelector(
+            openCardElem,
+            ".opencard-add-label",
+            () => this.labelUI.openLabelSelectionDialog());
+
+        setOnClickEventBySelector(
+            openCardElem,
+            ".opencard-label-cancel-btn",
+            () => this.labelUI.closeLabelSelectionDialog());
+
+        setOnClickEventBySelector(
+            openCardElem,
+            ".opencard-label-create-btn",
+            () => this.labelUI.createLabel());
+
+        setEventBySelector(
+            openCardElem,
+            ".opencard-content",
+            "onfocus",
+            (elem) => this._cardContentEditing(elem));
+
+        setEventBySelector(
+            openCardElem,
+            ".opencard-content",
+            "onblur",
+            (elem) => this._cardContentChanged(elem, openCardData["id"]));
+
+        setOnClickEventBySelector(
+            openCardElem,
+            ".add-attachment-btn",
+            () => this.attachmentUI.addAttachment(openCardData["id"]));
+
+        setOnClickEventBySelector(
+            openCardElem,
+            ".opencard-lock-btn",
+            (elem) => this._cardContentLock(elem, openCardElem));
+
         await this._setCardContentEventHandlers(openCardElem.querySelector(".opencard-content"));
 
         // drag drop files over a card events

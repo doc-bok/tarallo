@@ -167,7 +167,7 @@
         <div class="card" dbid="$id" id="card-$id" draggable="true">
             <img class="lazy" src="" data-src="" />
             <div class="card-labellist labellist hidden"></div>
-            <p>$title</p>
+            <h4>$title</h4>
             <div class="card-moved-date hidden">&#10149 $last_moved_date</div>
         </div>
     </template>
@@ -225,6 +225,8 @@
     <template id="tmpl-opencard-label">
         <button id="label-$card-id-$index-open" class="label label-$index $color">$name</button>
     </template>
+
+    <!-- Template for a card attachment -->
     <template id="tmpl-opencard-attachment">
         <div class="opencard-attachment" id="attachment-$id">
             <a class="opencard-attachment-link" href="" target="_blank">
@@ -234,7 +236,7 @@
             </a>
             <div class="loader"></div>
             <div class="opencard-attachment-desc">
-                <p class="attachment-name" contenteditable="true">$name</p>
+                <p id="attachment-$id-title" class="attachment-name" contenteditable="true">$name</p>
                 <div class="toolbar">
                     <button class="copy-markup-btn dim-btn thin-btn">Copy Markup</button>
                 </div>
@@ -301,6 +303,7 @@
 
     <!-- The Project Bar -->
     <div id="project-bar">
+
         <div id="project-bar-left" class="projectbar-tile">
             <h2 id="board-title" contenteditable="true" spellcheck="false">$title</h2>
             <h3>
@@ -311,15 +314,15 @@
             </h3>
         </div>
 
+        <div id="project-bar-middle" class="projectbar-tile">
+            <svg class="bin-icon icon"><use href="#icon-trashbin" /></svg>
+        </div>
+
         <div id="project-bar-closed" class="projectbar-tile">
             <h2 id="board-title-closed">$title</h2>
             <h3>
                 <a class="inline-link" href="?">Back to Boards</a>
             </h3>
-        </div>
-
-        <div id="project-bar-middle" class="projectbar-tile">
-            <svg class="bin-icon contrast-icon"><use href="#icon-trashbin" /></svg>
         </div>
 
         <div id="project-bar-right" class="projectbar-tile">

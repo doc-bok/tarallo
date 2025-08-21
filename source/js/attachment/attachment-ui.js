@@ -1,5 +1,12 @@
 import {showErrorPopup, showInfoPopup} from "../ui/popup.js";
-import {blurOnEnter, fileToBase64, loadTemplate, selectFileDialog, setEventBySelector} from "../core/utils.js";
+import {
+    blurOnEnter,
+    fileToBase64,
+    loadTemplate, selectAllInnerText,
+    selectFileDialog,
+    setEventBySelector,
+    setOnClickEventBySelector
+} from "../core/utils.js";
 import {Attachment} from "./attachment.js";
 
 /**
@@ -37,9 +44,30 @@ export class CardAttachmentUI {
                 // loaded attachment
                 attachmentLinkElem.setAttribute("href", url);
                 attachmentElem.querySelector(".loader").remove();
-                setEventBySelector(attachmentElem, ".opencard-attachment-delete-btn", "onclick", () => this._deleteAttachment(response["id"]));
-                setEventBySelector(attachmentElem, ".attachment-name", "onblur", (elem) => this._attachmentNameChanged(elem, response["id"]));
-                setEventBySelector(attachmentElem, ".attachment-name", "onkeydown", (elem, event) => blurOnEnter(event));
+
+                // Events
+                setOnClickEventBySelector(
+                    attachmentElem,
+                    ".opencard-attachment-delete-btn",
+                    () => this._deleteAttachment(response.id));
+
+                setEventBySelector(
+                    attachmentElem,
+                    ".attachment-name",
+                    "onblur",
+                    (elem) => this._attachmentNameChanged(elem, response.id));
+
+                setEventBySelector(
+                    attachmentElem,
+                    ".attachment-name",
+                    "onkeydown",
+                    (elem, event) => blurOnEnter(event));
+
+                setOnClickEventBySelector(
+                    attachmentElem,
+                    '.attachment-name',
+                    () => selectAllInnerText(`attachment-${response.id}-title`)
+                )
 
                 if (thumbUrl) {
                     // prepare attachment with a preview
