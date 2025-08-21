@@ -137,15 +137,70 @@ class File {
      * @throws RuntimeException if FTP root is not configured.
      */
     public static function ftpDir(string $relativePath): string {
-        $ftpRoot = Config::get('FTP_ROOT');
+        Logger::info("Converting relative path [" . $relativePath . "] to absolute path.");
+
+        $ftpRoot = rtrim(Config::get('FTP_ROOT'), '/');
         if (!$ftpRoot) {
             Logger::error("FTP root is not configured.");
             throw new RuntimeException("FTP root is not configured.");
         }
 
-        $absPath = $ftpRoot . '/' . ltrim($relativePath, '/');
-        // Normalise slashes and resolve .. or . segments
-        return preg_replace('#/+#', '/', $absPath);
+        Logger::info("FTP root is set to [" . $ftpRoot . "].");
+
+        // Normalize slashes to forward slash for consistent processing
+        $ftpRoot = str_replace('\\', '/', $ftpRoot);
+        $relativePath = str_replace('\\', '/', $relativePath);
+
+        // Remove trailing slash from ftpRoot and leading slashes from relativePath
+        $ftpRoot = rtrim($ftpRoot, '/');
+        $relativePath = ltrim($relativePath, '/');
+
+        $path = $ftpRoot . '/' . ltrim($relativePath, '/');
+        $parts = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+
+            if ($segment === '..') {
+                array_pop($parts);
+            } else {
+                $parts[] = $segment;
+            }
+        }
+
+        $resolvedPath = implode('/', $parts);
+
+        // On Windows, remove leading slash if it exists and root is drive letter
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+
+            // Check if root looks like "C:"
+            if (preg_match('/^[A-Za-z]:$/', $parts[0])) {
+
+                // Add drive letter back with slash in Windows style
+                $resolvedPath = $parts[0] . '/' . implode('/', array_slice($parts, 1));
+            }
+        } else {
+            // On non-Windows, prepend root slash
+            $resolvedPath = '/' . $resolvedPath;
+        }
+
+        // Validate that resolved path starts with ftpRoot (both normalized)
+        $normalFtpRoot = rtrim(str_replace('\\', '/', $ftpRoot), '/');
+        $normalResolved = rtrim(str_replace('\\', '/', $resolvedPath), '/');
+
+        if (!str_starts_with($normalResolved, $normalFtpRoot)) {
+            Logger::error("Resolved path escapes FTP root([" . $ftpRoot. "]): [" . $resolvedPath . "]. Relative path is [" . $relativePath . "].");
+            throw new RuntimeException("Resolved path escapes FTP root. [$resolvedPath]");
+        }
+
+        // For Windows, optionally convert slashes back to backslashes if needed
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            $resolvedPath = str_replace('/', DIRECTORY_SEPARATOR, $resolvedPath);
+        }
+
+        Logger::info("Relative path [" . $relativePath . "] converted to absolute path [" . $resolvedPath . "].");
+        return $resolvedPath;
     }
 
     /**
@@ -158,7 +213,7 @@ class File {
     public static function prepareDir(string $filePath, int $mode = 0775): bool
     {
         // Resolve absolute directory path
-        $absDir = self::ftpDir(dirname($filePath));
+        $absDir = self::ftpDir($filePath);
 
         if (is_dir($absDir)) {
             return true; // already exists
@@ -574,7 +629,7 @@ class File {
                 if (empty($_SESSION['is_admin']) && !DB::getDBSetting('board_import_enabled')) {
                     throw new RuntimeException("Board import is disabled on this server (upload)", 403);
                 }
-                $destFilePath = Board::TEMP_EXPORT_PATH;
+                $destFilePath = Board::TEMP_EXPORT_FILE;
                 break;
             default:
                 throw new RuntimeException("Invalid upload context '$context'", 400);
@@ -587,7 +642,7 @@ class File {
         }
 
         // --- Ensure directory exists ---
-        File::prepareDir(dirname(File::ftpDir($destFilePath)));
+        File::prepareDir($destFilePath);
 
         // --- Determine write mode ---
         $writeFlags = ($chunkIndex === 0) ? 0 : FILE_APPEND;

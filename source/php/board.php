@@ -9,6 +9,7 @@ class Board
     const DEFAULT_BG = "images/tarallo-bg.jpg";
     const DEFAULT_BOARDTILE_BG = "images/boardtile-bg.jpg";
     const TEMP_EXPORT_PATH = "temp";
+    const TEMP_EXPORT_FILE = "temp/export.zip";
 
     /**
      * Retrieves board data for the given board ID and user,
@@ -699,7 +700,7 @@ class Board
     private static function openExportZip(): ZipArchive
     {
         $zip = new ZipArchive();
-        $path = File::ftpDir(self::TEMP_EXPORT_PATH);
+        $path = File::ftpDir(self::TEMP_EXPORT_FILE);
 
         if ($zip->open($path) !== true) {
             throw new RuntimeException("Export zip not found", 500);
@@ -862,7 +863,7 @@ class Board
         }
         $zip->close();
         File::deleteFile($boardFolder . "db.json");
-        File::deleteFile(self::TEMP_EXPORT_PATH);
+        File::deleteFile(self::TEMP_EXPORT_FILE);
     }
 
     /**

@@ -14,7 +14,7 @@ export class ImportExport {
      * @returns {Promise<*>} Updated when operation completed.
      */
     async uploadChunk(context, chunkCount, data, chunkIndex) {
-        return await asyncCall('UploadChunk', {chunkCount, data, chunkIndex});
+        return await asyncCall('UploadChunk', {context, chunkCount, data, chunkIndex});
     }
 
     /**
