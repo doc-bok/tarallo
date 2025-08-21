@@ -8,7 +8,7 @@ class Board
     const BOARD_CONTENT_BASE = "boards";
     const DEFAULT_BG = "images/tarallo-bg.jpg";
     const DEFAULT_BOARDTILE_BG = "images/boardtile-bg.jpg";
-    const TEMP_EXPORT_PATH = "temp/export.zip";
+    const TEMP_EXPORT_PATH = "temp";
 
     /**
      * Retrieves board data for the given board ID and user,
