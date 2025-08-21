@@ -52,8 +52,8 @@ export class PageUi {
     }
 
     /**
-     * Load a page from the json response
-     * @param response The JSON response object
+     * Load a page from the json response.
+     * @param response The JSON response object.
      * @private
      */
     _loadPage(response) {
@@ -72,22 +72,22 @@ export class PageUi {
                 break;
 
             case "BoardList":
-                this._projectBar.showSimple(pageContent);
+                this._projectBar.showBasicOptions(pageContent);
                 this._loadBoardListPage(pageContent);
                 break;
 
             case "Board":
-                this._projectBar.showFull(pageContent);
+                this._projectBar.showBoardOptions(pageContent);
                 this._loadBoardPage(pageContent);
                 break;
 
             case "ClosedBoard":
-                this._projectBar.showSimple(pageContent);
+                this._projectBar.showClosedBoardOptions(pageContent);
                 this._loadClosedBoardPage(pageContent);
                 break;
 
             case "UnaccessibleBoard":
-                this._projectBar.showSimple(pageContent);
+                this._projectBar.showBasicOptions(pageContent);
                 this._loadUnaccessibleBoardPage(pageContent);
                 break;
         }
