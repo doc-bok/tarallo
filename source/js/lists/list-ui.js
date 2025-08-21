@@ -1,4 +1,4 @@
-import {blurOnEnter, loadTemplate, setEventBySelector} from "../core/utils.js";
+import {blurOnEnter, loadTemplate, selectAllInnerText, setEventBySelector} from "../core/utils.js";
 import {showErrorPopup} from "../ui/popup.js";
 import {List} from "./list.js";
 import {ListDnd} from "./list-dnd.js";
@@ -26,72 +26,55 @@ export class ListUI {
      * @returns {*} The card list element.
      */
     loadCardList({id, name}) {
-        const cardlistElem = loadTemplate("tmpl-cardlist", {id, name});
+        const cardListElem = loadTemplate("tmpl-cardlist", {id, name});
+        if (!cardListElem) {
+            throw new Error(`Failed to load card list template with ID "${id}"`);
+        }
 
         // events
         setEventBySelector(
-            cardlistElem,
+            cardListElem,
             ".cardlist-title h3",
             "onfocus",
-            () => this._nameEditStart(cardlistElem));
+            () => this._nameEditStart(cardListElem));
 
-        const nameChangedHandler = (elem) => this._nameChanged(id, elem, cardlistElem);
         setEventBySelector(
-            cardlistElem,
+            cardListElem,
+            ".cardlist-title h3",
+            "onclick",
+            () => selectAllInnerText(`card-list-title-${id}`));
+
+        const nameChangedHandler = (elem) => this._nameChanged(id, elem, cardListElem);
+        setEventBySelector(
+            cardListElem,
             ".cardlist-title h3",
             "onblur",
             nameChangedHandler);
 
         setEventBySelector(
-            cardlistElem,
+            cardListElem,
             ".cardlist-title h3",
             "onkeydown",
             (elem, event) => blurOnEnter(event));
 
-        setEventBySelector(
-            cardlistElem,
-            ".addcard-btn",
-            "onclick",
-            () => this.cardUI.addNewCard(id, cardlistElem));
-
-        setEventBySelector(
-            cardlistElem,
-            ".editcard-submit-btn",
-            "onclick",
-            () => this.cardUI.newCard(id, cardlistElem));
-
-        setEventBySelector(
-            cardlistElem,
-            ".editcard-card",
-            "onkeydown",
-            (elem, keydownEvent) => {
-                if (keydownEvent.keyCode === 13) {
-                    keydownEvent.preventDefault();
-                    this.cardUI.newCard(id, cardlistElem)
-                }
-            });
-
-        setEventBySelector(cardlistElem,
-            ".editcard-cancel-btn",
-            "onclick",
-            () => this.cardUI.cancelNewCard(cardlistElem));
+        this.cardUI.setupEvents(id, cardListElem);
 
         // drag and drop events
-        const cardlistStartElem = cardlistElem.querySelector(".cardlist-start");
+        const cardlistStartElem = cardListElem.querySelector(".cardlist-start");
         cardlistStartElem.ondragover = (e) => e.preventDefault();
         cardlistStartElem.ondragenter = (e) => this.cardDnd.enter(e);
         cardlistStartElem.ondragleave = (e) => this.cardDnd.leave(e);
         cardlistStartElem.ondrop = (e) => this.cardDnd.dropMove(e);
 
         // events
-        cardlistElem.ondragstart = (e) => this.listDnd.start(e);
-        cardlistElem.ondragenter = (e) => this.listDnd.enter(e);
-        cardlistElem.ondragover = (e) => e.preventDefault();
-        cardlistElem.ondragleave = (e) => this.listDnd.leave(e);
-        cardlistElem.ondrop = (e) => this.listDnd.dropMove(e);
-        cardlistElem.ondragend = () => this.listDnd.end();
+        cardListElem.ondragstart = (e) => this.listDnd.start(e);
+        cardListElem.ondragenter = (e) => this.listDnd.enter(e);
+        cardListElem.ondragover = (e) => e.preventDefault();
+        cardListElem.ondragleave = (e) => this.listDnd.leave(e);
+        cardListElem.ondrop = (e) => this.listDnd.dropMove(e);
+        cardListElem.ondragend = () => this.listDnd.end();
 
-        return cardlistElem;
+        return cardListElem;
     }
 
     /**
@@ -153,8 +136,8 @@ export class ListUI {
      * @private
      */
     _nameEditStart(elem) {
-        // disable add card UI for this cardlist if any
-        this.cardUI.cancelNewCard(elem);
+        // Disable add card UI for this cardlist if any
+        this.cardUI.endAddCard(elem);
 
         // disable cardlist dragging to allow title text selection
         elem.setAttribute("draggable", "false");

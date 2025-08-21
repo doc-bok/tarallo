@@ -11,7 +11,11 @@ export function GetQueryStringParams() {
 }
 
 /**
- * Attach an event to all elements matching a selector
+ * Attach an event to all elements matching a selector.
+ * @param parentElem The parent element.
+ * @param selector The selector to use.
+ * @param eventName The event name to attach to.
+ * @param handler The callback when the event is fired.
  */
 export function setEventBySelector(parentElem, selector, eventName, handler) {
     const elem = parentElem.querySelector(selector);
@@ -19,10 +23,32 @@ export function setEventBySelector(parentElem, selector, eventName, handler) {
 }
 
 /**
- * Helper to get the content element
+ * Attach an `onclick` event to all elements matching a selector.
+ * @param parentElem The parent element.
+ * @param selector The selector to use.
+ * @param handler The callback when the event is fired.
  */
-export function GetContentElement() {
-    return document.getElementById("content");
+export function setOnClickEventBySelector(parentElem, selector, handler)  {
+    return setEventBySelector(parentElem, selector, 'onclick', handler);
+}
+
+/**
+ * Attach an `onkeydown` event that only triggers when the user presses `enter`.
+ * @param parentElem The parent element.
+ * @param selector The selector to use.
+ * @param handler The callback when the event is fired.
+ */
+export function setOnEnterEventBySelector(parentElem, selector, handler)  {
+    return setEventBySelector(
+        parentElem,
+        selector,
+        'onkeydown',
+        (elem, keydownEvent) => {
+            if (keydownEvent.keyCode === 13) {
+                keydownEvent.preventDefault();
+                handler();
+            }
+        });
 }
 
 /**
@@ -77,26 +103,6 @@ export function blurOnEnter(keydownEvent) {
     if (keydownEvent.keyCode === 13) {
         keydownEvent.preventDefault();
         keydownEvent.currentTarget.blur();
-    }
-}
-
-/**
- * Add a class to all nodes
- */
-export function AddClassToAll(parentNode, cssSelector, className) {
-    const nodes = parentNode.querySelectorAll(cssSelector);
-    for (let i = 0; i < nodes.length; i++) {
-        nodes[i].classList.add(className);
-    }
-}
-
-/**
- * Remove a class from all nodes
- */
-export function RemoveClassFromAll(parentNode, cssSelector, className) {
-    const nodes = parentNode.querySelectorAll(cssSelector);
-    for (let i = 0; i < nodes.length; i++) {
-        nodes[i].classList.remove(className);
     }
 }
 
@@ -156,4 +162,31 @@ export function jsonFileToObj(file) {
         }
         reader.readAsText(file);
     });
+}
+
+/**
+ * Select all text in an element.
+ * @param id The ID of the element to select the text.
+ */
+export function selectAllInnerText(id){
+    var sel, range;
+    var el = document.getElementById(id); //get element id
+    if (window.getSelection && document.createRange) { //Browser compatibility
+        sel = window.getSelection();
+        if(sel.toString() === ''){ //no text selection
+            window.setTimeout(function(){
+                range = document.createRange(); //range object
+                range.selectNodeContents(el); //sets Range
+                sel.removeAllRanges(); //remove all ranges from selection
+                sel.addRange(range);//add Range to a Selection.
+            },1);
+        }
+    }else if (document.selection) { //older ie
+        sel = document.selection.createRange();
+        if(sel.text === ''){ //no text selection
+            range = document.body.createTextRange();//Creates TextRange object
+            range.moveToElementText(el);//sets Range
+            range.select(); //make selection.
+        }
+    }
 }

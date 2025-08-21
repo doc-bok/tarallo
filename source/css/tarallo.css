@@ -3,7 +3,7 @@
 =========================== */
 :root {
     --bg-color-1: #5f2b82;
-    --bg-color-2: #0006;
+    --bg-color-2: #0009;
     --bg-color-3: #121500;
     --bg-color-4: #fff2;
     --bg-color-5: #ff000080;
@@ -380,7 +380,7 @@ select:focus-visible {
 .cardlist {
     max-height: calc(100% - 2rem);
     min-height: 2rem;
-    background: var(--bg-color-3);
+    background: var(--bg-color-2);
     margin: 0.5rem;
     border-radius: var(--border-radius);
     width: 17rem;
@@ -391,8 +391,11 @@ select:focus-visible {
 
 .cardlist h3 {
     border-radius: var(--border-radius);
-    padding: var(--spacing-sm);
     flex-grow: 1;
+    margin: 1rem;
+    background: var(--bg-color-3);
+    padding: 1rem;
+    border: 2px solid var(--bg-color-1);
 }
 
 .card,
@@ -425,6 +428,10 @@ select:focus-visible {
     user-select: none;
 }
 
+.addcard-btn p {
+    margin: 0;
+}
+
 .addcard-btn:hover,
 .opencard-content:hover,
 .opencard > h2:hover,
@@ -444,7 +451,7 @@ select:focus-visible {
     width: 100%;
     position: relative;
     transition: padding-bottom 500ms ease-out;
-    height: 2rem;
+    height: 0;
 }
 
 .cardlist-start.drag-target-card {

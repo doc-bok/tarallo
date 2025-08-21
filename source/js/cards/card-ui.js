@@ -1,11 +1,11 @@
 import {showErrorPopup, showInfoPopup} from "../ui/popup.js";
 import {
-    AddClassToAll,
     blurOnEnter,
     closeDialog,
     loadTemplate,
-    RemoveClassFromAll,
-    setEventBySelector
+    setEventBySelector,
+    setOnClickEventBySelector,
+    setOnEnterEventBySelector
 } from "../core/utils.js";
 import {Card} from "./card.js";
 
@@ -40,15 +40,42 @@ export class CardUI {
     }
 
     /**
-     * Add a new card.
-     * @param cardListId The ID of the card list to add the card to.
-     * @param cardListElem The card list element.
+     * Set up card events for a card list.
+     * @param cardListId The ID of the card list.
+     * @param cardListElem The card list element to add events to.
      */
-    addNewCard(cardListId, cardListElem) {
-        // clear editing of other cards in other lists
+    setupEvents(cardListId, cardListElem) {
+        setOnClickEventBySelector(
+            cardListElem,
+            '.addcard-btn',
+            () => this._beginAddCard(cardListElem));
+
+        setOnClickEventBySelector(
+            cardListElem,
+            '.editcard-submit-btn',
+            () => this._submitAddCard(cardListId, cardListElem));
+
+        setOnEnterEventBySelector(
+            cardListElem,
+            '.editcard-card',
+            () => this._submitAddCard(cardListId, cardListElem));
+
+        setOnClickEventBySelector(
+            cardListElem,
+            ".editcard-cancel-btn",
+            () => this.endAddCard(cardListElem));
+    }
+
+    /**
+     * Add a new card.
+     * @param cardListElem The card list element.
+     * @private
+     */
+    _beginAddCard(cardListElem) {
+        // Clear editing of other cards in other lists.
         for (const cardlist of document.querySelectorAll(".cardlist")) {
             if (cardlist.id !== "add-cardlist-btn") {
-                this.cancelNewCard(cardlist);
+                this.endAddCard(cardlist);
             }
         }
 
@@ -56,21 +83,29 @@ export class CardUI {
         cardListElem.setAttribute("draggable", "false");
 
         // enable editing of a new card
-        AddClassToAll(cardListElem, ".addcard-ui", "hidden");
-        RemoveClassFromAll(cardListElem, ".editcard-ui", "hidden");
-        cardListElem.querySelector(".editcard-ui[contentEditable]").focus();
+        this._addClassToAll(cardListElem, ".addcard-ui", "hidden");
+        this._removeClassFromAll(cardListElem, ".editcard-ui", "hidden");
+
+        const editable = cardListElem.querySelector(".editcard-ui[contentEditable]");
+        if (editable) {
+            // Defer focus to ensure DOM updates
+            requestAnimationFrame(() => editable.focus());
+        }
     }
 
     /**
-     * Cancel a new card creation.
+     * Hide the edit card UI.
      * @param cardListElem The card list element.
      */
-    cancelNewCard(cardListElem) {
+    endAddCard(cardListElem) {
         const editableCard = cardListElem.querySelector(".editcard-ui[contentEditable]");
-        editableCard.innerHTML = "";
+        if (editableCard) {
+            editableCard.innerHTML = "";
+        }
 
-        RemoveClassFromAll(cardListElem, ".addcard-ui", "hidden");
-        AddClassToAll(cardListElem, ".editcard-ui", "hidden");
+        // Disable card editing interface
+        this._removeClassFromAll(cardListElem, ".addcard-ui", "hidden");
+        this._addClassToAll(cardListElem, ".editcard-ui", "hidden");
 
         // re-enable cardlist dragging
         cardListElem.setAttribute("draggable", "true");
@@ -81,14 +116,23 @@ export class CardUI {
      * @param cardListId The ID of the card list to add the card to.
      * @param cardListElem The card list element.
      * @returns {Promise<void>} Updated when the operation completes.
+     * @private
      */
-    async newCard(cardListId, cardListElem) {
-        const title = cardListElem.querySelector(".editcard-ui[contentEditable]").textContent;
+    async _submitAddCard(cardListId, cardListElem) {
+        const editable = cardListElem.querySelector(".editcard-ui[contentEditable]");
+        const title = editable ? editable.textContent.trim() : "";
+        if (!title) {
+            showErrorPopup(`Card title cannot be empty`, 'page-error');
+            return;
+        }
+
         try {
             const response = await this.card.create(cardListId, title);
             this.onCardAdded(response);
         } catch (e) {
             showErrorPopup(`Could not create card "${title}": ${e.message}`, 'page-error');
+        } finally {
+            this.endAddCard(cardListElem);
         }
     }
 
@@ -97,16 +141,23 @@ export class CardUI {
      * @param response The JSON response object.
      */
     onCardAdded(response) {
-        // read the card html node
+        // Read the card html node.
         const newCardNode = this.loadCard(response);
 
-        // add it to the cardlist node, after the prev card id
-        const cardlistNode = document.getElementById("cardlist-" + response["cardlist_id"]);
-        let prevCardNode;
-        if (response["prev_card_id"] === 0) {
-            prevCardNode = cardlistNode.querySelector(".cardlist-start");
-        } else {
-            prevCardNode = cardlistNode.querySelector("#card-" + response["prev_card_id"]);
+        // Add it to the cardlist node, after the prev card id.
+        const cardlistNode = document.getElementById(`cardlist-" + ${response.cardlist_id}`);
+        if (!cardlistNode){
+            showErrorPopup(`Couldn't find Card List with ID "${response.cardlist_id}`, 'page-error');
+            return;
+        }
+
+        const prevCardNode = response.prev_card_id === 0
+            ? cardlistNode.querySelector(".cardlist-start")
+            : cardlistNode.querySelector("#card-" + response["prev_card_id"]);
+
+        if (!prevCardNode){
+            showErrorPopup(`Couldn't find Previous Card in list with ID "${response.prev_card_id}`, 'page-error');
+            return;
         }
 
         prevCardNode.insertAdjacentElement("afterend", newCardNode);
@@ -511,6 +562,34 @@ export class CardUI {
             this.onCardAdded(response); // add back in the new position
         } catch (e) {
             showErrorPopup(`Could not move card with ID "${movedCardId}": ${e.message}`, 'page-error')
+        }
+    }
+
+    /**
+     * Add a class to all nodes.
+     * @param parentNode The parent node.
+     * @param cssSelector The selector used to find the node.
+     * @param className The class name to add.
+     * @private
+     */
+    _addClassToAll(parentNode, cssSelector, className) {
+        const nodes = parentNode.querySelectorAll(cssSelector);
+        for (let i = 0; i < nodes.length; i++) {
+            nodes[i].classList.add(className);
+        }
+    }
+
+    /**
+     * Remove a class from all nodes.
+     * @param parentNode The parent node.
+     * @param cssSelector The selector used to find the node.
+     * @param className The class name to remove.
+     * @private
+     */
+    _removeClassFromAll(parentNode, cssSelector, className) {
+        const nodes = parentNode.querySelectorAll(cssSelector);
+        for (let i = 0; i < nodes.length; i++) {
+            nodes[i].classList.remove(className);
         }
     }
 }
