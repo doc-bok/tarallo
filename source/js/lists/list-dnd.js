@@ -57,6 +57,7 @@ export class ListDnd {
         // validate movement
         const prevListElem = event.currentTarget;
         if (prevListElem === this.draggedCardList.previousSibling || prevListElem === this.draggedCardList) {
+
             // move to the same position, skip
             this.draggedCardList = null;
             return;

@@ -453,12 +453,19 @@ select:focus-visible {
     width: 100%;
     position: relative;
     transition: padding-bottom 500ms ease-out;
-    height: 0;
 }
 
 .cardlist-start.drag-target-card {
     margin: 0;
     padding-bottom: 2rem;
+}
+
+.drag-target-card {
+    margin-bottom: 3rem;
+}
+
+.drag-target-cardlist {
+    margin-right: 3rem;
 }
 
 /* ===========================

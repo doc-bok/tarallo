@@ -71,7 +71,8 @@ export class ListUI {
         cardListElem.ondragenter = (e) => this.listDnd.enter(e);
         cardListElem.ondragover = (e) => e.preventDefault();
         cardListElem.ondragleave = (e) => this.listDnd.leave(e);
-        cardListElem.ondrop = (e) => this.listDnd.dropMove(e);
+        cardListElem.ondrop = async (e) => await this.listDnd.dropMove(e);
+
         cardListElem.ondragend = () => this.listDnd.end();
 
         return cardListElem;
