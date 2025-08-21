@@ -70,6 +70,8 @@ export class TaralloClient {
             page: this.page,
         });
 
+        this.labelUI.init(this.cardUI);
+
         this.listUI.init({
             cardDnd: this.cardDnd,
             cardUI: this.cardUI,

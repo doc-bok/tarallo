@@ -381,8 +381,11 @@ export class CardUI {
      * @param response The JSON response data.
      */
     onCardUpdated(response) {
-        const cardTileElement = document.getElementById("card-" + response["id"]);
-        cardTileElement.remove(); // remove old version
+        const cardTileElement = document.getElementById("card-" + response.id);
+        if (cardTileElement) {
+            cardTileElement.remove(); // remove old version
+        }
+
         this.onCardAdded(response); // add back the new version
     }
 

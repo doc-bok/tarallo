@@ -14,6 +14,10 @@ export class CardLabelUI {
         this._labelColors = [];
     }
 
+    init(cardUI) {
+        this.cardUI = cardUI;
+    }
+
     /**
      * Mutators
      */
@@ -128,11 +132,16 @@ export class CardLabelUI {
     }
 
     /**
-     * Called when an open card's label is changed
+     * Called when an open card's label is changed.
+     * @param response The JSON response.
+     * @private
      */
-    _onOpenCardLabelChanged(jsonResponseObj) {
-        const openCardElem = document.getElementById("opencard-" + jsonResponseObj["card_id"]);
-        this.loadLabelInOpenCard(openCardElem, jsonResponseObj["card_id"], jsonResponseObj["index"], jsonResponseObj["active"]);
+    _onOpenCardLabelChanged(response) {
+        const openCardElem = document.getElementById("opencard-" + response["card_id"]);
+        this.loadLabelInOpenCard(openCardElem, response["card_id"], response["index"], response["active"]);
+
+        // Reload the card so the labels update in real time.
+        this.cardUI.loadCard(response);
     }
 
     /**
