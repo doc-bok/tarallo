@@ -2,28 +2,55 @@
 
 declare(strict_types=1);
 
-// Load the environment variables from the .env file.
-use Dotenv\Dotenv;
-
 require_once __DIR__ . '/../vendor/autoload.php';
 
-// Support loading extra env files (like .env.production)
-$dotenv = Dotenv::createImmutable(__DIR__ . '/../', [
-    '.env',
-    '.env.' . ($_ENV['APP_ENV'] ?? 'production')
-]);
-$dotenv->safeLoad();
-
-// ==================== SERVER CONFIGURATION ====================
-
+/**
+ * Class that handles server configuration.
+ */
 class Config {
-    private static array $settings = [];
+    private array $settings = [];
+    private static Config $instance;
+
+    /**
+     * Singleton pattern for now.
+     * @return Config The newly instanced config file.
+     */
+    public static function instance(): Config {
+        if (!isset(self::$instance)) {
+            self::$instance = new Config();
+        }
+
+        return self::$instance;
+    }
+
+    /**
+     * Construction: Loads and validates the configuration.
+     */
+    public function __construct()
+    {
+        $this->load();
+        $this->validate();
+    }
+
+    /**
+     * Get a configuration value.
+     */
+    public function get(string $key): mixed {
+        return $this->settings[$key] ?? null;
+    }
+
+    /**
+     * Check if a value exists in the config settings.
+     */
+    public function has(string $key): bool {
+        return array_key_exists($key, $this->settings);
+    }
 
     /**
      * Load the environment variables into the configuration.
      */
-    public static function load(): void {
-        self::$settings = [
+    private function load(): void {
+        $this->settings = [
             'APP_ENV'     => $_ENV['APP_ENV'] ?? 'production',
             'FTP_ROOT'    => $_ENV['TARALLO_FTP_ROOT'] ?? dirname(__DIR__),
             'DB_DSN'      => $_ENV['TARALLO_DB_DSN'] ?? 'mysql:host=mysql;port=3306;dbname=tarallo;charset=utf8',
@@ -36,32 +63,16 @@ class Config {
     }
 
     /**
-     * Get a configuration value.
-     */
-    public static function get(string $key): mixed {
-        return self::$settings[$key] ?? null;
-    }
-
-    /**
-     * Check if a value exists in the config settings.
-     */
-    public static function has(string $key): bool {
-        return array_key_exists($key, self::$settings);
-    }
-
-    /**
      * Validate that all required settings are present.
      * @throws RuntimeException if any required setting is missing.
      */
-    public static function validate(): void {
+    private function validate(): void {
         $required = ['DB_DSN', 'DB_USERNAME', 'DB_PASSWORD'];
         foreach ($required as $key) {
-            if (empty(self::$settings[$key])) {
+            if (empty($this->settings[$key])) {
                 throw new RuntimeException("Missing required config key: $key");
             }
         }
     }
 }
-Config::load();
-Config::validate();
 

@@ -41,7 +41,7 @@ class Page
         $displayName = $_SESSION['display_name'] ?? 'Unknown';
 
         try {
-            $boardData = Board::getBoardData($boardId, Permission::USERTYPE_None, true, true);
+            $boardData = Board::getBoardData($boardId, UserType::None, true, true);
         } catch (RuntimeException) {
             return [
                 'page_name'    => 'UnaccessibleBoard',
@@ -100,7 +100,7 @@ class Page
         foreach ($results as $boardId) {
             try {
                 // Use GetBoardData to enforce permissions and formatting
-                $board = Board::getBoardData((int)$boardId, Permission::USERTYPE_Observer);
+                $board = Board::getBoardData((int)$boardId, UserType::Observer);
                 $boardList[] = $board;
             } catch (RuntimeException $e) {
                 Logger::debug("GetBoardListPage: Skipping board $boardId - " . $e->getMessage());

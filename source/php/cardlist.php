@@ -31,7 +31,7 @@ class CardList
 
         // Permission + board existence check
         try {
-            Board::GetBoardData($boardId, Permission::USERTYPE_Moderator);
+            Board::GetBoardData($boardId, UserType::Moderator);
         } catch (RuntimeException) {
             Logger::warning("MoveCardList: User $userId tried to move list $listId in board $boardId without permission");
             http_response_code(403);

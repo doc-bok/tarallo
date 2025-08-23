@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="vendor/autoload.php">
+    <php>
+        <env name="APP_ENV" value="test"/>
+        <env name="TARALLO_DB_DSN" value="mysql:host=localhost;port=3306;dbname=test;charset=utf8mb4"/>
+    </php>
+</phpunit>

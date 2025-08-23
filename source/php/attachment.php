@@ -376,7 +376,7 @@ class Attachment
 
         // Permission check: require Member role on board
         try {
-            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
+            Board::GetBoardData($boardId, UserType::Member);
         } catch (RuntimeException) {
             Logger::warning("UploadAttachment: User $userId no permission on board $boardId");
             http_response_code(403);
@@ -670,7 +670,7 @@ class Attachment
         }
 
         // Confirm board data with appropriate permission
-        Board::GetBoardData($boardID, Permission::USERTYPE_Member);
+        Board::GetBoardData($boardID, UserType::Member);
 
         // Fetch attachment record safely
         $attachmentRecord = self::GetAttachmentRecord($boardID, $attachmentID);
@@ -740,7 +740,7 @@ class Attachment
         }
 
         // Permission and board validity check
-        Board::GetBoardData($boardID, Permission::USERTYPE_Member);
+        Board::GetBoardData($boardID, UserType::Member);
 
         // Ensure the attachment exists and belongs to the board
         $attachmentRecord = self::GetAttachmentRecord($boardID, $attachmentID);
@@ -807,7 +807,7 @@ class Attachment
 
         // Verify board access as observer
         try {
-            Board::GetBoardData($boardID, Permission::USERTYPE_Observer);
+            Board::GetBoardData($boardID, UserType::Observer);
         } catch (Throwable $e) {
             Logger::error("proxyAttachment: Board access denied or error for board $boardID - " . $e->getMessage());
             throw new RuntimeException("Access denied or board not found.");

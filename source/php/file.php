@@ -139,7 +139,7 @@ class File {
     public static function ftpDir(string $relativePath): string {
         Logger::info("Converting relative path [" . $relativePath . "] to absolute path.");
 
-        $ftpRoot = rtrim(Config::get('FTP_ROOT'), '/');
+        $ftpRoot = rtrim(Config::instance()->get('FTP_ROOT'), '/');
         if (!$ftpRoot) {
             Logger::error("FTP root is not configured.");
             throw new RuntimeException("FTP root is not configured.");
@@ -151,11 +151,21 @@ class File {
         $ftpRoot = str_replace('\\', '/', $ftpRoot);
         $relativePath = str_replace('\\', '/', $relativePath);
 
+        Logger::info("Normalized FTP root is [" . $ftpRoot . "].");
+        Logger::info("Normalized relative path [" . $relativePath . "].");
+
         // Remove trailing slash from ftpRoot and leading slashes from relativePath
         $ftpRoot = rtrim($ftpRoot, '/');
         $relativePath = ltrim($relativePath, '/');
 
-        $path = $ftpRoot . '/' . ltrim($relativePath, '/');
+        Logger::info("Trimmed FTP root is [" . $ftpRoot . "].");
+        Logger::info("Trimmed relative path [" . $relativePath . "].");
+
+        // Don't double up on FTP Root
+        $path = str_starts_with($relativePath, $ftpRoot) ?
+            $relativePath :
+            $ftpRoot . '/' . ltrim($relativePath, '/');
+
         $parts = [];
         foreach (explode('/', $path) as $segment) {
             if ($segment === '' || $segment === '.') {
@@ -171,6 +181,8 @@ class File {
 
         $resolvedPath = implode('/', $parts);
 
+        Logger::info("Resolved path [" . $resolvedPath . "].");
+
         // On Windows, remove leading slash if it exists and root is drive letter
         if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
 
@@ -179,10 +191,13 @@ class File {
 
                 // Add drive letter back with slash in Windows style
                 $resolvedPath = $parts[0] . '/' . implode('/', array_slice($parts, 1));
+
+                Logger::info("Windows resolved path [" . $resolvedPath . "].");
             }
         } else {
             // On non-Windows, prepend root slash
             $resolvedPath = '/' . $resolvedPath;
+            Logger::info("Non-Windows resolved path [" . $resolvedPath . "].");
         }
 
         // Validate that resolved path starts with ftpRoot (both normalized)

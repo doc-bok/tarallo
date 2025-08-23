@@ -53,7 +53,7 @@ class DB {
      */
     private static function validateConfig(): void
     {
-        if (!Config::has('DB_DSN')) {
+        if (!Config::instance()->has('DB_DSN')) {
             throw new DatabaseConnectionException("DB_DSN is missing.");
         }
     }
@@ -65,7 +65,7 @@ class DB {
     private static function logConnectionError(PDOException $e): void
     {
         Logger::error("Connection failed: " . $e->getMessage());
-        $dsnSafe = preg_replace('/password=[^;]*/i', 'password=hunter2', Config::get('DB_DSN'));
+        $dsnSafe = preg_replace('/password=[^;]*/i', 'password=hunter2', Config::instance()->get('DB_DSN'));
         Logger::debug("DSN used: " . $dsnSafe);
     }
 
@@ -75,7 +75,7 @@ class DB {
      * @return string The formatted error message.
      */
     private static function formatErrorMessage(PDOException $e): string {
-        return Config::get('APP_ENV') === 'development'
+        return Config::instance()->get('APP_ENV') === 'development'
             ? "Connection failed: {$e->getMessage()}"
             : "Connection error. Please try again later.";
     }
@@ -98,8 +98,8 @@ class DB {
                 PDO::MYSQL_ATTR_INIT_COMMAND => "SET sql_mode='STRICT_ALL_TABLES'"
             );
 
-            $maxRetries = Config::get('DB_MAX_RETRIES');
-            $initialDelay = Config::get('DB_RETRY_DELAY_MS');
+            $maxRetries = Config::instance()->get('DB_MAX_RETRIES');
+            $initialDelay = Config::instance()->get('DB_RETRY_DELAY_MS');
 
             $attempt = 0;
             $delay = $initialDelay;
@@ -107,9 +107,9 @@ class DB {
             do {
                 try {
                     self::$db = new PDO(
-                        Config::get('DB_DSN'),
-                        Config::get('DB_USERNAME'),
-                        Config::get('DB_PASSWORD'),
+                        Config::instance()->get('DB_DSN'),
+                        Config::instance()->get('DB_USERNAME'),
+                        Config::instance()->get('DB_PASSWORD'),
                         $opt
                     );
                     break; // success
@@ -467,9 +467,9 @@ class DB {
         }
 
         try {
-            DB::beginTransaction();
+            //DB::beginTransaction();
             DB::run($sql); // assumes DB::run can handle multi‑statement SQL
-            DB::commit();
+            //DB::commit();
 
             Logger::info("Successfully applied DB patch from $sqlFilePath");
             return ['success' => true, 'message' => 'Patch applied successfully'];

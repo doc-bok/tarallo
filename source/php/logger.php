@@ -15,7 +15,7 @@ class Logger
      */
     private static function logLevel(): LogLevel
     {
-        $level = strtolower((string)(Config::get('DB_LOG_LEVEL') ?: 'error'));
+        $level = strtolower((string)(Config::instance()->get('DB_LOG_LEVEL') ?: 'error'));
         return LogLevel::tryFrom($level) ?? LogLevel::ERROR; // fallback
     }
 

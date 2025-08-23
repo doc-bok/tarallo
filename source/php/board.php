@@ -24,7 +24,7 @@ class Board
      */
     public static function getBoardData(
         int $boardId,
-        int $minRole = Permission::USERTYPE_None,
+        UserType $minRole = UserType::None,
         bool $includeCardLists = false,
         bool $includeCards = false,
         bool $includeCardContent = false,
@@ -58,7 +58,7 @@ class Board
         }
 
         // Check minimum required role
-        if (!Permission::CheckPermissions($boardRecord['user_type'], $minRole, false)) {
+        if (!Permission::CheckPermissions(UserType::from($boardRecord['user_type']), $minRole, false)) {
             Logger::warning("GetBoardData: User $userId has insufficient permissions for board $boardId");
             throw new RuntimeException("Permission denied");
         }
@@ -126,7 +126,7 @@ class Board
     {
         // Defensive defaults
         $id              = (int)($boardRecord['id'] ?? 0);
-        $userType        = (int)($boardRecord['user_type'] ?? Permission::USERTYPE_None);
+        $userType        = (int)($boardRecord['user_type'] ?? UserType::None);
         $title           = (string)($boardRecord['title'] ?? '');
         $closed          = !empty($boardRecord['closed']);
         $backgroundGuid  = $boardRecord['background_guid'] ?? null;
@@ -318,7 +318,7 @@ class Board
         Board::GetBoardData($boardID);
 
         // Sanitise and validate title
-        $cleanTitle = self::cleanBoardTitle($rawTitle);
+        $cleanTitle = Utils::sanitizeString($rawTitle, 64);
         if ($cleanTitle === '') {
             throw new InvalidArgumentException("Board title cannot be empty after cleaning.");
         }
@@ -346,25 +346,6 @@ class Board
 
         // Return updated board data
         return Board::GetBoardData($boardID);
-    }
-
-    /**
-     * Sanitise and truncate a board title.
-     * @param string $title Raw title.
-     * @return string Safe, truncated title (max 64 chars).
-     */
-    public static function cleanBoardTitle(string $title): string
-    {
-        $title = trim($title);
-
-        // Remove any control characters but allow most Unicode letters/numbers/punctuation
-        $title = preg_replace('/[^\P{C}]+/u', '', $title);
-
-        // Collapse multiple spaces
-        $title = preg_replace('/\s{2,}/', ' ', $title);
-
-        // Truncate to 64 chars
-        return mb_substr($title, 0, 64);
     }
 
     /**
@@ -415,7 +396,7 @@ class Board
         string $labelColors = '',
         ?string $backgroundGUID = null
     ): int {
-        $cleanTitle = Board::CleanBoardTitle($title);
+        $cleanTitle = Utils::sanitizeString($title, 64);
         if ($cleanTitle === '') {
             throw new InvalidArgumentException("Board title cannot be empty after cleaning.");
         }
@@ -454,7 +435,7 @@ class Board
                 [
                     'user_id'  => (int)$userId,
                     'board_id' => (int)$newBoardID,
-                    'user_type'=> Permission::USERTYPE_Owner
+                    'user_type'=> UserType::Owner
                 ]
             );
 
@@ -491,7 +472,7 @@ class Board
         }
 
         // Ensure board exists and enforce permissions (adjust required user type as needed)
-        $boardData = self::GetBoardData($boardID /*, Permission::USERTYPE_Owner */);
+        $boardData = self::GetBoardData($boardID /*, UserTypes::USERTYPE_Owner */);
 
         // Attempt to mark as closed
         try {
@@ -536,7 +517,7 @@ class Board
         }
 
         // Load board and optionally check permissions
-        $boardData = self::GetBoardData($boardID /*, Permission::USERTYPE_Owner */);
+        $boardData = self::GetBoardData($boardID /*, UserTypes::USERTYPE_Owner */);
 
         try {
             $rows = DB::query(
@@ -578,7 +559,7 @@ class Board
         }
 
         // Permission: only owner/admin can delete boards
-        $boardData = Board::GetBoardData($boardID /* , Permission::USERTYPE_Owner */);
+        $boardData = Board::GetBoardData($boardID /* , UserTypes::USERTYPE_Owner */);
 
         // Must be closed before deletion
         if (empty($boardData['closed'])) {
@@ -1064,7 +1045,7 @@ class Board
         }
 
         // --- Access control ---
-        $boardData = Board::GetBoardData($boardID, Permission::USERTYPE_Moderator);
+        $boardData = Board::GetBoardData($boardID, UserType::Moderator);
 
         // --- Prepare export ZIP ---
         $exportPath = Board::TEMP_EXPORT_PATH . '/export_' . uniqid('', true) . '.zip';

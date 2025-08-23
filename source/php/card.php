@@ -101,7 +101,7 @@ class Card
         try {
             $boardData = Board::GetBoardData(
                 (int) $boardRow['board_id'],
-                Permission::USERTYPE_Observer,
+                UserType::Observer,
                 false,  // no lists
                 true,   // include cards
                 true,   // include card content
@@ -149,7 +149,7 @@ class Card
 
         // Check board permission
         try {
-            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
+            Board::GetBoardData($boardId, UserType::Member);
         } catch (RuntimeException) {
             Logger::warning("AddNewCard: Board $boardId not accessible to $userId");
             http_response_code(403);
@@ -359,7 +359,7 @@ class Card
 
         // Get board data with cards, forcing at least Member role
         try {
-            $boardData = Board::GetBoardData($boardId, Permission::USERTYPE_Member, false, true);
+            $boardData = Board::GetBoardData($boardId, UserType::Member, false, true);
         } catch (RuntimeException) {
             http_response_code(403);
             return ['error' => 'Access denied'];
@@ -500,7 +500,7 @@ class Card
 
         // Get board data with cards to verify membership & card presence
         try {
-            $boardData = Board::GetBoardData($boardId, Permission::USERTYPE_Member, false, true, true);
+            $boardData = Board::GetBoardData($boardId, UserType::Member, false, true, true);
         } catch (RuntimeException) {
             Logger::warning("MoveCard: User $userId permission denied on board $movedCardId");
             http_response_code(403);
@@ -601,7 +601,7 @@ class Card
 
         // Check board membership
         try {
-            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
+            Board::GetBoardData($boardId, UserType::Member);
         } catch (RuntimeException) {
             Logger::warning("UpdateCardTitle: User $userId attempted without permission on board $boardId");
             http_response_code(403);
@@ -701,7 +701,7 @@ class Card
 
         // === Permission check ===
         try {
-            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
+            Board::GetBoardData($boardId, UserType::Member);
         } catch (RuntimeException) {
             Logger::warning("UpdateCardContent: User $userId tried to edit card $cardId on board $boardId without permission");
             http_response_code(403);
@@ -762,7 +762,7 @@ class Card
 
         // Permission check
         try {
-            Board::GetBoardData($boardId, Permission::USERTYPE_Member);
+            Board::GetBoardData($boardId, UserType::Member);
         } catch (RuntimeException) {
             Logger::warning("UpdateCardFlags: User $userId tried to update flags on card $cardId in board $boardId without permission");
             http_response_code(403);

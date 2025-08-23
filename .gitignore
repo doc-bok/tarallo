@@ -16,3 +16,4 @@ source/composer.lock
 source/boards/
 source/images/
 source/temp/
+source/.env.test

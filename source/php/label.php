@@ -103,7 +103,7 @@ class Label
         }
 
         // Ensure user has rights to modify this board
-        $boardData = Board::GetBoardData($boardID /*, Permission::USERTYPE_Member */);
+        $boardData = Board::GetBoardData($boardID /*, UserTypes::USERTYPE_Member */);
 
         // Split label sets safely
         $boardLabelNames  = $boardData['label_names'] !== null ? explode(',', $boardData['label_names']) : [];
@@ -170,7 +170,7 @@ class Label
         }
 
         // Get board and check access; optionally enforce edit permission
-        $boardData = Board::GetBoardData($boardID /*, Permission::USERTYPE_Member */);
+        $boardData = Board::GetBoardData($boardID /*, UserTypes::USERTYPE_Member */);
 
         // Split safely
         $boardLabelNames  = $boardData['label_names'] !== null ? explode(',', $boardData['label_names']) : [];
@@ -218,7 +218,7 @@ class Label
             throw new InvalidArgumentException("Invalid board ID: $boardID");
         }
 
-        $boardData = Board::GetBoardData($boardID /*, Permission::USERTYPE_Member */);
+        $boardData = Board::GetBoardData($boardID /*, UserTypes::USERTYPE_Member */);
 
         $names  = $boardData['label_names'] !== '' ? explode(',', $boardData['label_names']) : [];
         $colors = $boardData['label_colors'] !== '' ? explode(',', $boardData['label_colors']) : [];
@@ -287,7 +287,7 @@ class Label
             throw new InvalidArgumentException("Invalid board or card ID");
         }
 
-        $boardData = Board::GetBoardData($boardID, Permission::USERTYPE_Member);
+        $boardData = Board::GetBoardData($boardID, UserType::Member);
 
         $names  = $boardData['label_names'] !== null ? explode(',', $boardData['label_names']) : [];
         $colors = $boardData['label_colors'] !== null ? explode(',', $boardData['label_colors']) : [];

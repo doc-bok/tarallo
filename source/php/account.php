@@ -222,7 +222,7 @@ class Account
             ['id' => self::USER_ID_ONREGISTER]
         );
         foreach ($initialPerms as $perm) {
-            if ($perm['user_type'] == Permission::USERTYPE_Blocked) continue;
+            if ($perm['user_type'] == UserType::Blocked) continue;
             DB::query(
                 "INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:uid, :bid, :ut)",
                 ['uid' => $userId, 'bid' => $perm['board_id'], 'ut' => $perm['user_type']]

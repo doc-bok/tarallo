@@ -5,15 +5,6 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 class Permission
 {
-    // user types for the permission table
-    const USERTYPE_Owner = 0; // full-control of the board
-    const USERTYPE_Moderator = 2; // full-control of the board, except a few functionalities like board permanent deletion
-    const USERTYPE_Member = 6; // full-control of the cards but no access to board layout and options
-    const USERTYPE_Observer = 8; // read-only access to the board
-    const USERTYPE_Guest = 9; // no access, but user requested to join the board
-    const USERTYPE_Blocked = 10; // no access (blocked by a board moderator)
-    const USERTYPE_None = 11; // no access (no record on db)
-
     /**
      * Checks if a user's role meets the required role.
      * @param int  $userType           The user's role constant.
@@ -22,10 +13,10 @@ class Permission
      * @return bool                    True if allowed, false if not (when not throwing).
      * @throws RuntimeException        If $throwIfFailed is true and permission denied.
      */
-    public static function CheckPermissions(int $userType, int $requiredUserType, bool $throwIfFailed = true): bool
+    public static function CheckPermissions(UserType $userType, UserType $requiredUserType, bool $throwIfFailed = true): bool
     {
         // Lower numeric value means higher privilege in your enum, so invert sense if needed
-        $hasPermission = ($userType <= $requiredUserType);
+        $hasPermission = ($userType->value <= $requiredUserType->value);
 
         if (!$hasPermission) {
             if ($throwIfFailed) {
@@ -55,7 +46,7 @@ class Permission
         }
 
         // Permission check — must be at least Moderator
-        $boardData = Board::GetBoardData($boardID, Permission::USERTYPE_Moderator);
+        $boardData = Board::GetBoardData($boardID, UserType::Moderator);
 
         $sql = <<<SQL
         SELECT p.user_id,
@@ -104,7 +95,7 @@ class Permission
         }
 
         // Ensure acting user is at least Moderator on this board
-        $boardData = Board::GetBoardData($boardID, Permission::USERTYPE_Moderator);
+        $boardData = Board::GetBoardData($boardID, UserType::Moderator);
 
         $isSpecialPermission = ($targetUserID < 0);
 
@@ -230,10 +221,10 @@ class Permission
             'user_id'  => $userId
         ]);
 
-        $userType = $permissionRecord === null ? self::USERTYPE_None : $permissionRecord['user_type'];
+        $userType = $permissionRecord === null ? UserType::None : $permissionRecord['user_type'];
 
         // Already has Guest or higher → can't request again
-        if ($userType != self::USERTYPE_None) {
+        if ($userType != UserType::None) {
             throw new RuntimeException("User already has blocked or higher access to this board", 400);
         }
 
@@ -241,10 +232,10 @@ class Permission
         $params = [
             'user_id'   => $userID,
             'board_id'  => $boardID,
-            'user_type' => self::USERTYPE_Guest
+            'user_type' => UserType::Guest
         ];
 
-        $sql = $userType === self::USERTYPE_None
+        $sql = $userType === UserType::None
             ? "INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:user_id, :board_id, :user_type)"
             : "UPDATE tarallo_permissions SET user_type = :user_type WHERE user_id = :user_id AND board_id = :board_id";
 
