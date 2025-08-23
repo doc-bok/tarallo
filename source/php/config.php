@@ -9,7 +9,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
  */
 class Config {
     private array $settings = [];
-    private static Config $instance;
+    private static ?Config $instance;
 
     /**
      * Singleton pattern for now.
@@ -17,19 +17,10 @@ class Config {
      */
     public static function instance(): Config {
         if (!isset(self::$instance)) {
-            self::$instance = new Config();
+            self::$instance = new self();
         }
 
         return self::$instance;
-    }
-
-    /**
-     * Construction: Loads and validates the configuration.
-     */
-    public function __construct()
-    {
-        $this->load();
-        $this->validate();
     }
 
     /**
@@ -45,6 +36,27 @@ class Config {
     public function has(string $key): bool {
         return array_key_exists($key, $this->settings);
     }
+
+    /**
+     * Construction: Loads and validates the configuration.
+     */
+    private function __construct()
+    {
+        $this->load();
+        $this->validate();
+    }
+
+    /**
+     * Prevent cloning.
+     * @return void
+     */
+    private function __clone() {}
+
+    /**
+     * Prevent unserializing.
+     * @return void
+     */
+    private function __wakeup() {}
 
     /**
      * Load the environment variables into the configuration.
