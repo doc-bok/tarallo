@@ -56,7 +56,7 @@ class Page
         $boardData['display_name'] = $displayName;
 
         // Add the database version
-        $boardData['db_version'] = DB::getDBSetting('db_version');
+        $boardData['db_version'] = DB::getInstance()->getDBSetting('db_version');
 
         if (!empty($boardData['closed'])) {
             return [
@@ -94,7 +94,7 @@ class Page
         WHERE p.user_id = :user_id
         ORDER BY b.last_modified_time DESC
     ";
-        $results = DB::fetchColumn($sql, 'id', ['user_id' => $userId]);
+        $results = DB::getInstance()->fetchColumn($sql, 'id', ['user_id' => $userId]);
 
         $boardList = [];
         foreach ($results as $boardId) {
@@ -107,7 +107,7 @@ class Page
             }
         }
 
-        $settings = DB::getDBSettings();
+        $settings = DB::getInstance()->getDBSettings();
 
         return [
             'page_name'    => 'BoardList',
@@ -126,18 +126,18 @@ class Page
      */
     public static function getLoggedOutPage(): array
     {
-        $settings = DB::getDBSettings();
+        $settings = DB::getInstance()->getDBSettings();
 
         // Apply DB updates if needed
-        if (DB::applyDBUpdates($settings['db_version'])) {
+        if (DB::getInstance()->applyDBUpdates($settings['db_version'])) {
             Logger::info("Database updates applied, refreshing settings cache");
-            $settings = DB::getDBSettings();
+            $settings = DB::getInstance()->getDBSettings();
         }
 
         if (!empty($settings['perform_first_startup'])) {
             Logger::info("First startup detected — creating admin account");
             $adminAccount = Account::createNewAdminAccount();
-            DB::setDBSetting('perform_first_startup', 0);
+            DB::getInstance()->setDBSetting('perform_first_startup', 0);
 
             return [
                 'page_name' => 'FirstStartup',
@@ -165,7 +165,7 @@ class Page
     {
         try {
             // Ensure DB exists or initialise
-            DB::initDatabaseIfNeeded();
+            DB::getInstance()->initDatabaseIfNeeded();
 
             // Logged in?
             if (isset($_SESSION['logged_in'])) {

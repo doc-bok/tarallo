@@ -33,7 +33,7 @@ class Account
         try {
             // Get existing admin usernames
             $userQuery = "SELECT username FROM tarallo_users WHERE username LIKE :pattern";
-            $usedAdminNames = DB::fetchColumn($userQuery, 'username', [
+            $usedAdminNames = DB::getInstance()->fetchColumn($userQuery, 'username', [
                 'pattern' => 'admin%'
             ]);
         } catch (Throwable $e) {
@@ -105,7 +105,7 @@ class Account
 
         // ==== Check for existing username ====
         try {
-            $existing = DB::fetchOne(
+            $existing = DB::getInstance()->fetchOne(
                 "SELECT id FROM tarallo_users WHERE username = :username",
                 ['username' => $username]
             );
@@ -123,7 +123,7 @@ class Account
         // ==== Insert user ====
         $now = time();
         try {
-            $userId = DB::insert(
+            $userId = DB::getInstance()->insert(
                 "INSERT INTO tarallo_users 
                  (username, password, display_name, register_time, last_access_time, is_admin)
              VALUES 
@@ -160,7 +160,7 @@ class Account
     {
         Session::ensureSession();
 
-        $settings = DB::getDBSettings();
+        $settings = DB::getInstance()->getDBSettings();
         if (empty($settings['registration_enabled'])) {
             Logger::warning("Register: Registration disabled");
             http_response_code(403);
@@ -217,13 +217,13 @@ class Account
         Logger::info("Register: Created new user '$username' with ID $userId");
 
         // Apply initial permissions
-        $initialPerms = DB::fetchTable(
+        $initialPerms = DB::getInstance()->fetchTable(
             "SELECT * FROM tarallo_permissions WHERE user_id = :id",
             ['id' => self::USER_ID_ONREGISTER]
         );
         foreach ($initialPerms as $perm) {
             if ($perm['user_type'] == UserType::Blocked) continue;
-            DB::query(
+            DB::getInstance()->query(
                 "INSERT INTO tarallo_permissions (user_id, board_id, user_type) VALUES (:uid, :bid, :ut)",
                 ['uid' => $userId, 'bid' => $perm['board_id'], 'ut' => $perm['user_type']]
             );
@@ -250,7 +250,7 @@ class Account
         }
 
         try {
-            $count = DB::fetchOne(
+            $count = DB::getInstance()->fetchOne(
                 "SELECT COUNT(*) FROM tarallo_users WHERE username = :username",
                 ['username' => $username]
             );

@@ -365,7 +365,7 @@ class Attachment
         }
 
         // Check attachment size limit
-        $maxAttachmentSizeKB = (int) DB::getDBSetting('attachment_max_size_kb');
+        $maxAttachmentSizeKB = (int) DB::getInstance()->getDBSetting('attachment_max_size_kb');
 
         // Base64 encoding inflates size ~33% (hence * 0.75 to reverse)
         $attachmentSizeKB = (strlen($attachment) * 0.75) / 1024;
@@ -401,7 +401,7 @@ class Attachment
         $insertSql = "INSERT INTO tarallo_attachments (name, guid, extension, card_id, board_id)
                   VALUES (:name, :guid, :extension, :card_id, :board_id)";
         try {
-            $attachmentID = DB::insert($insertSql, [
+            $attachmentID = DB::getInstance()->insert($insertSql, [
                 'name'      => $name,
                 'guid'      => $guid,
                 'extension' => $extension,
@@ -440,7 +440,7 @@ class Attachment
         self::createImageThumbnail($filePath, $thumbFilePath);
         if (File::fileExists($thumbFilePath)) {
             try {
-                DB::query(
+                DB::getInstance()->query(
                     "UPDATE tarallo_cards SET cover_attachment_id = :attachment_id WHERE id = :card_id",
                     ['attachment_id' => $attachmentID, 'card_id' => $cardId]
                 );
@@ -450,7 +450,7 @@ class Attachment
             }
         }
 
-        DB::updateBoardModifiedTime($boardId);
+        Board::updateBoardModifiedTime($boardId);
 
         // Re-fetch attachment record and card data for response
         $attachmentRecord = self::getAttachmentRecord($boardId, (int)$attachmentID);
@@ -520,7 +520,7 @@ class Attachment
         }
 
         try {
-            $attachmentRecord = DB::fetchRow(
+            $attachmentRecord = DB::getInstance()->fetchRow(
                 "SELECT * FROM tarallo_attachments WHERE id = :id",
                 ['id' => $attachmentID]
             );
@@ -677,19 +677,19 @@ class Attachment
 
         // Begin transaction for DB operations (if your DB class supports it)
         try {
-            DB::beginTransaction();
+            DB::getInstance()->beginTransaction();
 
             // Delete attachment files (handle errors inside or catch here)
             self::DeleteAttachmentFiles($attachmentRecord);
 
             // Delete attachment row from DB
-            DB::query(
+            DB::getInstance()->query(
                 "DELETE FROM tarallo_attachments WHERE id = :id",
                 ['id' => $attachmentID]
             );
 
             // Remove attachment from cards if it's used as a cover image
-            DB::query(
+            DB::getInstance()->query(
                 "UPDATE tarallo_cards SET cover_attachment_id = 0 WHERE cover_attachment_id = :attachment_id AND id = :card_id",
                 [
                     'attachment_id' => $attachmentID,
@@ -697,15 +697,15 @@ class Attachment
                 ]
             );
 
-            DB::commit();
+            DB::getInstance()->commit();
         } catch (Throwable $e) {
-            DB::rollBack();
+            DB::getInstance()->rollBack();
             Logger::error("deleteAttachment: Failed during delete process for attachment $attachmentID on board $boardID - " . $e->getMessage());
             throw new RuntimeException("Failed to delete attachment safely.");
         }
 
         // Update the board modified timestamp
-        DB::updateBoardModifiedTime($boardID);
+        Board::updateBoardModifiedTime($boardID);
 
         // Prepare response data with updated attachment and card info
         $response = self::AttachmentRecordToData($attachmentRecord);
@@ -753,7 +753,7 @@ class Attachment
 
         // Perform the update
         try {
-            $rows = DB::query(
+            $rows = DB::getInstance()->query(
                 "UPDATE tarallo_attachments SET name = :name WHERE id = :id",
                 [
                     'name' => $filteredName,
@@ -774,7 +774,7 @@ class Attachment
         }
 
         // Update the board modified time
-        DB::updateBoardModifiedTime($boardID);
+        Board::updateBoardModifiedTime($boardID);
 
         // Return updated attachment data
         $attachmentRecord['name'] = $filteredName;

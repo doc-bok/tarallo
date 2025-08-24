@@ -47,7 +47,7 @@ class Board
         WHERE b.id = :board_id AND p.user_id = :user_id
         LIMIT 1
     ";
-        $boardRecord = DB::fetchRow($sql, [
+        $boardRecord = DB::getInstance()->fetchRow($sql, [
             'board_id' => $boardId,
             'user_id'  => $userId
         ]);
@@ -75,14 +75,14 @@ class Board
             WHERE board_id = :board_id
             ORDER BY id
         ";
-            $boardData['cardlists'] = DB::fetchTable($listSQL, ['board_id' => $boardId]);
+            $boardData['cardlists'] = DB::getInstance()->fetchTable($listSQL, ['board_id' => $boardId]);
         }
 
         // Optionally pull cards
         if ($includeCards) {
             $sql = "SELECT * FROM tarallo_cards WHERE board_id = :board_id ORDER BY id ";
 
-            $cardsRaw = DB::fetchTable($sql, ['board_id' => $boardId]);
+            $cardsRaw = DB::getInstance()->fetchTable($sql, ['board_id' => $boardId]);
             $cards = array_map([Card::class, 'cardRecordToData'], $cardsRaw);
 
             // If content not included in CardRecordToData, append from raw
@@ -95,7 +95,7 @@ class Board
             // Optionally add attachments per card
             if ($includeAttachments) {
                 foreach ($cards as &$card) {
-                    $attachments = DB::fetchTable(
+                    $attachments = DB::getInstance()->fetchTable(
                         "SELECT * FROM tarallo_attachments WHERE card_id = :cid",
                         ['cid' => $card['id']]
                     );
@@ -266,8 +266,8 @@ class Board
 
         // Update DB inside try-catch to handle DB errors
         try {
-            // Use parameter array instead of global DB::setParam()
-            DB::query(
+            // Use parameter array instead of global DB::getInstance()->setParam()
+            DB::getInstance()->query(
                 "UPDATE tarallo_boards SET background_guid = :background_guid WHERE id = :board_id",
                 [
                     'background_guid' => $guid,
@@ -275,7 +275,7 @@ class Board
                 ]
             );
 
-            DB::updateBoardModifiedTime($boardID);
+            Board::updateBoardModifiedTime($boardID);
         } catch (Throwable $e) {
             // On DB failure, clean up newly created files
             File::deleteFile($newBackgroundPath);
@@ -325,7 +325,7 @@ class Board
 
         // Update in DB
         try {
-            $rows = DB::query(
+            $rows = DB::getInstance()->query(
                 "UPDATE tarallo_boards SET title = :title WHERE id = :id",
                 [
                     'title' => $cleanTitle,
@@ -342,7 +342,7 @@ class Board
         }
 
         // Mark as modified
-        DB::UpdateBoardModifiedTime($boardID);
+        Board::updateBoardModifiedTime($boardID);
 
         // Return updated board data
         return Board::GetBoardData($boardID);
@@ -407,10 +407,10 @@ class Board
         }
 
         try {
-            DB::beginTransaction();
+            DB::getInstance()->beginTransaction();
 
             // Insert board record
-            $newBoardID = DB::insert(
+            $newBoardID = DB::getInstance()->insert(
                 "INSERT INTO tarallo_boards 
                 (title, label_names, label_colors, last_modified_time, background_guid)
              VALUES
@@ -429,7 +429,7 @@ class Board
             }
 
             // Assign owner permission to the creator
-            DB::query(
+            DB::getInstance()->query(
                 "INSERT INTO tarallo_permissions (user_id, board_id, user_type)
              VALUES (:user_id, :board_id, :user_type)",
                 [
@@ -439,12 +439,12 @@ class Board
                 ]
             );
 
-            DB::commit();
+            DB::getInstance()->commit();
 
             Logger::info("Board '$cleanTitle' [ID $newBoardID] created by user $userId");
 
         } catch (Throwable $e) {
-            DB::rollBack();
+            DB::getInstance()->rollBack();
             Logger::error("createNewBoardInternal: Failed to create board '$title' - " . $e->getMessage());
             throw new RuntimeException("Failed to create board.");
         }
@@ -476,7 +476,7 @@ class Board
 
         // Attempt to mark as closed
         try {
-            $rows = DB::query(
+            $rows = DB::getInstance()->query(
                 "UPDATE tarallo_boards SET closed = 1 WHERE id = :id",
                 ['id' => $boardID]
             );
@@ -490,7 +490,7 @@ class Board
         }
 
         // Update last-modified timestamp
-        DB::UpdateBoardModifiedTime($boardID);
+        Board::updateBoardModifiedTime($boardID);
 
         // Reflect the change in the returned board data
         $boardData['closed'] = 1;
@@ -520,7 +520,7 @@ class Board
         $boardData = self::GetBoardData($boardID /*, UserTypes::USERTYPE_Owner */);
 
         try {
-            $rows = DB::query(
+            $rows = DB::getInstance()->query(
                 "UPDATE tarallo_boards SET closed = 0 WHERE id = :id",
                 ['id' => $boardID]
             );
@@ -533,7 +533,7 @@ class Board
             throw new RuntimeException("Database error while reopening board.");
         }
 
-        DB::UpdateBoardModifiedTime($boardID);
+        Board::updateBoardModifiedTime($boardID);
 
         $boardData['closed'] = 0;
 
@@ -567,26 +567,26 @@ class Board
         }
 
         // Get attachments before DB deletion so we can delete files
-        $attachments = DB::fetchTable(
+        $attachments = DB::getInstance()->fetchTable(
             "SELECT * FROM tarallo_attachments WHERE board_id = :board_id",
             ['board_id' => $boardID]
         );
 
         try {
-            DB::beginTransaction();
+            DB::getInstance()->beginTransaction();
 
             // Delete dependent records first (avoids orphan FKs)
-            DB::query("DELETE FROM tarallo_cards WHERE board_id = :board_id", ['board_id' => $boardID]);
-            DB::query("DELETE FROM tarallo_cardlists WHERE board_id = :board_id", ['board_id' => $boardID]);
-            DB::query("DELETE FROM tarallo_attachments WHERE board_id = :board_id", ['board_id' => $boardID]);
-            DB::query("DELETE FROM tarallo_permissions WHERE board_id = :board_id", ['board_id' => $boardID]);
+            DB::getInstance()->query("DELETE FROM tarallo_cards WHERE board_id = :board_id", ['board_id' => $boardID]);
+            DB::getInstance()->query("DELETE FROM tarallo_cardlists WHERE board_id = :board_id", ['board_id' => $boardID]);
+            DB::getInstance()->query("DELETE FROM tarallo_attachments WHERE board_id = :board_id", ['board_id' => $boardID]);
+            DB::getInstance()->query("DELETE FROM tarallo_permissions WHERE board_id = :board_id", ['board_id' => $boardID]);
 
             // Finally delete the board record
-            DB::query("DELETE FROM tarallo_boards WHERE id = :board_id", ['board_id' => $boardID]);
+            DB::getInstance()->query("DELETE FROM tarallo_boards WHERE id = :board_id", ['board_id' => $boardID]);
 
-            DB::commit();
+            DB::getInstance()->commit();
         } catch (Throwable $e) {
-            DB::rollBack();
+            DB::getInstance()->rollBack();
             Logger::error("deleteBoard: Failed to delete board $boardID - " . $e->getMessage());
             throw new RuntimeException("Failed to delete board data.");
         }
@@ -635,7 +635,7 @@ class Board
         $attachIndex   = self::buildNewIds('tarallo_attachments', $boardExportData['attachments']);
 
         try {
-            DB::beginTransaction();
+            DB::getInstance()->beginTransaction();
 
             // Create new board record
             $newBoardID = Board::createNewBoardInternal(
@@ -652,10 +652,10 @@ class Board
             // Extract files now
             self::extractBoardFiles($zip, $newBoardID);
 
-            DB::commit();
+            DB::getInstance()->commit();
 
         } catch (Throwable $e) {
-            DB::rollBack();
+            DB::getInstance()->rollBack();
             Logger::error("Board import failed: " . $e->getMessage());
             throw new RuntimeException("Board import failed: {$e->getMessage()}", 500);
         }
@@ -669,7 +669,7 @@ class Board
     private static function assertImportAllowed(): void
     {
         if (!($_SESSION['is_admin'] ?? false)
-            && !DB::getDBSetting('board_import_enabled')) {
+            && !DB::getInstance()->getDBSetting('board_import_enabled')) {
             throw new RuntimeException("Board import is disabled on this server", 403);
         }
     }
@@ -738,8 +738,8 @@ class Board
      */
     private static function buildNewIds(string $table, array $entities): array
     {
-        $maxId = (int) DB::fetchOne("SELECT MAX(id) FROM $table") + 1;
-        $map = DB::rebuildDBIndex($entities, 'id', $maxId);
+        $maxId = (int) DB::getInstance()->fetchOne("SELECT MAX(id) FROM $table") + 1;
+        $map = DB::getInstance()->rebuildDBIndex($entities, 'id', $maxId);
         $map[0] = 0; // for unlinked placeholders
         return $map;
     }
@@ -763,7 +763,7 @@ class Board
             $params[] = $idMap[$list['prev_list_id']];
             $params[] = $idMap[$list['next_list_id']];
         }
-        DB::query(
+        DB::getInstance()->query(
             "INSERT INTO tarallo_cardlists (id, board_id, name, prev_list_id, next_list_id) VALUES " . implode(',', $placeholders),
             $params
         );
@@ -796,7 +796,7 @@ class Board
             $params[] = $card['label_mask'];
             $params[] = $card['flags'];
         }
-        DB::query(
+        DB::getInstance()->query(
             "INSERT INTO tarallo_cards (id, title, content, prev_card_id, next_card_id, cardlist_id, board_id, cover_attachment_id, last_moved_time, label_mask, flags) VALUES " .
             implode(',', $placeholders),
             $params
@@ -824,7 +824,7 @@ class Board
             $params[] = $cardMap[$att['card_id']];
             $params[] = $boardID;
         }
-        DB::query(
+        DB::getInstance()->query(
             "INSERT INTO tarallo_attachments (id, name, guid, extension, card_id, board_id) VALUES " .
             implode(',', $placeholders),
             $params
@@ -855,7 +855,7 @@ class Board
     public static function importFromTrello(array $request): array
     {
         // Feature flag & permission check
-        if (!($_SESSION['is_admin'] ?? false) && !DB::getDBSetting('trello_import_enabled')) {
+        if (!($_SESSION['is_admin'] ?? false) && !DB::getInstance()->getDBSetting('trello_import_enabled')) {
             throw new RuntimeException("Trello import disabled", 403);
         }
         if (!Session::isUserLoggedIn()) {
@@ -875,9 +875,9 @@ class Board
         }
 
         // Prepare DB
-        $nextCardID = (int) DB::fetchOne("SELECT MAX(id) FROM tarallo_cards") + 1;
+        $nextCardID = (int) DB::getInstance()->fetchOne("SELECT MAX(id) FROM tarallo_cards") + 1;
 
-        DB::beginTransaction();
+        DB::getInstance()->beginTransaction();
         try {
             // 1. Create board
             $newBoardID = Board::createNewBoardInternal((string) $trello['name']);
@@ -923,9 +923,9 @@ class Board
                 $prevCardlistID = $newCardlistID;
             }
 
-            DB::commit();
+            DB::getInstance()->commit();
         } catch (Throwable $e) {
-            DB::rollBack();
+            DB::getInstance()->rollBack();
             Logger::error("Trello import failed: " . $e->getMessage());
             throw new RuntimeException("Board import from Trello failed");
         }
@@ -995,7 +995,7 @@ class Board
             $nextCardID++;
         }
 
-        DB::query(
+        DB::getInstance()->query(
             "INSERT INTO tarallo_cards (id, title, content, prev_card_id, next_card_id, cardlist_id, board_id, cover_attachment_id, last_moved_time, label_mask) VALUES " .
             implode(',', $placeholders),
             $params
@@ -1031,7 +1031,7 @@ class Board
     public static function ExportBoard(array $request): void
     {
         // --- Feature gating ---
-        if (!($_SESSION['is_admin'] ?? false) && !DB::getDBSetting('board_export_enabled')) {
+        if (!($_SESSION['is_admin'] ?? false) && !DB::getInstance()->getDBSetting('board_export_enabled')) {
             throw new RuntimeException("Board export is disabled on this server", 403);
         }
 
@@ -1058,23 +1058,23 @@ class Board
 
         try {
             // --- Create board data array ---
-            $boardExportData = DB::fetchRow(
+            $boardExportData = DB::getInstance()->fetchRow(
                 "SELECT * FROM tarallo_boards WHERE id = :id",
                 ['id' => $boardID]
             );
-            $boardExportData['cardlists'] = DB::fetchTable(
+            $boardExportData['cardlists'] = DB::getInstance()->fetchTable(
                 "SELECT * FROM tarallo_cardlists WHERE board_id = :board_id",
                 ['board_id' => $boardID]
             );
-            $boardExportData['cards'] = DB::fetchTable(
+            $boardExportData['cards'] = DB::getInstance()->fetchTable(
                 "SELECT * FROM tarallo_cards WHERE board_id = :board_id",
                 ['board_id' => $boardID]
             );
-            $boardExportData['attachments'] = DB::fetchTable(
+            $boardExportData['attachments'] = DB::getInstance()->fetchTable(
                 "SELECT * FROM tarallo_attachments WHERE board_id = :board_id",
                 ['board_id' => $boardID]
             );
-            $boardExportData['db_version'] = DB::getDBSetting("db_version");
+            $boardExportData['db_version'] = DB::getInstance()->getDBSetting("db_version");
 
             // --- Add db.json to ZIP ---
             $jsonData = json_encode($boardExportData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
@@ -1122,5 +1122,43 @@ class Board
 
         // Optionally clean up immediately after download if outputFile streams
         //File::deleteFile($exportPath);
+    }
+
+    /**
+     * Update the last_modified_time for a given board.
+     * @param int $boardID The board's ID.
+     * @return bool        True if a row was updated, false if not (board not found).
+     * @throws RuntimeException On invalid ID or DB error.
+     */
+    public static function updateBoardModifiedTime(int $boardID): bool
+    {
+        if ($boardID <= 0) {
+            throw new RuntimeException("Invalid board ID: $boardID");
+        }
+
+        try {
+            $rows = DB::getInstance()->getInstance()->query(
+                "UPDATE tarallo_boards 
+             SET last_modified_time = :last_modified_time 
+             WHERE id = :board_id",
+                [
+                    'last_modified_time' => time(),
+                    'board_id'           => $boardID
+                ]
+            );
+        } catch (Throwable $e) {
+            Logger::error(
+                "UpdateBoardModifiedTime: DB error updating board $boardID - " . $e->getMessage()
+            );
+            throw new RuntimeException("Failed to update board modified time");
+        }
+
+        if ($rows > 0) {
+            Logger::debug("UpdateBoardModifiedTime: Board $boardID modified time updated.");
+            return true;
+        } else {
+            Logger::warning("UpdateBoardModifiedTime: Board $boardID not found or not updated.");
+            return false;
+        }
     }
 }

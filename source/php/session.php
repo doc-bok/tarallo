@@ -73,7 +73,7 @@ class Session
         }
 
         // Look up user
-        $userRecord = DB::fetchRow(
+        $userRecord = DB::getInstance()->fetchRow(
             "SELECT * FROM tarallo_users WHERE username = :username",
             ['username' => $username]
         );
@@ -89,7 +89,7 @@ class Session
             Logger::info("Login: First login for '$username', setting password");
             $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
-            $ok = DB::query(
+            $ok = DB::getInstance()->query(
                 "UPDATE tarallo_users SET password = :passwordHash WHERE username = :username",
                 ['passwordHash' => $passwordHash, 'username' => $username]
             );
@@ -118,7 +118,7 @@ class Session
         $_SESSION['is_admin']     = (bool) $userRecord['is_admin'];
 
         // Update last access time
-        DB::query(
+        DB::getInstance()->query(
             "UPDATE tarallo_users SET last_access_time = :t WHERE id = :id",
             ['t' => time(), 'id' => $userRecord['id']]
         );

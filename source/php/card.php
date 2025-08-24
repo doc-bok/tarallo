@@ -89,7 +89,7 @@ class Card
         }
 
         // Get board_id for this card
-        $boardRow = DB::fetchRow(
+        $boardRow = DB::getInstance()->fetchRow(
             "SELECT board_id FROM tarallo_cards WHERE id = :id LIMIT 1",
             ['id' => $cardId]
         );
@@ -189,7 +189,7 @@ class Card
             return ['error' => 'Error adding card'];
         }
 
-        DB::updateBoardModifiedTime($boardId);
+        Board::updateBoardModifiedTime($boardId);
 
         return Card::cardRecordToData($newCardRecord);
     }
@@ -208,7 +208,7 @@ class Card
         }
 
         try {
-            $cardlistData = DB::fetchRow(
+            $cardlistData = DB::getInstance()->fetchRow(
                 "SELECT * FROM tarallo_cardlists WHERE id = :id",
                 ['id' => $cardlistID]
             );
@@ -253,7 +253,7 @@ class Card
         int $flagMask
     ): array {
         // Count cards in destination list
-        $cardCount = (int) DB::fetchOne(
+        $cardCount = (int) DB::getInstance()->fetchOne(
             "SELECT COUNT(*) FROM tarallo_cards WHERE cardlist_id = :cid",
             ['cid' => $cardlistID]
         );
@@ -266,14 +266,14 @@ class Card
 
         if ($cardCount > 0) {
             // Find next card
-            $nextCardRec = DB::fetchRow(
+            $nextCardRec = DB::getInstance()->fetchRow(
                 "SELECT * FROM tarallo_cards WHERE cardlist_id = :cid AND prev_card_id = :pid",
                 ['cid' => $cardlistID, 'pid' => $prevCardID]
             );
 
             // Validate prev card
             if ($prevCardID > 0) {
-                $prevCardRec = DB::fetchRow(
+                $prevCardRec = DB::getInstance()->fetchRow(
                     "SELECT * FROM tarallo_cards WHERE cardlist_id = :cid AND id = :pid",
                     ['cid' => $cardlistID, 'pid' => $prevCardID]
                 );
@@ -288,9 +288,9 @@ class Card
         }
 
         // Transaction to insert/update links
-        DB::beginTransaction();
+        DB::getInstance()->beginTransaction();
         try {
-            $newCardID = DB::insert(
+            $newCardID = DB::getInstance()->insert(
                 "INSERT INTO tarallo_cards 
                 (title, content, prev_card_id, next_card_id, cardlist_id, board_id, cover_attachment_id, last_moved_time, label_mask, flags)
              VALUES 
@@ -310,25 +310,25 @@ class Card
             );
 
             if ($nextCardID > 0) {
-                DB::query(
+                DB::getInstance()->query(
                     "UPDATE tarallo_cards SET prev_card_id = :new_id WHERE id = :nid",
                     ['new_id' => $newCardID, 'nid' => $nextCardID]
                 );
             }
             if ($prevCardID > 0) {
-                DB::query(
+                DB::getInstance()->query(
                     "UPDATE tarallo_cards SET next_card_id = :new_id WHERE id = :pid",
                     ['new_id' => $newCardID, 'pid' => $prevCardID]
                 );
             }
 
-            DB::commit();
+            DB::getInstance()->commit();
         } catch (Throwable $e) {
-            DB::rollBack();
+            DB::getInstance()->rollBack();
             throw $e;
         }
 
-        return DB::fetchRow(
+        return DB::getInstance()->fetchRow(
             "SELECT * FROM tarallo_cards WHERE id = :id",
             ['id' => $newCardID]
         );
@@ -380,7 +380,7 @@ class Card
 
         try {
             $deletedCard = self::deleteCardInternal($cardId);
-            DB::updateBoardModifiedTime($boardId);
+            Board::updateBoardModifiedTime($boardId);
         } catch (Throwable $e) {
             Logger::error("DeleteCard: Failed to delete card $cardId in board $boardId for user $userId: " . $e->getMessage());
             http_response_code(500);
@@ -405,7 +405,7 @@ class Card
     public static function deleteCardInternal(int $cardID, bool $deleteAttachments = true): array
     {
         // Fetch the card record (no extra permission checks, caller already did that)
-        $cardRecord = DB::fetchRow(
+        $cardRecord = DB::getInstance()->fetchRow(
             "SELECT * FROM tarallo_cards WHERE id = :id",
             ['id' => $cardID]
         );
@@ -414,11 +414,11 @@ class Card
             throw new RuntimeException("Card does not exist");
         }
 
-        DB::beginTransaction();
+        DB::getInstance()->beginTransaction();
         try {
             // Relink previous card to skip this one
             if (!empty($cardRecord['prev_card_id'])) {
-                DB::query(
+                DB::getInstance()->query(
                     "UPDATE tarallo_cards
                  SET next_card_id = :next
                  WHERE id = :prev",
@@ -431,7 +431,7 @@ class Card
 
             // Relink next card to skip this one
             if (!empty($cardRecord['next_card_id'])) {
-                DB::query(
+                DB::getInstance()->query(
                     "UPDATE tarallo_cards
                  SET prev_card_id = :prev
                  WHERE id = :next",
@@ -444,28 +444,28 @@ class Card
 
             // Delete attachments if requested
             if ($deleteAttachments) {
-                $attachments = DB::fetchTable(
+                $attachments = DB::getInstance()->fetchTable(
                     "SELECT * FROM tarallo_attachments WHERE card_id = :id",
                     ['id' => $cardID]
                 );
                 foreach ($attachments as $att) {
                     Attachment::deleteAttachmentFiles($att);
                 }
-                DB::query(
+                DB::getInstance()->query(
                     "DELETE FROM tarallo_attachments WHERE card_id = :id",
                     ['id' => $cardID]
                 );
             }
 
             // Finally delete the card itself
-            DB::query(
+            DB::getInstance()->query(
                 "DELETE FROM tarallo_cards WHERE id = :id",
                 ['id' => $cardID]
             );
 
-            DB::commit();
+            DB::getInstance()->commit();
         } catch (Throwable $e) {
-            DB::rollBack();
+            DB::getInstance()->rollBack();
             throw $e;
         }
 
@@ -530,7 +530,7 @@ class Card
 
         // Transaction: delete original, insert new at target
         try {
-            DB::beginTransaction();
+            DB::getInstance()->beginTransaction();
 
             // Delete original card record (without deleting attachments)
             $deletedCard = self::deleteCardInternal($movedCardId, false);
@@ -554,16 +554,16 @@ class Card
             );
 
             // Move attachments to new card_id
-            DB::query(
+            DB::getInstance()->query(
                 "UPDATE tarallo_attachments SET card_id = :new_id WHERE card_id = :old_id",
                 ['new_id' => $newCard['id'], 'old_id' => $movedCardId]
             );
 
-            DB::updateBoardModifiedTime($boardId);
+            Board::updateBoardModifiedTime($boardId);
 
-            DB::commit();
+            DB::getInstance()->commit();
         } catch (Throwable $e) {
-            DB::rollBack();
+            DB::getInstance()->rollBack();
             Logger::error("MoveCard: Failed to move card $movedCardId in board $movedCardId - {$e->getMessage()}");
             http_response_code(500);
             return ['error' => 'Card move failed'];
@@ -618,12 +618,12 @@ class Card
 
         // Update title
         try {
-            DB::query(
+            DB::getInstance()->query(
                 "UPDATE tarallo_cards SET title = :title WHERE id = :id",
                 ['title' => $newTitle, 'id' => $cardId]
             );
 
-            DB::updateBoardModifiedTime($boardId);
+            Board::updateBoardModifiedTime($boardId);
         } catch (Throwable $e) {
             Logger::error("UpdateCardTitle: DB error updating card $cardId in board $boardId - " . $e->getMessage());
             http_response_code(500);
@@ -652,7 +652,7 @@ class Card
         }
 
         try {
-            $cardData = DB::fetchRow(
+            $cardData = DB::getInstance()->fetchRow(
                 "SELECT * FROM tarallo_cards WHERE id = :card_id",
                 ['card_id' => $cardID]
             );
@@ -718,11 +718,11 @@ class Card
 
         // === Perform update ===
         try {
-            DB::query(
+            DB::getInstance()->query(
                 "UPDATE tarallo_cards SET content = :content WHERE id = :id",
                 ['content' => $newContent, 'id' => $cardId]
             );
-            DB::updateBoardModifiedTime($boardId);
+            Board::updateBoardModifiedTime($boardId);
         } catch (Throwable $e) {
             Logger::error("UpdateCardContent: DB error on card $cardId (board $boardId) - " . $e->getMessage());
             http_response_code(500);
@@ -786,11 +786,11 @@ class Card
 
         // Update DB
         try {
-            DB::query(
+            DB::getInstance()->query(
                 "UPDATE tarallo_cards SET flags = :flags WHERE id = :id",
                 ['flags' => $cardRecord['flags'], 'id' => $cardId]
             );
-            DB::updateBoardModifiedTime($boardId);
+            Board::updateBoardModifiedTime($boardId);
         } catch (Throwable $e) {
             Logger::error("UpdateCardFlags: DB error on card $cardId in board $boardId - " . $e->getMessage());
             http_response_code(500);

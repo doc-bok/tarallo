@@ -60,7 +60,7 @@ class CardList
             $nextCardListID = (int) $prevListData['next_list_id'];
         } else {
             // Find "first" cardlist in board as the next list
-            $nextRec = DB::fetchRow(
+            $nextRec = DB::getInstance()->fetchRow(
                 "SELECT id FROM tarallo_cardlists WHERE board_id = :bid AND prev_list_id = 0",
                 ['bid' => $boardId]
             );
@@ -70,11 +70,11 @@ class CardList
 
         // Move operation in a transaction
         try {
-            DB::beginTransaction();
+            DB::getInstance()->beginTransaction();
 
             self::removeCardListFromLL($cardListData);
 
-            DB::query(
+            DB::getInstance()->query(
                 "UPDATE tarallo_cardlists
              SET prev_list_id = :prev, next_list_id = :next
              WHERE id = :id",
@@ -86,11 +86,11 @@ class CardList
             );
 
             self::addCardListToLL($listId, $newPrevList, $nextCardListID);
-            DB::updateBoardModifiedTime($boardId);
+            Board::updateBoardModifiedTime($boardId);
 
-            DB::commit();
+            DB::getInstance()->commit();
         } catch (Throwable $e) {
-            DB::rollBack();
+            DB::getInstance()->rollBack();
             Logger::error("MoveCardList: Failed moving list $listId in board $boardId - " . $e->getMessage());
             http_response_code(500);
             return ['error' => 'Move failed'];
@@ -120,10 +120,10 @@ class CardList
         $nextId = (int) $cardListData['next_list_id'];
 
         try {
-            DB::beginTransaction();
+            DB::getInstance()->beginTransaction();
 
             if ($prevId > 0) {
-                DB::query(
+                DB::getInstance()->query(
                     "UPDATE tarallo_cardlists
                  SET next_list_id = :next_list_id
                  WHERE id = :prev_list_id",
@@ -135,7 +135,7 @@ class CardList
             }
 
             if ($nextId > 0) {
-                DB::query(
+                DB::getInstance()->query(
                     "UPDATE tarallo_cardlists
                  SET prev_list_id = :prev_list_id
                  WHERE id = :next_list_id",
@@ -146,9 +146,9 @@ class CardList
                 );
             }
 
-            DB::commit();
+            DB::getInstance()->commit();
         } catch (Throwable $e) {
-            DB::rollBack();
+            DB::getInstance()->rollBack();
             Logger::error("RemoveCardListFromLL: Failed for list (prev=$prevId, next=$nextId) - " . $e->getMessage());
             throw new RuntimeException("Database error while re-linking card lists");
         }
@@ -170,10 +170,10 @@ class CardList
         }
 
         try {
-            DB::beginTransaction();
+            DB::getInstance()->beginTransaction();
 
             if ($nextListID > 0) {
-                DB::query(
+                DB::getInstance()->query(
                     "UPDATE tarallo_cardlists
                  SET prev_list_id = :new_id
                  WHERE id = :next_list_id",
@@ -185,7 +185,7 @@ class CardList
             }
 
             if ($prevListID > 0) {
-                DB::query(
+                DB::getInstance()->query(
                     "UPDATE tarallo_cardlists
                  SET next_list_id = :new_id
                  WHERE id = :prev_list_id",
@@ -196,13 +196,13 @@ class CardList
                 );
             }
 
-            DB::commit();
+            DB::getInstance()->commit();
 
             Logger::debug(
                 "AddCardListToLL: Inserted $newListID between prev=$prevListID, next=$nextListID"
             );
         } catch (Throwable $e) {
-            DB::rollBack();
+            DB::getInstance()->rollBack();
             Logger::error(
                 "AddCardListToLL: Failed inserting $newListID between prev=$prevListID and next=$nextListID - " .
                 $e->getMessage()
@@ -246,7 +246,7 @@ class CardList
 
         // Run update with safe parameter binding
         try {
-            $rows = DB::query(
+            $rows = DB::getInstance()->query(
                 "UPDATE tarallo_cardlists SET name = :name WHERE id = :id",
                 [
                     'name' => $newName,
@@ -263,7 +263,7 @@ class CardList
         }
 
         // Mark board as modified
-        DB::updateBoardModifiedTime($boardID);
+        Board::updateBoardModifiedTime($boardID);
 
         // Return updated record
         $cardlistData['name'] = $newName;
@@ -302,7 +302,7 @@ class CardList
         // Delegate to internal safe method
         $newCardListData = self::addNewCardListInternal($boardID, $prevListID, $name);
 
-        DB::updateBoardModifiedTime($boardID);
+        Board::updateBoardModifiedTime($boardID);
 
         return $newCardListData;
     }
@@ -319,7 +319,7 @@ class CardList
     {
         try {
             // Count how many lists exist in this board
-            $cardListCount = DB::fetchOne(
+            $cardListCount = DB::getInstance()->fetchOne(
                 "SELECT COUNT(*) FROM tarallo_cardlists WHERE board_id = :board_id",
                 ['board_id' => $boardID]
             );
@@ -337,7 +337,7 @@ class CardList
 
         if ($cardListCount > 0) {
             // Find the "next" after the intended prev
-            $nextCardListRecord = DB::fetchRow(
+            $nextCardListRecord = DB::getInstance()->fetchRow(
                 "SELECT id FROM tarallo_cardlists WHERE board_id = :board_id AND prev_list_id = :prev_list_id",
                 [
                     'board_id'    => $boardID,
@@ -346,7 +346,7 @@ class CardList
             );
 
             if ($prevListID > 0) {
-                $prevCardListRecord = DB::fetchRow(
+                $prevCardListRecord = DB::getInstance()->fetchRow(
                     "SELECT id FROM tarallo_cardlists WHERE board_id = :board_id AND id = :prev_list_id",
                     [
                         'board_id'    => $boardID,
@@ -364,10 +364,10 @@ class CardList
         }
 
         try {
-            DB::beginTransaction();
+            DB::getInstance()->beginTransaction();
 
             // Insert new list
-            $newListID = DB::insert(
+            $newListID = DB::getInstance()->insert(
                 "INSERT INTO tarallo_cardlists (board_id, name, prev_list_id, next_list_id)
              VALUES (:board_id, :name, :prev_list_id, :next_list_id)",
                 [
@@ -384,9 +384,9 @@ class CardList
 
             CardList::addCardListToLL((int)$newListID, $prevListID, $nextListID);
 
-            DB::commit();
+            DB::getInstance()->commit();
         } catch (Throwable $e) {
-            DB::rollBack();
+            DB::getInstance()->rollBack();
             Logger::error("addNewCardListInternal: Insert/LL update failed for board $boardID - " . $e->getMessage());
             throw new RuntimeException("Failed to add card list");
         }
@@ -425,7 +425,7 @@ class CardList
 
         // Ensure list is empty
         try {
-            $cardCount = DB::fetchOne(
+            $cardCount = DB::getInstance()->fetchOne(
                 "SELECT COUNT(*) FROM tarallo_cards WHERE cardlist_id = :id",
                 ['id' => $listID]
             );
@@ -445,7 +445,7 @@ class CardList
         self::deleteCardListInternal($cardListData);
 
         // Update board modified time
-        DB::updateBoardModifiedTime($boardID);
+        Board::updateBoardModifiedTime($boardID);
 
         return $cardListData;
     }
@@ -459,18 +459,18 @@ class CardList
     private static function deleteCardListInternal(array $cardListData): void
     {
         try {
-            DB::beginTransaction();
+            DB::getInstance()->beginTransaction();
 
             CardList::removeCardListFromLL($cardListData);
 
-            DB::query(
+            DB::getInstance()->query(
                 "DELETE FROM tarallo_cardlists WHERE id = :id",
                 ['id' => (int) $cardListData['id']]
             );
 
-            DB::commit();
+            DB::getInstance()->commit();
         } catch (Throwable $e) {
-            DB::rollBack();
+            DB::getInstance()->rollBack();
             Logger::error("deleteCardListInternal: Failed to delete list {$cardListData['id']} - " . $e->getMessage());
             throw new RuntimeException("Failed to delete card list");
         }

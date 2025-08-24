@@ -65,7 +65,7 @@ class Label
 
         // Update DB with safe parameter binding
         try {
-            $rows = DB::query(
+            $rows = DB::getInstance()->query(
                 "UPDATE tarallo_boards 
              SET label_names = :label_names, label_colors = :label_colors 
              WHERE id = :board_id",
@@ -131,7 +131,7 @@ class Label
         // Persist update
         try {
             Label::UpdateBoardLabelsInternal($boardID, $boardLabelNames, $boardLabelColors);
-            DB::UpdateBoardModifiedTime($boardID);
+            Board::updateBoardModifiedTime($boardID);
         } catch (Throwable $e) {
             Logger::error("createBoardLabel: Failed to add label to board $boardID - " . $e->getMessage());
             throw new RuntimeException("Failed to create board label");
@@ -187,7 +187,7 @@ class Label
 
         try {
             Label::UpdateBoardLabelsInternal($boardID, $boardLabelNames, $boardLabelColors);
-            DB::UpdateBoardModifiedTime($boardID);
+            Board::updateBoardModifiedTime($boardID);
         } catch (Throwable $e) {
             Logger::error("updateBoardLabel: Failed for board $boardID, label $labelIndex - " . $e->getMessage());
             throw new RuntimeException("Failed to update board label");
@@ -240,13 +240,13 @@ class Label
         }
 
         try {
-            DB::beginTransaction();
+            DB::getInstance()->beginTransaction();
 
             Label::UpdateBoardLabelsInternal($boardID, $names, $colors);
 
             // Clear the label bit from all cards
             $maskToRemove = ~(1 << $labelIndex);
-            DB::query(
+            DB::getInstance()->query(
                 "UPDATE tarallo_cards SET label_mask = label_mask & :maskToRemove WHERE board_id = :board_id",
                 [
                     'maskToRemove' => $maskToRemove,
@@ -254,10 +254,10 @@ class Label
                 ]
             );
 
-            DB::UpdateBoardModifiedTime($boardID);
-            DB::commit();
+            Board::updateBoardModifiedTime($boardID);
+            DB::getInstance()->commit();
         } catch (Throwable $e) {
-            DB::rollBack();
+            DB::getInstance()->rollBack();
             Logger::error("DeleteBoardLabel: Failed for board $boardID - " . $e->getMessage());
             throw new RuntimeException("Failed to delete board label");
         }
@@ -306,14 +306,14 @@ class Label
         }
 
         try {
-            DB::query(
+            DB::getInstance()->query(
                 "UPDATE tarallo_cards SET label_mask = :mask WHERE id = :card_id",
                 [
                     'mask'    => $newMask,
                     'card_id' => $cardData['id']
                 ]
             );
-            DB::UpdateBoardModifiedTime($boardID);
+            Board::updateBoardModifiedTime($boardID);
         } catch (Throwable $e) {
             Logger::error("SetCardLabel: Failed for card $cardID on board $boardID - " . $e->getMessage());
             throw new RuntimeException("Failed to update card label");

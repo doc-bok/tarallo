@@ -59,7 +59,7 @@ class Permission
     SQL;
 
         try {
-            $permissions = DB::fetchTable($sql, ['board_id' => $boardID]);
+            $permissions = DB::getInstance()->fetchTable($sql, ['board_id' => $boardID]);
         } catch (Throwable $e) {
             Logger::error("getBoardPermissions: DB error for board $boardID - " . $e->getMessage());
             throw new RuntimeException("Failed to fetch board permissions");
@@ -118,7 +118,7 @@ class Permission
         }
 
         // Fetch current permission if exists
-        $permission = DB::fetchRow(
+        $permission = DB::getInstance()->fetchRow(
             "SELECT user_id, user_type 
            FROM tarallo_permissions 
           WHERE board_id = :board_id AND user_id = :user_id",
@@ -140,7 +140,7 @@ class Permission
         try {
             if ($permission) {
                 // Update existing
-                DB::query(
+                DB::getInstance()->query(
                     "UPDATE tarallo_permissions
                     SET user_type = :user_type
                   WHERE board_id = :board_id AND user_id = :user_id",
@@ -152,7 +152,7 @@ class Permission
                 );
             } else {
                 // Insert new (only allowed for special permissions at this point)
-                DB::query(
+                DB::getInstance()->query(
                     "INSERT INTO tarallo_permissions (user_id, board_id, user_type)
                  VALUES (:user_id, :board_id, :user_type)",
                     [
@@ -163,14 +163,14 @@ class Permission
                 );
             }
 
-            DB::UpdateBoardModifiedTime($boardID);
+            Board::updateBoardModifiedTime($boardID);
         } catch (Throwable $e) {
             Logger::error("SetUserPermission: Failed updating $targetUserID on board $boardID - " . $e->getMessage());
             throw new RuntimeException("Database error while updating user permission");
         }
 
         // Return updated permission row
-        $updated = DB::fetchRow(
+        $updated = DB::getInstance()->fetchRow(
             "SELECT user_id, user_type 
            FROM tarallo_permissions 
           WHERE board_id = :board_id AND user_id = :user_id",
@@ -216,7 +216,7 @@ class Permission
     ";
         $userId = (int) $_SESSION['user_id'];
 
-        $permissionRecord = DB::fetchRow($sql, [
+        $permissionRecord = DB::getInstance()->fetchRow($sql, [
             'board_id' => $boardID,
             'user_id'  => $userId
         ]);
@@ -240,7 +240,7 @@ class Permission
             : "UPDATE tarallo_permissions SET user_type = :user_type WHERE user_id = :user_id AND board_id = :board_id";
 
         try {
-            DB::query($sql, $params);
+            DB::getInstance()->query($sql, $params);
             Logger::info("Board $boardID: user $userID granted guest access");
         } catch (Throwable $e) {
             Logger::error("RequestBoardAccess: Failed for user $userID on board $boardID - " . $e->getMessage());

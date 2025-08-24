@@ -641,7 +641,7 @@ class File {
         // --- Determine destination path based on context ---
         switch ($context) {
             case 'ImportBoard':
-                if (empty($_SESSION['is_admin']) && !DB::getDBSetting('board_import_enabled')) {
+                if (empty($_SESSION['is_admin']) && !DB::getInstance()->getDBSetting('board_import_enabled')) {
                     throw new RuntimeException("Board import is disabled on this server (upload)", 403);
                 }
                 $destFilePath = Board::TEMP_EXPORT_FILE;
