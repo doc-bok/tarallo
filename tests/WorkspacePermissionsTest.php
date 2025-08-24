@@ -45,7 +45,7 @@ class WorkspacePermissionsTest extends TestCase
         $userId = 2;
         $role = UserType::Moderator;
 
-        $workspacePermissions->createWorkspacePermissions($workspaceId, $userId, $role);
+        $workspacePermissions->create($workspaceId, $userId, $role);
 
         DB::getInstance()->beginTransaction();
         $record = DB::getInstance()->fetchRow("SELECT * FROM tarallo_workspace_permissions WHERE workspace_id = :workspace_id AND user_id = :user_id", [

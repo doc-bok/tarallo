@@ -26,7 +26,7 @@ class DatabaseConnectionException extends RuntimeException {}
 class DB extends Singleton {
     private const INIT_DB_PATCH = "dbpatch/init_db.sql";
 
-    private ?PDO $db = NULL;
+    private ?PDO $pdo = NULL;
     private int $transactionNesting = 0;
     private bool $transactionFailed = false;
 
@@ -240,6 +240,7 @@ class DB extends Singleton {
                 // Create a savepoint for nested transaction
                 $db->exec('SAVEPOINT ' . $this->savepointName());
             }
+
             $this->transactionNesting++;
             Logger::debug("Transaction nesting now: " . $this->transactionNesting);
         } catch (PDOException $e) {
@@ -304,7 +305,7 @@ class DB extends Singleton {
     public function insert(string $sql, array $params = []): string
     {
         $this->query($sql, $params);
-        return $this->db->lastInsertId();
+        return $this->pdo->lastInsertId();
     }
 
     /**
@@ -529,7 +530,7 @@ class DB extends Singleton {
      */
     private function open() : PDO
     {
-        if (is_null($this->db)) {
+        if (is_null($this->pdo)) {
             $this->validateConfig();
 
             $opt = array(
@@ -548,7 +549,7 @@ class DB extends Singleton {
 
             do {
                 try {
-                    $this->db = new PDO(
+                    $this->pdo = new PDO(
                         Config::getInstance()->get('DB_DSN'),
                         Config::getInstance()->get('DB_USERNAME'),
                         Config::getInstance()->get('DB_PASSWORD'),
@@ -574,7 +575,7 @@ class DB extends Singleton {
             } while($attempt <= $maxRetries);
         }
 
-        return $this->db;
+        return $this->pdo;
     }
 
     /**
@@ -616,5 +617,140 @@ class DB extends Singleton {
         return Config::getInstance()->get('APP_ENV') === 'development'
             ? "Connection failed: {$e->getMessage()}"
             : "Connection error. Please try again later.";
+    }
+
+    // ==== New Database Interface ====
+
+    /**
+     * Executes a prepared query and returns the PDOStatement.
+     * @param string $sql The SQL query to execute.
+     * @param array $params The parameters used with the query.
+     * @return PDOStatement The statement that was just executed.
+     */
+    public function queryV2(string $sql, array $params = []): PDOStatement {
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt;
+    }
+
+    /**
+     * Fetch a single row.
+     * @param string $sql The SQL query to execute.
+     * @param array $params The parameters used with the query.
+     * @return array|null The row fetched, or null if no row was found.
+     */
+    public function fetchRowV2(string $sql, array $params = []): ?array {
+        $stmt = $this->query($sql, $params);
+        $row = $stmt->fetch();
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * Fetch all rows.
+     * @param string $sql The SQL query to execute.
+     * @param array $params The parameters used with the query.
+     * @return array An array of the rows found.
+     */
+    public function fetchAll(string $sql, array $params = []): array {
+        $stmt = $this->query($sql, $params);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Fetch a single column from the first row.
+     * @param string $sql The SQL query to execute.
+     * @param array $params The parameters used with the query.
+     * @return mixed The values in the column.
+     */
+    public function fetchColumnV2(string $sql, array $params = []): mixed {
+        $stmt = $this->query($sql, $params);
+        return $stmt->fetchColumn();
+    }
+
+    /**
+     * Insert a row and return last insert ID.
+     * @param string $table The table to add a row to.
+     * @param array $data The data for the row.
+     * @return string The last insert ID.
+     */
+    public function insertV2(string $table, array $data): string {
+        $columns = array_keys($data);
+        $placeholders = array_map(fn($col) => ':' . $col, $columns);
+        $sql = sprintf(
+            "INSERT INTO %s (%s) VALUES (%s)",
+            $table,
+            implode(', ', $columns),
+            implode(', ', $placeholders)
+        );
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($data);
+        return $this->pdo->lastInsertId();
+    }
+
+    //
+
+    /**
+     * Update rows, returns number of affected rows.
+     * @param string $table The table to add a row to.
+     * @param array $data The data for the row.
+     * @param string $where The WHERE conditions for the query.
+     * @param array $whereParams The parameters for the WHERE condition.
+     * @return int The number of rows affected.
+     */
+    public function update(string $table, array $data, string $where, array $whereParams = []): int {
+        $setParts = [];
+        foreach ($data as $column => $value) {
+            $setParts[] = "$column = :set_$column";
+        }
+        $setClause = implode(', ', $setParts);
+        $sql = "UPDATE $table SET $setClause WHERE $where";
+        $stmt = $this->pdo->prepare($sql);
+
+        // Bind values for SET
+        foreach ($data as $column => $value) {
+            $stmt->bindValue(":set_$column", $value);
+        }
+        // Bind values for WHERE
+        foreach ($whereParams as $param => $value) {
+            if (is_int($param)) {
+                $stmt->bindValue($param + 1, $value); // positional params
+            } else {
+                $stmt->bindValue(is_string($param) && $param[0] === ':' ? $param : ':' . $param, $value);
+            }
+        }
+
+        $stmt->execute();
+        return $stmt->rowCount();
+    }
+
+    /**
+     * Delete rows, returns number of affected rows.
+     * @param string $table The table to delete a row from.
+     * @param string $where The WHERE conditions for the query.
+     * @param array $whereParams The parameters for the WHERE condition.
+     * @return int The number of rows affected.
+     */
+    public function delete(string $table, string $where, array $whereParams = []): int {
+        $sql = "DELETE FROM $table WHERE $where";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($whereParams);
+        return $stmt->rowCount();
+    }
+
+    /**
+     * Returns last inserted ID.
+     * @return string The last inserted ID.
+     */
+    public function lastInsertId(): string {
+        return $this->pdo->lastInsertId();
+    }
+
+    /**
+     * Returns row count of last executed statement.
+     * @param PDOStatement $stmt The PDO statement.
+     * @return int The row count affected.
+     */
+    public function rowCount(PDOStatement $stmt): int {
+        return $stmt->rowCount();
     }
 }

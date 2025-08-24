@@ -16,7 +16,7 @@ enum UserType: int
     case Moderator = 2;
 
     /**
-     * Full-control except layout and options.
+     * Full-control except layout, permissions and options.
      */
     case Member = 6;
 
