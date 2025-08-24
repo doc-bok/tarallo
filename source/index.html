@@ -32,7 +32,7 @@
     <!-- Template loaded for login page -->
     <template id="tmpl-login">
         <div class="centered-container">
-            <form id="login-form" class="centered-dialog dialog">
+            <form id="login-form" class="centered-dialog dialog" onsubmit="return false;">
                 <label>
                     Username
                     <input type="text" id="login-username" placeholder="Username" value="$user_name" />
@@ -56,7 +56,7 @@
     <!-- Template loaded for the register page -->
     <template id="tmpl-register">
         <div class="centered-container">
-            <form id="register-form" class="centered-dialog dialog">
+            <form id="register-form" class="centered-dialog dialog"  onsubmit="return false;">
                 <label>
                     Username
                     <input type="text" id="register-username" placeholder="Username" />
