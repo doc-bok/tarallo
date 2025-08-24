@@ -39,4 +39,10 @@ UPDATE `tarallo_settings`
 SET `value` = '6'
 WHERE `tarallo_settings`.`name` = 'db_version';
 
+ALTER TABLE `tarallo_boards`
+    ADD `workspace_id` INT NOT NULL DEFAULT 0;
+
+CREATE INDEX `workspace`
+    ON `tarallo_boards` (`workspace_id`);
+
 COMMIT;
