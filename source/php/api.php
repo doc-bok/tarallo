@@ -35,7 +35,7 @@ try {
     echo json_encode($response);
 } catch (Exception $e) {
     http_response_code(500);
-    $message = Config::instance()->get('APP_ENV') === 'development' ? $e->getMessage() : 'Server Error';
+    $message = Config::getInstance()->get('APP_ENV') === 'development' ? $e->getMessage() : 'Server Error';
     echo json_encode(["server_error" => $message]);
 }
 

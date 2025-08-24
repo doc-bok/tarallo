@@ -33,8 +33,8 @@ class ConfigTest extends TestCase
      */
     public function testInstanceReturnsSameObject()
     {
-        $config1 = Config::instance();
-        $config2 = Config::instance();
+        $config1 = Config::getInstance();
+        $config2 = Config::getInstance();
         $this->assertSame($config1, $config2, "Instance method should always return the same object");
     }
 
@@ -53,7 +53,7 @@ class ConfigTest extends TestCase
      */
     public function testDefaultSettingsExist()
     {
-        $config = Config::instance();
+        $config = Config::getInstance();
         $this->assertTrue($config->has('APP_ENV'));
         $this->assertIsString($config->get('APP_ENV'));
         $this->assertEquals('test', $config->get('APP_ENV'));  // Assuming no env override
@@ -64,7 +64,7 @@ class ConfigTest extends TestCase
      */
     public function testGetReturnsValueOrNull()
     {
-        $config = Config::instance();
+        $config = Config::getInstance();
         $this->assertNull($config->get('NON_EXISTENT_KEY'));
     }
 
@@ -108,7 +108,7 @@ class ConfigTest extends TestCase
         $_ENV['TARALLO_DB_USERNAME'] = 'user';
         $_ENV['TARALLO_DB_PASSWORD'] = 'secret';
 
-        $config = Config::instance();
+        $config = Config::getInstance();
 
         $this->assertEquals('testing', $config->get('APP_ENV'));
         $this->assertEquals('sqlite::memory:', $config->get('DB_DSN'));

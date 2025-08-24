@@ -7,21 +7,8 @@ require_once __DIR__ . '/../vendor/autoload.php';
 /**
  * Class that handles server configuration.
  */
-class Config {
+class Config extends Singleton {
     private array $settings = [];
-    private static ?Config $instance;
-
-    /**
-     * Singleton pattern for now.
-     * @return Config The newly instanced config file.
-     */
-    public static function instance(): Config {
-        if (!isset(self::$instance)) {
-            self::$instance = new self();
-        }
-
-        return self::$instance;
-    }
 
     /**
      * Get a configuration value.
@@ -40,23 +27,12 @@ class Config {
     /**
      * Construction: Loads and validates the configuration.
      */
-    private function __construct()
+    protected function __construct()
     {
+        parent::__construct();
         $this->load();
         $this->validate();
     }
-
-    /**
-     * Prevent cloning.
-     * @return void
-     */
-    private function __clone() {}
-
-    /**
-     * Prevent unserializing.
-     * @return void
-     */
-    private function __wakeup() {}
 
     /**
      * Load the environment variables into the configuration.

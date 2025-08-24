@@ -15,10 +15,6 @@ class DatabaseConnectionException extends RuntimeException {}
  *   DB::insert("INSERT INTO users (name) VALUES (:name)", [':name' => 'Alice']);
  *   DB::run("DELETE FROM logs WHERE created < NOW() - INTERVAL 30 DAY");
  *
- * Legacy usage (deprecated — uses stored params):
- *   DB::setParam(':id', 123);
- *   DB::fetchRowWithStoredParams("SELECT * FROM users WHERE id = :id");
- *
  * Transactions:
  *   DB::beginTransaction();
  *   ...
@@ -35,11 +31,6 @@ class DB {
     private static bool $transactionFailed = false;
 
     /**
-     * Legacy parameter container.
-     */
-    public static array $QUERY_PARAMS = [];
-
-    /**
      * Returns a unique savepoint name per connection and nesting level.
      */
     private static function savepointName(): string
@@ -53,7 +44,7 @@ class DB {
      */
     private static function validateConfig(): void
     {
-        if (!Config::instance()->has('DB_DSN')) {
+        if (!Config::getInstance()->has('DB_DSN')) {
             throw new DatabaseConnectionException("DB_DSN is missing.");
         }
     }
@@ -65,7 +56,7 @@ class DB {
     private static function logConnectionError(PDOException $e): void
     {
         Logger::error("Connection failed: " . $e->getMessage());
-        $dsnSafe = preg_replace('/password=[^;]*/i', 'password=hunter2', Config::instance()->get('DB_DSN'));
+        $dsnSafe = preg_replace('/password=[^;]*/i', 'password=hunter2', Config::getInstance()->get('DB_DSN'));
         Logger::debug("DSN used: " . $dsnSafe);
     }
 
@@ -75,7 +66,7 @@ class DB {
      * @return string The formatted error message.
      */
     private static function formatErrorMessage(PDOException $e): string {
-        return Config::instance()->get('APP_ENV') === 'development'
+        return Config::getInstance()->get('APP_ENV') === 'development'
             ? "Connection failed: {$e->getMessage()}"
             : "Connection error. Please try again later.";
     }
@@ -98,8 +89,8 @@ class DB {
                 PDO::MYSQL_ATTR_INIT_COMMAND => "SET sql_mode='STRICT_ALL_TABLES'"
             );
 
-            $maxRetries = Config::instance()->get('DB_MAX_RETRIES');
-            $initialDelay = Config::instance()->get('DB_RETRY_DELAY_MS');
+            $maxRetries = Config::getInstance()->get('DB_MAX_RETRIES');
+            $initialDelay = Config::getInstance()->get('DB_RETRY_DELAY_MS');
 
             $attempt = 0;
             $delay = $initialDelay;
@@ -107,9 +98,9 @@ class DB {
             do {
                 try {
                     self::$db = new PDO(
-                        Config::instance()->get('DB_DSN'),
-                        Config::instance()->get('DB_USERNAME'),
-                        Config::instance()->get('DB_PASSWORD'),
+                        Config::getInstance()->get('DB_DSN'),
+                        Config::getInstance()->get('DB_USERNAME'),
+                        Config::getInstance()->get('DB_PASSWORD'),
                         $opt
                     );
                     break; // success
@@ -665,32 +656,5 @@ class DB {
         }
 
         return (string) $value;
-    }
-
-
-    // --- Legacy methods with stored params (for backward compatibility) ---
-    
-    /**
-     * Set parameters for the next query.
-     * @param string $key The key for the parameter.
-     * @param mixed $value The value of the parameter.
-     */
-    public static function setParam(string $key, mixed $value): void
-    {
-        self::$QUERY_PARAMS[$key] = $value;
-    }
-
-    public static function fetchTableWithStoredParams(string $sql): array
-    {
-        $params = self::$QUERY_PARAMS;
-        self::$QUERY_PARAMS = [];
-        return self::fetchTable($sql, $params);
-    }
-
-    public static function fetchRowWithStoredParams(string $sql): ?array
-    {
-        $params = self::$QUERY_PARAMS;
-        self::$QUERY_PARAMS = [];
-        return self::fetchRow($sql, $params);
     }
 }

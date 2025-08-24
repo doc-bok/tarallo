@@ -139,7 +139,7 @@ class File {
     public static function ftpDir(string $relativePath): string {
         Logger::info("Converting relative path [" . $relativePath . "] to absolute path.");
 
-        $ftpRoot = rtrim(Config::instance()->get('FTP_ROOT'), '/');
+        $ftpRoot = rtrim(Config::getInstance()->get('FTP_ROOT'), '/');
         if (!$ftpRoot) {
             Logger::error("FTP root is not configured.");
             throw new RuntimeException("FTP root is not configured.");
