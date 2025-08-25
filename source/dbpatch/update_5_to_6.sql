@@ -8,7 +8,7 @@ CREATE TABLE `tarallo_workspaces`
     `id`        INT AUTO_INCREMENT PRIMARY KEY,
     `name`      VARCHAR(64) NOT NULL,
     `slug`      VARCHAR(64) NOT NULL,
-    `slug_hash` INT NOT NULL,
+    `slug_hash` CHAR(32) NOT NULL,
     `logo_id`   INT NULL,
     `is_public` TINYINT(1) DEFAULT 0 NOT NULL
 );

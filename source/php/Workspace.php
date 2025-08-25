@@ -13,10 +13,10 @@ class Workspace
      * Ensure we have workspace permissions set up.
      * TODO: Switch to a DI model.
      */
-    public function __construct()
+    public function __construct($db, $workspacePermissions)
     {
-        $this->db = DB::getInstance();
-        $this->workspacePermissions = new WorkspacePermissions($this->db);
+        $this->db = $db;
+        $this->workspacePermissions = $workspacePermissions;
     }
 
     /**
@@ -32,9 +32,9 @@ class Workspace
             $userId = (int) $_SESSION['user_id'];
             
             // Check our arguments are valid.
-            $this->checkValueType($request, 'name', 'string');
-            $this->checkValueType($request, 'logo_id', 'int');
-            $this->checkValueType($request, 'is_public', 'bool');
+            $this->checkValueType($request, 'name', 'string', 'My New Workspace');
+            $this->checkValueType($request, 'logo_id', 'int', 0);
+            $this->checkValueType($request, 'is_public', 'bool', false);
 
             // Begin a transaction.
             $this->db->beginTransaction();
@@ -68,6 +68,27 @@ class Workspace
             // Log and throw for debugging.
             Logger::error("Failed to create workspace: " . $e->getMessage());
             throw new RuntimeException("Failed to create workspace.", 500);
+        }
+    }
+
+    /**
+     * Reads all workspaces the user has access to.
+     * @param array $request The request parameters.
+     * @return array The workspaces the user has access to.
+     */
+    public function readAll(array $request): array {
+        try {
+            // Check the user is logged in.
+            self::checkLoggedIn();
+            $userId = (int) $_SESSION['user_id'];
+
+            // Get the workspaces.
+            return $this->readAllWorkspaces($userId);
+        } catch (Throwable $e) {
+
+            // Log and throw for debugging.
+            Logger::error("Failed to read workspace: " . $e->getMessage());
+            throw new RuntimeException("Failed to read workspace.", 500);
         }
     }
 
@@ -121,8 +142,7 @@ class Workspace
      * @param array $request The request parameters.
      * @return void
      */
-    public function updateTitle(array $request): void
-    {
+    public function updateTitle(array $request): void {
         try {
             // Check session exists.
             self::checkLoggedIn();
@@ -332,24 +352,53 @@ class Workspace
                 'slug' => $slug,
                 'slug_hash' => $slugHash,
                 'logo_id' => $logoId,
-                'is_public' => $isPublic
+                'is_public' => (int)$isPublic
             ];
 
             // Add the workspace to the database.
             try {
-                return $this->db->insertV2(self::TABLE_NAME, $params);
+                return (int)$this->db->insertV2(self::TABLE_NAME, $params);
             } catch (PDOException  $exception) {
 
                 // If we have a hash collision with the slug, generate a new
                 // one and try again. Otherwise, throw an exception as usual.
                 if ($exception->getCode() == '23000'
-                    && str_contains($exception->getMessage(), 'unique_slug_hash')) {
+                    && str_contains($exception->getMessage(), 'workspace_slug_hash')) {
                     $slug = $originalSlug . '-' . $i++;
                 } else {
-                    throw;
+                    throw $exception;
                 }
             }
         }
+    }
+
+    /**
+     * Gets all the workspaces the user has access to. Does not return public
+     * workspaces.
+     * @param int $userId The user to get the workspaces for.
+     * @return array The list of workspaces.
+     */
+    private function readAllWorkspaces(int $userId): array {
+        $query = "
+            SELECT b.*, p.user_type
+            FROM tarallo_workspaces b
+            INNER JOIN tarallo_permissions p ON b.id = p.board_id
+            WHERE p.user_id = :user_id AND p.user_type <= :user_type";
+
+        $params = [
+            'user_id' => $userId,
+            'user_type' => UserType::Observer->value
+        ];
+
+        // Get the workspace.
+        $result = $this->db->fetchAll($query, $params);
+        $count = count($result);
+
+        // Check we found a workspace.
+        Logger::info("readAllWorkspaces: Found [$count] workspaces for user [$userId]");
+
+        // Success! Return the result.
+        return $result;
     }
 
     /**
@@ -374,8 +423,7 @@ class Workspace
 
         // Check we found a workspace.
         if (!$result) {
-            Logger::error("Workspace [$workspaceId] not found.");
-            throw new RuntimeException("Workspace [$workspaceId] not found.", 404);
+            Logger::warning("Workspace [$workspaceId] not found.");
         }
 
         // Success! Return the result.
@@ -520,8 +568,13 @@ class Workspace
      * @param string $type The expected type, e.g. 'string', 'int', 'bool', 'array', 'object', or a class/interface name.
      * @throws InvalidArgumentException if the value is not the correct type.
      */
-    private function checkValueType(array $input, string $key, string $type): void {
+    private function checkValueType(array &$input, string $key, string $type, mixed $fallback = null): void {
         if (!array_key_exists($key, $input)) {
+            if (func_num_args() >= 4) {
+                $input[$key] = $fallback;
+                return;
+            }
+
             Logger::error("Workspace key [$key] not found.");
             throw new InvalidArgumentException("Workspace key [$key] not found.", 400);
         }
@@ -560,7 +613,8 @@ class Workspace
             return;
         }
 
-        Logger::error("Value [$value] is not of type [$type].");
-        throw new InvalidArgumentException("Value [$value] is not of type [$type].", 400);
+        $valForLog = is_scalar($value) ? $value : json_encode($value);
+        Logger::error("Value [$valForLog] is not of type [$type].");
+        throw new InvalidArgumentException("Value [$valForLog] is not of type [$type].", 400);
     }
 }

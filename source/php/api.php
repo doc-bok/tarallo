@@ -34,8 +34,15 @@ try {
     $response = $methodName($request);
     echo json_encode($response);
 } catch (Exception $e) {
-    http_response_code(500);
-    $message = Config::getInstance()->get('APP_ENV') === 'development' ? $e->getMessage() : 'Server Error';
+    http_response_code($e->getCode());
+
+    $message = 'Server error';
+    if(Config::getInstance()->get('APP_ENV') === 'development') {
+        $message .= ': ' . $e->getMessage();
+    } elseif($e->getCode() < 500) {
+        $message = 'Error: ' . $e->getMessage();
+    }
+
     echo json_encode(["server_error" => $message]);
 }
 
@@ -44,17 +51,8 @@ class API
 {
     public static function GetCurrentPage(array $request): array
     {
-        return Page::getCurrentPage($request);
-    }
-
-    public static function GetBoardListPage(): array
-    {
-        return Page::getBoardListPage();
-    }
-    
-    public static function GetBoardPage(array $request): array
-    {
-        return Page::getBoardPage($request);
+        $page = new Page(DB::getInstance());
+        return $page->getCurrentPage($request);
     }
 
     public static function Login(array $request): array
@@ -130,11 +128,6 @@ class API
 	public static function UpdateAttachmentName(array $request): array
 	{
 		return Attachment::updateAttachmentName($request);
-	}
-
-	public static function ProxyAttachment(array $request): void
-	{
-		Attachment::proxyAttachment($request);
 	}
 
 	public static function UpdateCardListName(array $request): array

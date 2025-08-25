@@ -41,12 +41,12 @@ class Board
 
         // Base board data with user permissions
         $sql = "
-        SELECT b.*, p.user_type
-        FROM tarallo_boards b
-        INNER JOIN tarallo_permissions p ON b.id = p.board_id
-        WHERE b.id = :board_id AND p.user_id = :user_id
-        LIMIT 1
-    ";
+            SELECT b.*, p.user_type
+            FROM tarallo_boards b
+            INNER JOIN tarallo_permissions p ON b.id = p.board_id
+            WHERE b.id = :board_id AND p.user_id = :user_id
+            LIMIT 1";
+
         $boardRecord = DB::getInstance()->fetchRow($sql, [
             'board_id' => $boardId,
             'user_id'  => $userId
