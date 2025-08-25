@@ -11,7 +11,7 @@ class Permission
      * @param int  $requiredUserType   The minimum required role constant.
      * @param bool $throwIfFailed      Whether to throw on failure (default: true).
      * @return bool                    True if allowed, false if not (when not throwing).
-     * @throws RuntimeException        If $throwIfFailed is true and permission denied.
+     * @throws ApiException        If $throwIfFailed is true and permission denied.
      */
     public static function CheckPermissions(UserType $userType, UserType $requiredUserType, bool $throwIfFailed = true): bool
     {
@@ -20,7 +20,7 @@ class Permission
 
         if (!$hasPermission) {
             if ($throwIfFailed) {
-                throw new RuntimeException("Missing permissions to perform the requested operation.", 403);
+                throw new ApiException("Missing permissions to perform the requested operation.", 403);
             }
             return false;
         }
@@ -33,7 +33,7 @@ class Permission
      * @param array $request Must contain 'board_id' (int).
      * @return array Board data with 'permissions' and 'is_admin' fields added.
      * @throws InvalidArgumentException On invalid board ID.
-     * @throws RuntimeException On DB error.
+     * @throws ApiException On DB error.
      */
     public static function getBoardPermissions(array $request): array
     {
@@ -62,7 +62,7 @@ class Permission
             $permissions = DB::getInstance()->fetchTable($sql, ['board_id' => $boardID]);
         } catch (Throwable $e) {
             Logger::error("getBoardPermissions: DB error for board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Failed to fetch board permissions");
+            throw new ApiException("Failed to fetch board permissions");
         }
 
         $boardData['permissions'] = $permissions ?: [];
@@ -76,7 +76,7 @@ class Permission
      * @param array $request Must contain 'board_id', 'user_id', 'user_type'
      * @return array Updated permission row
      * @throws InvalidArgumentException On invalid parameters
-     * @throws RuntimeException On permission denial or DB error
+     * @throws ApiException On permission denial or DB error
      */
     public static function setUserPermission(array $request): array
     {
@@ -101,7 +101,7 @@ class Permission
 
         if ($isSpecialPermission) {
             if (empty($_SESSION['is_admin'])) {
-                throw new RuntimeException("Special permissions are only available to site admins", 403);
+                throw new ApiException("Special permissions are only available to site admins", 403);
             }
             if ($targetUserID < Account::USER_ID_MIN) {
                 throw new InvalidArgumentException("Invalid special permission user ID");
@@ -109,12 +109,12 @@ class Permission
         }
 
         if ($targetUserID === (int)($_SESSION['user_id'] ?? 0)) {
-            throw new RuntimeException("Cannot edit your own permissions", 400);
+            throw new ApiException("Cannot edit your own permissions", 400);
         }
 
         // Prevent assigning equal/higher permissions than your own
         if ($userType <= (int)$boardData['user_type']) {
-            throw new RuntimeException("Cannot assign this level of permission", 403);
+            throw new ApiException("Cannot assign this level of permission", 403);
         }
 
         // Fetch current permission if exists
@@ -130,10 +130,10 @@ class Permission
 
         if (!$isSpecialPermission) {
             if (!$permission) {
-                throw new RuntimeException("No permission record found for the specified user", 404);
+                throw new ApiException("No permission record found for the specified user", 404);
             }
             if ((int)$permission['user_type'] <= (int)$boardData['user_type']) {
-                throw new RuntimeException("Cannot edit permissions for this user", 403);
+                throw new ApiException("Cannot edit permissions for this user", 403);
             }
         }
 
@@ -166,7 +166,7 @@ class Permission
             Board::updateBoardModifiedTime($boardID);
         } catch (Throwable $e) {
             Logger::error("SetUserPermission: Failed updating $targetUserID on board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Database error while updating user permission");
+            throw new ApiException("Database error while updating user permission");
         }
 
         // Return updated permission row
@@ -188,7 +188,7 @@ class Permission
      * @param array $request Must contain 'board_id' (int).
      * @return array ['access_requested' => bool]
      * @throws InvalidArgumentException On invalid input.
-     * @throws RuntimeException If request is invalid or DB error.
+     * @throws ApiException If request is invalid or DB error.
      */
     public static function requestBoardAccess(array $request): array
     {
@@ -204,7 +204,7 @@ class Permission
         // Require logged-in user
         $userID = $_SESSION['user_id'] ?? null;
         if (!$userID) {
-            throw new RuntimeException("Must be logged in to request access", 403);
+            throw new ApiException("Must be logged in to request access", 403);
         }
 
         // Check board access
@@ -225,7 +225,7 @@ class Permission
 
         // Already has Guest or higher → can't request again
         if ($userType != UserType::None) {
-            throw new RuntimeException("User already has blocked or higher access to this board", 400);
+            throw new ApiException("User already has blocked or higher access to this board", 400);
         }
 
         // Decide insert vs update
@@ -244,7 +244,7 @@ class Permission
             Logger::info("Board $boardID: user $userID granted guest access");
         } catch (Throwable $e) {
             Logger::error("RequestBoardAccess: Failed for user $userID on board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Failed to request board access");
+            throw new ApiException("Failed to request board access");
         }
 
         return ['access_requested' => true];

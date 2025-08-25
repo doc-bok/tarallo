@@ -42,7 +42,7 @@ class Label
      * @param array $labelColors Array of label colours (strings in hex or predefined format).
      * @return void
      * @throws InvalidArgumentException On invalid input.
-     * @throws RuntimeException On DB error.
+     * @throws ApiException On DB error.
      */
     public static function updateBoardLabelsInternal(int $boardID, array $labelNames, array $labelColors): void
     {
@@ -60,7 +60,7 @@ class Label
         // Length check (multibyte safe)
         if (mb_strlen($labelsString, 'UTF-8') >= self::MAX_LABEL_FIELD_LEN
             || mb_strlen($labelColorsString, 'UTF-8') >= self::MAX_LABEL_FIELD_LEN) {
-            throw new RuntimeException("The label configuration cannot be saved.", 400);
+            throw new ApiException("The label configuration cannot be saved.", 400);
         }
 
         // Update DB with safe parameter binding
@@ -81,7 +81,7 @@ class Label
             }
         } catch (Throwable $e) {
             Logger::error("UpdateBoardLabelsInternal: DB error for board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Database error updating board labels.");
+            throw new ApiException("Database error updating board labels.");
         }
     }
 
@@ -90,7 +90,7 @@ class Label
      * @param array $request Must contain 'board_id'
      * @return array Updated label data (names, colours, index)
      * @throws InvalidArgumentException On invalid board ID or exceeding label count.
-     * @throws RuntimeException On DB error.
+     * @throws ApiException On DB error.
      */
     public static function createBoardLabel(array $request): array
     {
@@ -115,7 +115,7 @@ class Label
         $labelIndex = array_search('', $boardLabelNames, true);
         if ($labelIndex === false) {
             if ($labelCount >= self::MAX_LABEL_COUNT) {
-                throw new RuntimeException("Cannot create any more labels", 400);
+                throw new ApiException("Cannot create any more labels", 400);
             }
             // Add an empty label slot
             $labelIndex = $labelCount;
@@ -134,7 +134,7 @@ class Label
             Board::updateBoardModifiedTime($boardID);
         } catch (Throwable $e) {
             Logger::error("createBoardLabel: Failed to add label to board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Failed to create board label");
+            throw new ApiException("Failed to create board label");
         }
 
         return [
@@ -149,7 +149,7 @@ class Label
      * @param array $request Must contain 'board_id', 'index', 'name', 'color'.
      * @return array Updated label info: ['index', 'name', 'color']
      * @throws InvalidArgumentException On invalid parameters.
-     * @throws RuntimeException On DB error.
+     * @throws ApiException On DB error.
      */
     public static function updateBoardLabel(array $request): array
     {
@@ -190,7 +190,7 @@ class Label
             Board::updateBoardModifiedTime($boardID);
         } catch (Throwable $e) {
             Logger::error("updateBoardLabel: Failed for board $boardID, label $labelIndex - " . $e->getMessage());
-            throw new RuntimeException("Failed to update board label");
+            throw new ApiException("Failed to update board label");
         }
 
         return [
@@ -259,7 +259,7 @@ class Label
         } catch (Throwable $e) {
             DB::getInstance()->rollBack();
             Logger::error("DeleteBoardLabel: Failed for board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Failed to delete board label");
+            throw new ApiException("Failed to delete board label");
         }
 
         return ['index' => $labelIndex];
@@ -316,7 +316,7 @@ class Label
             Board::updateBoardModifiedTime($boardID);
         } catch (Throwable $e) {
             Logger::error("SetCardLabel: Failed for card $cardID on board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Failed to update card label");
+            throw new ApiException("Failed to update card label");
         }
 
         return [

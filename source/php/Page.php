@@ -175,7 +175,7 @@ class Page
 
         if (empty($_SESSION['user_id'])) {
             Logger::error("GetBoardListPage: No user_id in session");
-            throw new RuntimeException("Not logged in", 403);
+            throw new ApiException("Not logged in", 403);
         }
 
         $userId = (int) $_SESSION['user_id'];
@@ -196,7 +196,7 @@ class Page
                 // Use GetBoardData to enforce permissions and formatting
                 $board = Board::getBoardData((int)$boardId, UserType::Observer);
                 $boardList[] = $board;
-            } catch (RuntimeException $e) {
+            } catch (ApiException $e) {
                 Logger::debug("GetBoardListPage: Skipping board $boardId - " . $e->getMessage());
             }
         }
@@ -235,7 +235,7 @@ class Page
 
         try {
             $boardData = Board::getBoardData($boardId, UserType::None, true, true);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             return [
                 'page_name'    => 'UnaccessibleBoard',
                 'page_content' => [

@@ -69,17 +69,33 @@ class API
             $this->validateAPIMethod($operation);
             $response = $this->$operation($parameters);
             echo json_encode($response);
+        } catch (ApiException $e) {
+            $code = $e->getCode();
+
+            // Log the error.
+            Logger::error($code . ": " . $e->getMessage());
+
+            http_response_code($code);
+            echo json_encode([
+                'status' => 'error',
+                'error' => [
+                    'code' => $code,
+                    'message' => $code < 500 ? $e->getMessage() : 'Internal server error'
+                ]
+            ]);
         } catch (Exception $e) {
-            http_response_code($e->getCode());
+            // Log the error.
+            Logger::error($e->getCode() . ": " . $e->getMessage());
 
-            $message = 'Server error';
-            if (Config::getInstance()->get('APP_ENV') === 'development') {
-                $message .= ': ' . $e->getMessage();
-            } elseif ($e->getCode() < 500) {
-                $message = 'Error: ' . $e->getMessage();
-            }
-
-            echo json_encode(["server_error" => $message]);
+            http_response_code(500);
+            error_log($e->getMessage());
+            echo json_encode([
+                'status' => 'error',
+                'error' => [
+                    'code' => 500,
+                    'message' => 'Internal server error'
+                ]
+            ]);
         }
     }
 
@@ -123,19 +139,19 @@ class API
 
         // Check we actually have an OP parameter before we do anything else.
         if (!$operation) {
-            throw new RuntimeException("Invalid or missing OP parameter", 400);
+            throw new ApiException("Invalid or missing OP parameter", 400);
         }
 
         // Check the HTTP method is supported
         $httpMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
         if (!array_key_exists($httpMethod, self::ALLOWED_METHODS)) {
-            throw new RuntimeException("HTTP method $httpMethod is not supported", 405);
+            throw new ApiException("HTTP method $httpMethod is not supported", 405);
         }
 
         // Check the OP is supported with the HTTP method being used.
         if (!in_array($operation, self::ALLOWED_METHODS[$httpMethod], true)) {
             header('Allow: ' . $this->getAllowedMethodsForOperation($operation));
-            throw new RuntimeException("HTTP method $httpMethod not allowed for operation $operation", 405);
+            throw new ApiException("HTTP method $httpMethod not allowed for operation $operation", 405);
         }
     }
 

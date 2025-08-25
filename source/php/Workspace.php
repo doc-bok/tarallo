@@ -64,10 +64,7 @@ class Workspace
 
             // Roll back changes on an error.
             $this->db->rollBack();
-
-            // Log and throw for debugging.
-            Logger::error("Failed to create workspace: " . $e->getMessage());
-            throw new RuntimeException("Failed to create workspace.", 500);
+            throw new ApiException("Failed to create workspace: " . $e->getMessage(), 500, $e);
         }
     }
 
@@ -85,10 +82,7 @@ class Workspace
             // Get the workspaces.
             return $this->readAllWorkspaces($userId);
         } catch (Throwable $e) {
-
-            // Log and throw for debugging.
-            Logger::error("Failed to read workspace: " . $e->getMessage());
-            throw new RuntimeException("Failed to read workspace.", 500);
+            throw new ApiException("Failed to read workspace: " . $e->getMessage(), 500, $e);
         }
     }
 
@@ -96,7 +90,7 @@ class Workspace
      * Read a workspace from the database.
      * @param array $request The request parameters.
      * @return array The workspace requested by the client.
-     * @throws RuntimeException if the database read fails, the workspace
+     * @throws ApiException if the database read fails, the workspace
      *                          doesn't exist, or the user doesn't have read
      *                          permissions.
      */
@@ -115,7 +109,7 @@ class Workspace
             $userType = $this->workspacePermissions->read($userId, $workspaceId);
             if ($userType === UserType::Blocked) {
                 Logger::error("User [$userId] is blocked from workspace [$workspaceId].");
-                throw new RuntimeException("User [$userId] is blocked from workspace [$workspaceId].", 403);
+                throw new ApiException("User [$userId] is blocked from workspace [$workspaceId].", 403);
             }
 
             // Read the workspace.
@@ -124,16 +118,13 @@ class Workspace
             // Check the user has read permissions.
             if (!$result['is_public'] && $userType > UserType::Observer) {
                 Logger::error("User [$userId] doesn't have permission to read workspace [$workspaceId].");
-                throw new RuntimeException("User [$userId] doesn't have permission to read workspace [$workspaceId].", 403);
+                throw new ApiException("User [$userId] doesn't have permission to read workspace [$workspaceId].", 403);
             }
 
             // Get the workspace.
             return $result;
         } catch (Throwable $e) {
-
-            // Log and throw for debugging.
-            Logger::error("Failed to read workspace: " . $e->getMessage());
-            throw new RuntimeException("Failed to read workspace.", 500);
+            throw new ApiException("Failed to read workspace: " . $e->getMessage(), 500, $e);
         }
     }
 
@@ -158,7 +149,7 @@ class Workspace
             // Check permissions.
             $userType = $this->workspacePermissions->read($userId, $workspaceId);
             if ($userType > UserType::Member) {
-                throw new RuntimeException("User [$userId] does not have permission to update workspace [$workspaceId].", 403);
+                throw new ApiException("User [$userId] does not have permission to update workspace [$workspaceId].", 403);
             }
 
             // Begin a transaction.
@@ -174,10 +165,7 @@ class Workspace
 
             // Roll back changes on an error.
             $this->db->rollBack();
-
-            // Log and throw for debugging.
-            Logger::error("Failed to update workspace title: " . $e->getMessage());
-            throw new RuntimeException("Failed to update workspace title.", 500);
+            throw new ApiException("Failed to update workspace: " . $e->getMessage(), 500, $e);
         }
     }
 
@@ -203,7 +191,7 @@ class Workspace
             // Check permissions.
             $userType = $this->workspacePermissions->read($userId, $workspaceId);
             if ($userType > UserType::Member) {
-                throw new RuntimeException("User [$userId] does not have permission to update workspace [$workspaceId].", 403);
+                throw new ApiException("User [$userId] does not have permission to update workspace [$workspaceId].", 403);
             }
 
             // Begin a transaction.
@@ -219,10 +207,7 @@ class Workspace
 
             // Roll back changes on an error.
             $this->db->rollBack();
-
-            // Log and throw for debugging.
-            Logger::error("Failed to update workspace logo: " . $e->getMessage());
-            throw new RuntimeException("Failed to update workspace logo.", 500);
+            throw new ApiException("Failed to update workspace logo: " . $e->getMessage(), 500, $e);
         }
     }
 
@@ -248,7 +233,7 @@ class Workspace
             // Check permissions.
             $userType = $this->workspacePermissions->read($userId, $workspaceId);
             if ($userType > UserType::Member) {
-                throw new RuntimeException("User [$userId] does not have permission to update workspace [$workspaceId].", 403);
+                throw new ApiException("User [$userId] does not have permission to update workspace [$workspaceId].", 403);
             }
 
             // Begin a transaction.
@@ -264,10 +249,7 @@ class Workspace
 
             // Roll back changes on an error.
             $this->db->rollBack();
-
-            // Log and throw for debugging.
-            Logger::error("Failed to update workspace publicity: " . $e->getMessage());
-            throw new RuntimeException("Failed to update workspace publicity.", 500);
+            throw new ApiException("Failed to update workspace publicity: " . $e->getMessage(), 500, $e);
         }
     }
 
@@ -289,7 +271,7 @@ class Workspace
             // Check ownership.
             $userType = $this->workspacePermissions->read($userId, $workspaceId);
             if ($userType !== UserType::Owner) {
-                throw new RuntimeException("User [$userId] does not have permission to delete workspace [$workspaceId].", 403);
+                throw new ApiException("User [$userId] does not have permission to delete workspace [$workspaceId].", 403);
             }
 
             // Begin a transaction.
@@ -307,10 +289,7 @@ class Workspace
 
             // Roll back changes on an error.
             $this->db->rollBack();
-
-            // Log and throw for debugging.
-            Logger::error("Failed to delete workspace: " . $e->getMessage());
-            throw new RuntimeException("Failed to delete workspace.", 500);
+            throw new ApiException("Failed to delete workspace: " . $e->getMessage(), 500, $e);
         }
     }
 
@@ -503,7 +482,7 @@ class Workspace
      * @param int $userId The ID of the user the boards should belong to.
      * @param int $workspaceId The ID of the workspace to add them to.
      * @return void
-     * @throws RuntimeException if we fail to update the boards' owner.
+     * @throws ApiException if we fail to update the boards' owner.
      */
     private function addOrphanedBoards(int $userId, int $workspaceId): void
     {
@@ -550,13 +529,13 @@ class Workspace
      * TODO: This probably wants to be in a generic utility class, or checked
      *       earlier in the flow.
      * @return void
-     * @throws RuntimeException if the user is not logged in.
+     * @throws ApiException if the user is not logged in.
      */
     private function checkLoggedIn(): void
     {
         // Only logged-in users can create workspaces.
         if (!Session::isUserLoggedIn()) {
-            throw new RuntimeException("User is not logged in.", 403);
+            throw new ApiException("User is not logged in.", 403);
         }
     }
 

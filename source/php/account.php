@@ -20,7 +20,7 @@ class Account
     /**
      * Create a new admin account with a unique "admin" username and random password.
      * @return array{id:int,username:string,password:string} Account info (plaintext password only returned here once).
-     * @throws RuntimeException if DB insert fails.
+     * @throws ApiException if DB insert fails.
      */
     public static function createNewAdminAccount(): array
     {
@@ -38,7 +38,7 @@ class Account
             ]);
         } catch (Throwable $e) {
             Logger::error("CreateNewAdminAccount: Failed to fetch existing admin usernames - " . $e->getMessage());
-            throw new RuntimeException("Failed to query existing admin usernames");
+            throw new ApiException("Failed to query existing admin usernames");
         }
 
         // Find the next available admin username
@@ -52,7 +52,7 @@ class Account
             $passBytes = random_bytes(24);
         } catch (Exception $e) {
             Logger::error("CreateNewAdminAccount: Random password generation failed - " . $e->getMessage());
-            throw new RuntimeException("Failed to generate admin password");
+            throw new ApiException("Failed to generate admin password");
         }
         $account['password'] = rtrim(strtr(base64_encode($passBytes), '+/', '-_'), '=');
 
@@ -66,12 +66,12 @@ class Account
             );
         } catch (Throwable $e) {
             Logger::error("CreateNewAdminAccount: AddUserInternal failed for {$account['username']} - " . $e->getMessage());
-            throw new RuntimeException("Failed to create admin account in DB");
+            throw new ApiException("Failed to create admin account in DB");
         }
 
         if (!$account['id']) {
             Logger::error("CreateNewAdminAccount: DB returned no ID for {$account['username']}");
-            throw new RuntimeException("Failed to create admin account");
+            throw new ApiException("Failed to create admin account");
         }
 
         Logger::info("CreateNewAdminAccount: Created {$account['username']} (ID {$account['id']})");
@@ -86,7 +86,7 @@ class Account
      * @param string $displayName  User's display name
      * @param bool   $isAdmin      Whether the user has admin privileges
      * @return int                 The new user ID
-     * @throws RuntimeException    On validation failure or DB error
+     * @throws ApiException    On validation failure or DB error
      */
     public static function addUserInternal(string $username, string $password, string $displayName, bool $isAdmin = false): int
     {
@@ -95,12 +95,12 @@ class Account
         $displayName = trim($displayName);
 
         if ($username === '' || $password === '' || $displayName === '') {
-            throw new RuntimeException("Username, password, and display name are required.");
+            throw new ApiException("Username, password, and display name are required.");
         }
 
         // Basic password policy (optional — can be expanded)
         if (strlen($password) < self::MIN_PASSWORD_LENGTH) {
-            throw new RuntimeException("Password must be at least 8 characters long.");
+            throw new ApiException("Password must be at least 8 characters long.");
         }
 
         // ==== Check for existing username ====
@@ -110,11 +110,11 @@ class Account
                 ['username' => $username]
             );
             if ($existing) {
-                throw new RuntimeException("Username already exists.");
+                throw new ApiException("Username already exists.");
             }
         } catch (Throwable $e) {
             Logger::error("AddUserInternal: Failed checking for existing user '$username' - " . $e->getMessage());
-            throw new RuntimeException("Internal error while checking username availability.");
+            throw new ApiException("Internal error while checking username availability.");
         }
 
         // ==== Hash password ====
@@ -138,12 +138,12 @@ class Account
             );
         } catch (Throwable $e) {
             Logger::error("AddUserInternal: DB insert failed for '$username' - " . $e->getMessage());
-            throw new RuntimeException("Failed to create user.");
+            throw new ApiException("Failed to create user.");
         }
 
         if (!$userId) {
             Logger::error("AddUserInternal: Insert returned no ID for '$username'");
-            throw new RuntimeException("Database did not return new user ID.");
+            throw new ApiException("Database did not return new user ID.");
         }
 
         Logger::info("AddUserInternal: Created user '$username' (ID $userId)" . ($isAdmin ? ' [ADMIN]' : ''));
@@ -240,13 +240,13 @@ class Account
      *
      * @param string $username Username to check
      * @return bool            True if the username exists, false otherwise
-     * @throws RuntimeException On invalid input or DB error
+     * @throws ApiException On invalid input or DB error
      */
     public static function UsernameExists(string $username): bool
     {
         $username = trim($username);
         if ($username === '') {
-            throw new RuntimeException("Username cannot be empty.");
+            throw new ApiException("Username cannot be empty.");
         }
 
         try {
@@ -256,7 +256,7 @@ class Account
             );
         } catch (Throwable $e) {
             Logger::error("UsernameExists: DB error while checking '$username' - " . $e->getMessage());
-            throw new RuntimeException("Database error while checking username availability");
+            throw new ApiException("Database error while checking username availability");
         }
 
         return ((int) $count) > 0;

@@ -5,7 +5,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use Random\RandomException;
 
-class DatabaseConnectionException extends RuntimeException {}
+class DatabaseConnectionException extends ApiException {}
 
 /**
  * DB Helper — supports both new and legacy usage.
@@ -45,7 +45,7 @@ class DB extends Singleton {
 
             if (!$this->tryApplyingDBPatch(self::INIT_DB_PATCH)) {
                 Logger::error("DB init failed - corrupted or missing patch");
-                throw new RuntimeException("Database initialisation failed or DB is corrupted");
+                throw new ApiException("Database initialisation failed or DB is corrupted");
             }
         }
     }
@@ -158,13 +158,13 @@ class DB extends Singleton {
      * Retrieve a single setting value from the database.
      * @param string $name Setting name to retrieve.
      * @return string|null The setting value, or null if not found.
-     * @throws RuntimeException On invalid name or DB error.
+     * @throws ApiException On invalid name or DB error.
      */
     public function getDBSetting(string $name): ?string
     {
         $name = trim($name);
         if ($name === '') {
-            throw new RuntimeException("Setting name cannot be empty.");
+            throw new ApiException("Setting name cannot be empty.");
         }
 
         try {
@@ -174,7 +174,7 @@ class DB extends Singleton {
             );
         } catch (Throwable $e) {
             Logger::error("GetDBSetting: DB error fetching '$name' - " . $e->getMessage());
-            throw new RuntimeException("Database error retrieving setting '$name'");
+            throw new ApiException("Database error retrieving setting '$name'");
         }
 
         if ($value === false || $value === null) {
@@ -190,13 +190,13 @@ class DB extends Singleton {
      * @param string $name   Setting name (must exist in tarallo_settings)
      * @param mixed  $value  New value (will be cast to string in DB)
      * @return bool          True if a row was updated, false if setting not found or unchanged.
-     * @throws RuntimeException On invalid input or DB error.
+     * @throws ApiException On invalid input or DB error.
      */
     public function setDBSetting(string $name, mixed $value): bool
     {
         $name = trim($name);
         if ($name === '') {
-            throw new RuntimeException("Setting name cannot be empty.");
+            throw new ApiException("Setting name cannot be empty.");
         }
 
         try {
@@ -211,7 +211,7 @@ class DB extends Singleton {
             );
         } catch (Throwable $e) {
             Logger::error("SetDBSetting: Failed to set '$name' - " . $e->getMessage());
-            throw new RuntimeException("Database error updating setting '$name'");
+            throw new ApiException("Database error updating setting '$name'");
         }
 
         $updated = ($rowsAffected > 0);

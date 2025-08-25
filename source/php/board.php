@@ -20,7 +20,7 @@ class Board
      * @param bool $includeCardLists Whether to include card lists.
      * @param bool $includeCards     Whether to include cards.
      * @return array The formatted board data.
-     * @throws RuntimeException if database retrieval fails.
+     * @throws ApiException if database retrieval fails.
      */
     public static function getBoardData(
         int $boardId,
@@ -34,7 +34,7 @@ class Board
 
         if (empty($_SESSION['user_id'])) {
             Logger::error("GetBoardData: No user_id in session");
-            throw new RuntimeException("Not logged in");
+            throw new ApiException("Not logged in");
         }
 
         $userId = (int) $_SESSION['user_id'];
@@ -54,13 +54,13 @@ class Board
 
         if (!$boardRecord) {
             Logger::warning("GetBoardData: Board $boardId not found or no permissions for user $userId");
-            throw new RuntimeException("Board not found or access denied");
+            throw new ApiException("Board not found or access denied");
         }
 
         // Check minimum required role
         if (!Permission::CheckPermissions(UserType::from($boardRecord['user_type']), $minRole, false)) {
             Logger::warning("GetBoardData: User $userId has insufficient permissions for board $boardId");
-            throw new RuntimeException("Permission denied");
+            throw new ApiException("Permission denied");
         }
 
         // Convert DB record to API-friendly structure
@@ -206,7 +206,7 @@ class Board
      * @param array $request Must include 'board_id', 'filename', and 'background' (base64).
      * @return array Updated board data with new background paths.
      * @throws InvalidArgumentException On invalid inputs.
-     * @throws RuntimeException On file or database errors.
+     * @throws ApiException On file or database errors.
      */
     public static function UploadBackground(array $request): array
     {
@@ -243,7 +243,7 @@ class Board
         // Decode base64 background image data safely
         $fileContent = base64_decode($request['background'], true);
         if ($fileContent === false) {
-            throw new RuntimeException("Failed to decode background image data.");
+            throw new ApiException("Failed to decode background image data.");
         }
 
         // Paths for new background and thumbnail
@@ -252,7 +252,7 @@ class Board
 
         // Write background file, throw if fails
         if (!File::writeToFile($newBackgroundPath, $fileContent)) {
-            throw new RuntimeException("Failed to save background image file.");
+            throw new ApiException("Failed to save background image file.");
         }
 
         // Generate thumbnail, throw if fails
@@ -281,7 +281,7 @@ class Board
             File::deleteFile($newBackgroundPath);
             File::deleteFile($newBackgroundThumbPath);
             Logger::error("UploadBackground: DB update failed for board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Failed to update board background.");
+            throw new ApiException("Failed to update board background.");
         }
 
         // Update $boardData locally with new paths and return
@@ -297,7 +297,7 @@ class Board
      * @param array $request Must contain 'board_id' and 'title'.
      * @return array Updated board data.
      * @throws InvalidArgumentException On invalid input.
-     * @throws RuntimeException On DB error.
+     * @throws ApiException On DB error.
      */
     public static function updateBoardTitle(array $request): array
     {
@@ -338,7 +338,7 @@ class Board
             }
         } catch (Throwable $e) {
             Logger::error("updateBoardTitle: DB error updating board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Database error updating board title.");
+            throw new ApiException("Database error updating board title.");
         }
 
         // Mark as modified
@@ -352,12 +352,12 @@ class Board
      * Public API entry point for creating a new board.
      * @param array $request Must contain 'title', optional 'label_names', 'label_colors', 'background_guid'
      * @return array Newly created board data
-     * @throws RuntimeException On user not logged in or DB error
+     * @throws ApiException On user not logged in or DB error
      */
     public static function createNewBoard(array $request): array
     {
         if (!Session::isUserLoggedIn()) {
-            throw new RuntimeException(
+            throw new ApiException(
                 "Cannot create a new board without being logged in.",
                 403
             );
@@ -388,7 +388,7 @@ class Board
      * @param string      $labelColors
      * @param string|null $backgroundGUID
      * @return int Board ID
-     * @throws RuntimeException On DB errors
+     * @throws ApiException On DB errors
      */
     public static function createNewBoardInternal(
         string $title,
@@ -403,7 +403,7 @@ class Board
 
         $userId = $_SESSION['user_id'] ?? null;
         if (!$userId || !is_numeric($userId)) {
-            throw new RuntimeException("Invalid or missing user session.");
+            throw new ApiException("Invalid or missing user session.");
         }
 
         try {
@@ -425,7 +425,7 @@ class Board
             );
 
             if (!$newBoardID) {
-                throw new RuntimeException("Failed to insert new board.");
+                throw new ApiException("Failed to insert new board.");
             }
 
             // Assign owner permission to the creator
@@ -446,7 +446,7 @@ class Board
         } catch (Throwable $e) {
             DB::getInstance()->rollBack();
             Logger::error("createNewBoardInternal: Failed to create board '$title' - " . $e->getMessage());
-            throw new RuntimeException("Failed to create board.");
+            throw new ApiException("Failed to create board.");
         }
 
         return (int)$newBoardID;
@@ -457,7 +457,7 @@ class Board
      * @param array $request Must contain 'id' (board ID).
      * @return array Updated board data.
      * @throws InvalidArgumentException On missing/invalid parameters.
-     * @throws RuntimeException On DB error.
+     * @throws ApiException On DB error.
      */
     public static function closeBoard(array $request): array
     {
@@ -486,7 +486,7 @@ class Board
             }
         } catch (Throwable $e) {
             Logger::error("closeBoard: Failed to close board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Database error while closing board.");
+            throw new ApiException("Database error while closing board.");
         }
 
         // Update last-modified timestamp
@@ -503,7 +503,7 @@ class Board
      * @param array $request Must contain 'id' (board ID).
      * @return array Updated board data.
      * @throws InvalidArgumentException On invalid input.
-     * @throws RuntimeException On DB error.
+     * @throws ApiException On DB error.
      */
     public static function reopenBoard(array $request): array
     {
@@ -530,7 +530,7 @@ class Board
             }
         } catch (Throwable $e) {
             Logger::error("ReopenBoard: Failed to reopen board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Database error while reopening board.");
+            throw new ApiException("Database error while reopening board.");
         }
 
         Board::updateBoardModifiedTime($boardID);
@@ -545,7 +545,7 @@ class Board
      * @param array $request Must contain 'id' (int board ID)
      * @return array Deleted board data
      * @throws InvalidArgumentException On invalid params
-     * @throws RuntimeException On permission issues or DB/file errors
+     * @throws ApiException On permission issues or DB/file errors
      */
     public static function deleteBoard(array $request): array
     {
@@ -563,7 +563,7 @@ class Board
 
         // Must be closed before deletion
         if (empty($boardData['closed'])) {
-            throw new RuntimeException("Cannot delete an open board.", 400);
+            throw new ApiException("Cannot delete an open board.", 400);
         }
 
         // Get attachments before DB deletion so we can delete files
@@ -588,7 +588,7 @@ class Board
         } catch (Throwable $e) {
             DB::getInstance()->rollBack();
             Logger::error("deleteBoard: Failed to delete board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Failed to delete board data.");
+            throw new ApiException("Failed to delete board data.");
         }
 
         // Delete attachment files now that rows are gone
@@ -621,7 +621,7 @@ class Board
         self::assertImportAllowed();
 
         if (!Session::isUserLoggedIn()) {
-            throw new RuntimeException("Must be logged in to import a board", 403);
+            throw new ApiException("Must be logged in to import a board", 403);
         }
 
         $zip = self::openExportZip();
@@ -657,7 +657,7 @@ class Board
         } catch (Throwable $e) {
             DB::getInstance()->rollBack();
             Logger::error("Board import failed: " . $e->getMessage());
-            throw new RuntimeException("Board import failed: {$e->getMessage()}", 500);
+            throw new ApiException("Board import failed: {$e->getMessage()}", 500);
         }
 
         return Board::GetBoardData($newBoardID);
@@ -670,7 +670,7 @@ class Board
     {
         if (!($_SESSION['is_admin'] ?? false)
             && !DB::getInstance()->getDBSetting('board_import_enabled')) {
-            throw new RuntimeException("Board import is disabled on this server", 403);
+            throw new ApiException("Board import is disabled on this server", 403);
         }
     }
 
@@ -684,7 +684,7 @@ class Board
         $path = File::ftpDir(self::TEMP_EXPORT_FILE);
 
         if ($zip->open($path) !== true) {
-            throw new RuntimeException("Export zip not found", 500);
+            throw new ApiException("Export zip not found", 500);
         }
 
         // ZIP Slip prevention
@@ -692,7 +692,7 @@ class Board
             $entry = $zip->getNameIndex($i);
             if (str_contains($entry, '..') || str_starts_with($entry, '/')) {
                 $zip->close();
-                throw new RuntimeException("Unsafe file path in archive", 400);
+                throw new ApiException("Unsafe file path in archive", 400);
             }
         }
         return $zip;
@@ -707,12 +707,12 @@ class Board
     {
         $dbExportJson = $zip->getFromName('db.json');
         if ($dbExportJson === false) {
-            throw new RuntimeException("Invalid export file: missing db.json", 400);
+            throw new ApiException("Invalid export file: missing db.json", 400);
         }
 
         $data = json_decode($dbExportJson, true);
         if (!is_array($data)) {
-            throw new RuntimeException("Invalid db.json content", 400);
+            throw new ApiException("Invalid db.json content", 400);
         }
         return $data;
     }
@@ -725,7 +725,7 @@ class Board
     {
         foreach (['title', 'label_names', 'label_colors', 'background_guid', 'cardlists', 'cards', 'attachments'] as $key) {
             if (!array_key_exists($key, $data)) {
-                throw new RuntimeException("Export data missing: $key", 400);
+                throw new ApiException("Export data missing: $key", 400);
             }
         }
     }
@@ -840,7 +840,7 @@ class Board
     {
         $boardFolder = Board::getBoardContentDir($boardID);
         if (!$zip->extractTo(File::ftpDir($boardFolder))) {
-            throw new RuntimeException("Extraction failed", 500);
+            throw new ApiException("Extraction failed", 500);
         }
         $zip->close();
         File::deleteFile($boardFolder . "db.json");
@@ -856,10 +856,10 @@ class Board
     {
         // Feature flag & permission check
         if (!($_SESSION['is_admin'] ?? false) && !DB::getInstance()->getDBSetting('trello_import_enabled')) {
-            throw new RuntimeException("Trello import disabled", 403);
+            throw new ApiException("Trello import disabled", 403);
         }
         if (!Session::isUserLoggedIn()) {
-            throw new RuntimeException("Must be logged in to import board", 403);
+            throw new ApiException("Must be logged in to import board", 403);
         }
 
         if (empty($request['trello_export']) || !is_array($request['trello_export'])) {
@@ -927,7 +927,7 @@ class Board
         } catch (Throwable $e) {
             DB::getInstance()->rollBack();
             Logger::error("Trello import failed: " . $e->getMessage());
-            throw new RuntimeException("Board import from Trello failed");
+            throw new ApiException("Board import from Trello failed");
         }
 
         return Board::GetBoardData($newBoardID);
@@ -1025,14 +1025,14 @@ class Board
      *
      * @param array $request Must contain 'board_id' (int)
      * @throws InvalidArgumentException if the arguments aren't valid
-     * @throws RuntimeException if there is an error reading from the database
+     * @throws ApiException if there is an error reading from the database
      * @throws Throwable for any other errors
      */
     public static function ExportBoard(array $request): void
     {
         // --- Feature gating ---
         if (!($_SESSION['is_admin'] ?? false) && !DB::getInstance()->getDBSetting('board_export_enabled')) {
-            throw new RuntimeException("Board export is disabled on this server", 403);
+            throw new ApiException("Board export is disabled on this server", 403);
         }
 
         // --- Input validation ---
@@ -1053,7 +1053,7 @@ class Board
 
         $zip = new ZipArchive();
         if ($zip->open(File::ftpDir($exportPath), ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-            throw new RuntimeException("Export failed: zip creation error with path $exportPath", 500);
+            throw new ApiException("Export failed: zip creation error with path $exportPath", 500);
         }
 
         try {
@@ -1079,10 +1079,10 @@ class Board
             // --- Add db.json to ZIP ---
             $jsonData = json_encode($boardExportData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
             if ($jsonData === false) {
-                throw new RuntimeException("Failed to encode board export JSON");
+                throw new ApiException("Failed to encode board export JSON");
             }
             if (!$zip->addFromString("db.json", $jsonData)) {
-                throw new RuntimeException("Export failed: could not add db.json to zip");
+                throw new ApiException("Export failed: could not add db.json to zip");
             }
 
             // --- Add board files to ZIP ---
@@ -1100,7 +1100,7 @@ class Board
                         }
                         $zipPath = ltrim(str_replace($boardBaseDir, '', $filePath), '/\\');
                         if (!$zip->addFile($filePath, $zipPath)) {
-                            throw new RuntimeException("Failed to add file: $zipPath");
+                            throw new ApiException("Failed to add file: $zipPath");
                         }
                     }
                 }
@@ -1128,12 +1128,12 @@ class Board
      * Update the last_modified_time for a given board.
      * @param int $boardID The board's ID.
      * @return bool        True if a row was updated, false if not (board not found).
-     * @throws RuntimeException On invalid ID or DB error.
+     * @throws ApiException On invalid ID or DB error.
      */
     public static function updateBoardModifiedTime(int $boardID): bool
     {
         if ($boardID <= 0) {
-            throw new RuntimeException("Invalid board ID: $boardID");
+            throw new ApiException("Invalid board ID: $boardID");
         }
 
         try {
@@ -1150,7 +1150,7 @@ class Board
             Logger::error(
                 "UpdateBoardModifiedTime: DB error updating board $boardID - " . $e->getMessage()
             );
-            throw new RuntimeException("Failed to update board modified time");
+            throw new ApiException("Failed to update board modified time");
         }
 
         if ($rows > 0) {

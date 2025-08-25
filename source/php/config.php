@@ -52,13 +52,13 @@ class Config extends Singleton {
 
     /**
      * Validate that all required settings are present.
-     * @throws RuntimeException if any required setting is missing.
+     * @throws ApiException if any required setting is missing.
      */
     private function validate(): void {
         $required = ['DB_DSN', 'DB_USERNAME', 'DB_PASSWORD'];
         foreach ($required as $key) {
             if (empty($this->settings[$key])) {
-                throw new RuntimeException("Missing required config key: $key");
+                throw new ApiException("Missing required config key: $key");
             }
         }
     }

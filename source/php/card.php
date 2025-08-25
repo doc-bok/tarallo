@@ -107,7 +107,7 @@ class Card
                 true,   // include card content
                 true    // include attachments
             );
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             http_response_code(403);
             return ['error' => 'Unable to get card data'];
         }
@@ -150,7 +150,7 @@ class Card
         // Check board permission
         try {
             Board::GetBoardData($boardId, UserType::Member);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             Logger::warning("AddNewCard: Board $boardId not accessible to $userId");
             http_response_code(403);
             return ['error' => 'Access denied'];
@@ -159,7 +159,7 @@ class Card
         // Check cardlist belongs to board
         try {
             self::GetCardlistData($boardId, $cardlistId);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             Logger::warning("AddNewCard: Cardlist $cardlistId not found in board $boardId for $userId");
             http_response_code(400);
             return ['error' => 'Invalid cardlist'];
@@ -199,12 +199,12 @@ class Card
      * @param int $boardID     The board ID to validate against.
      * @param int $cardlistID  The cardlist ID to fetch.
      * @return array           The cardlist DB row.
-     * @throws RuntimeException If not found or not in specified board.
+     * @throws ApiException If not found or not in specified board.
      */
     public static function GetCardlistData(int $boardID, int $cardlistID): array
     {
         if ($boardID <= 0 || $cardlistID <= 0) {
-            throw new RuntimeException("Invalid board or cardlist ID");
+            throw new ApiException("Invalid board or cardlist ID");
         }
 
         try {
@@ -214,15 +214,15 @@ class Card
             );
         } catch (Throwable $e) {
             Logger::error("GetCardlistData: DB error fetching cardlist $cardlistID - " . $e->getMessage());
-            throw new RuntimeException("Database error while fetching cardlist");
+            throw new ApiException("Database error while fetching cardlist");
         }
 
         if (!$cardlistData) {
-            throw new RuntimeException("Cardlist not found", 404);
+            throw new ApiException("Cardlist not found", 404);
         }
 
         if ((int)$cardlistData['board_id'] !== $boardID) {
-            throw new RuntimeException("Cardlist does not belong to board $boardID", 400);
+            throw new ApiException("Cardlist does not belong to board $boardID", 400);
         }
 
         return $cardlistData;
@@ -239,7 +239,7 @@ class Card
      * @param int $labelMask The labels that are set
      * @param int $flagMask Any flags that are set
      * @return array The new card data if successful
-     * @throws RuntimeException if the database fails to update.
+     * @throws ApiException if the database fails to update.
      */
     public static function AddNewCardInternal(
         int $boardID,
@@ -259,7 +259,7 @@ class Card
         );
 
         if ($cardCount === 0 && $prevCardID > 0) {
-            throw new RuntimeException("Previous card ID not in empty list");
+            throw new ApiException("Previous card ID not in empty list");
         }
 
         $nextCardID  = 0;
@@ -278,7 +278,7 @@ class Card
                     ['cid' => $cardlistID, 'pid' => $prevCardID]
                 );
                 if (!$prevCardRec) {
-                    throw new RuntimeException("Previous card ID $prevCardID invalid");
+                    throw new ApiException("Previous card ID $prevCardID invalid");
                 }
             }
 
@@ -360,7 +360,7 @@ class Card
         // Get board data with cards, forcing at least Member role
         try {
             $boardData = Board::GetBoardData($boardId, UserType::Member, false, true);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             http_response_code(403);
             return ['error' => 'Access denied'];
         }
@@ -411,7 +411,7 @@ class Card
         );
 
         if (!$cardRecord) {
-            throw new RuntimeException("Card does not exist");
+            throw new ApiException("Card does not exist");
         }
 
         DB::getInstance()->beginTransaction();
@@ -501,7 +501,7 @@ class Card
         // Get board data with cards to verify membership & card presence
         try {
             $boardData = Board::GetBoardData($boardId, UserType::Member, false, true, true);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             Logger::warning("MoveCard: User $userId permission denied on board $movedCardId");
             http_response_code(403);
             return ['error' => 'Access denied'];
@@ -523,7 +523,7 @@ class Card
         // Validate the destination cardlist
         try {
             self::GetCardlistData($boardId, $destCardlistId);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             http_response_code(400);
             return ['error' => 'Destination cardlist invalid'];
         }
@@ -602,7 +602,7 @@ class Card
         // Check board membership
         try {
             Board::GetBoardData($boardId, UserType::Member);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             Logger::warning("UpdateCardTitle: User $userId attempted without permission on board $boardId");
             http_response_code(403);
             return ['error' => 'Access denied'];
@@ -611,7 +611,7 @@ class Card
         // Check that the card belongs to this board
         try {
             $cardRecord = self::getCardData($boardId, $cardId);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             http_response_code(404);
             return ['error' => 'Card not found in this board'];
         }
@@ -643,12 +643,12 @@ class Card
      * @param int $boardID The board ID to validate against.
      * @param int $cardID  The card ID to retrieve.
      * @return array       The card's DB row.
-     * @throws RuntimeException If not found or not part of the board.
+     * @throws ApiException If not found or not part of the board.
      */
     public static function getCardData(int $boardID, int $cardID): array
     {
         if ($boardID <= 0 || $cardID <= 0) {
-            throw new RuntimeException("Invalid board or card ID");
+            throw new ApiException("Invalid board or card ID");
         }
 
         try {
@@ -658,17 +658,17 @@ class Card
             );
         } catch (Throwable $e) {
             Logger::error("GetCardData: DB error reading card $cardID - " . $e->getMessage());
-            throw new RuntimeException("Database error while fetching card.");
+            throw new ApiException("Database error while fetching card.");
         }
 
         if (!$cardData) {
             // Card doesn't exist
-            throw new RuntimeException("Card not found", 404);
+            throw new ApiException("Card not found", 404);
         }
 
         if ((int)$cardData['board_id'] !== $boardID) {
             // Card is from another board
-            throw new RuntimeException("Card not part of specified board", 400);
+            throw new ApiException("Card not part of specified board", 400);
         }
 
         return $cardData;
@@ -702,7 +702,7 @@ class Card
         // === Permission check ===
         try {
             Board::GetBoardData($boardId, UserType::Member);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             Logger::warning("UpdateCardContent: User $userId tried to edit card $cardId on board $boardId without permission");
             http_response_code(403);
             return ['error' => 'Access denied'];
@@ -711,7 +711,7 @@ class Card
         // === Card ownership check ===
         try {
             $cardRecord = self::getCardData($boardId, $cardId);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             http_response_code(404);
             return ['error' => 'Card not found in this board'];
         }
@@ -763,7 +763,7 @@ class Card
         // Permission check
         try {
             Board::GetBoardData($boardId, UserType::Member);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             Logger::warning("UpdateCardFlags: User $userId tried to update flags on card $cardId in board $boardId without permission");
             http_response_code(403);
             return ['error' => 'Access denied'];
@@ -772,7 +772,7 @@ class Card
         // Card existence/ownership check
         try {
             $cardRecord = Card::getCardData($boardId, $cardId);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             http_response_code(404);
             return ['error' => 'Card not found in this board'];
         }

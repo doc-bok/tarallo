@@ -377,7 +377,7 @@ class Attachment
         // Permission check: require Member role on board
         try {
             Board::GetBoardData($boardId, UserType::Member);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             Logger::warning("UploadAttachment: User $userId no permission on board $boardId");
             http_response_code(403);
             return ['error' => 'Access denied'];
@@ -386,7 +386,7 @@ class Attachment
         // Validate card belongs to board
         try {
             Card::getCardData($boardId, $cardId);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             http_response_code(404);
             return ['error' => 'Card not found in this board'];
         }
@@ -511,12 +511,12 @@ class Attachment
      * @param int $boardID      The board ID to check against.
      * @param int $attachmentID The attachment ID to fetch.
      * @return array            Attachment DB row.
-     * @throws RuntimeException If not found or board mismatch.
+     * @throws ApiException If not found or board mismatch.
      */
     public static function getAttachmentRecord(int $boardID, int $attachmentID): array
     {
         if ($boardID <= 0 || $attachmentID <= 0) {
-            throw new RuntimeException("Invalid board or attachment ID");
+            throw new ApiException("Invalid board or attachment ID");
         }
 
         try {
@@ -526,15 +526,15 @@ class Attachment
             );
         } catch (Throwable $e) {
             Logger::error("GetAttachmentRecord: DB error fetching $attachmentID - {$e->getMessage()}");
-            throw new RuntimeException("Database error while retrieving attachment");
+            throw new ApiException("Database error while retrieving attachment");
         }
 
         if (!$attachmentRecord) {
-            throw new RuntimeException("Attachment not found", 404);
+            throw new ApiException("Attachment not found", 404);
         }
 
         if ((int)$attachmentRecord['board_id'] !== $boardID) {
-            throw new RuntimeException("Attachment belongs to another board", 403);
+            throw new ApiException("Attachment belongs to another board", 403);
         }
 
         return $attachmentRecord;
@@ -548,7 +548,7 @@ class Attachment
      * @param int    $thumbWidth  Width of thumbnail in pixels (default: 256).
      * @param int    $dirMode     Directory permissions (default: 0777).
      * @param int    $jpegQuality JPEG quality 0-100 (default: 85).
-     * @throws RuntimeException if any step fails.
+     * @throws ApiException if any step fails.
      */
     public static function createImageThumbnail(
         string $srcImgPath,
@@ -562,13 +562,13 @@ class Attachment
 
         if (!is_file($srcAbsPath) || !is_readable($srcAbsPath)) {
             Logger::error("createImageThumbnail: Source image not found or unreadable: $srcAbsPath");
-            throw new RuntimeException("Source image missing or unreadable: $srcAbsPath");
+            throw new ApiException("Source image missing or unreadable: $srcAbsPath");
         }
 
         $srcInfo = @getimagesize($srcAbsPath);
         if ($srcInfo === false) {
             Logger::error("createImageThumbnail: Failed to get image size for $srcAbsPath");
-            throw new RuntimeException("Unable to get image size: $srcAbsPath");
+            throw new ApiException("Unable to get image size: $srcAbsPath");
         }
 
         // Detect image type and create source image resource
@@ -584,12 +584,12 @@ class Attachment
                 break;
             default:
                 Logger::error("createImageThumbnail: Unsupported image type for $srcAbsPath");
-                throw new RuntimeException("Unsupported image type for thumbnail: $srcAbsPath");
+                throw new ApiException("Unsupported image type for thumbnail: $srcAbsPath");
         }
 
         if ($srcImage === false) {
             Logger::error("createImageThumbnail: Failed to load image resource from $srcAbsPath");
-            throw new RuntimeException("Failed to load image resource: $srcAbsPath");
+            throw new ApiException("Failed to load image resource: $srcAbsPath");
         }
 
         // Calculate scaled height keeping aspect ratio
@@ -618,7 +618,7 @@ class Attachment
             imagedestroy($srcImage);
             imagedestroy($destImage);
             Logger::error("createImageThumbnail: Failed to resample image for $srcAbsPath");
-            throw new RuntimeException("Failed to resize image: $srcAbsPath");
+            throw new ApiException("Failed to resize image: $srcAbsPath");
         }
 
         // Prepare destination directory
@@ -629,7 +629,7 @@ class Attachment
                 imagedestroy($srcImage);
                 imagedestroy($destImage);
                 Logger::error("createImageThumbnail: Failed to create directory $destAbsDir");
-                throw new RuntimeException("Failed to create directory: $destAbsDir");
+                throw new ApiException("Failed to create directory: $destAbsDir");
             }
         }
 
@@ -640,7 +640,7 @@ class Attachment
 
         if (!$saveSuccess) {
             Logger::error("createImageThumbnail: Failed to save thumbnail to $destAbsPath");
-            throw new RuntimeException("Failed to save thumbnail to: $destAbsPath");
+            throw new ApiException("Failed to save thumbnail to: $destAbsPath");
         }
 
         Logger::info("Thumbnail created: $destAbsPath (width: {$thumbWidth}px, height: {$thumbHeight}px)");
@@ -651,7 +651,7 @@ class Attachment
      * @param array $request Must contain 'board_id' and 'id' keys representing the board and attachment IDs.
      * @return array Updated attachment data with linked card information.
      * @throws InvalidArgumentException On missing or invalid parameters.
-     * @throws RuntimeException On failure to delete files or update DB.
+     * @throws ApiException On failure to delete files or update DB.
      */
     public static function deleteAttachment(array $request): array
     {
@@ -701,7 +701,7 @@ class Attachment
         } catch (Throwable $e) {
             DB::getInstance()->rollBack();
             Logger::error("deleteAttachment: Failed during delete process for attachment $attachmentID on board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Failed to delete attachment safely.");
+            throw new ApiException("Failed to delete attachment safely.");
         }
 
         // Update the board modified timestamp
@@ -720,7 +720,7 @@ class Attachment
      * @param array $request Must include 'board_id', 'id', and 'name'.
      * @return array Updated attachment data.
      * @throws InvalidArgumentException On invalid input.
-     * @throws RuntimeException On DB error.
+     * @throws ApiException On DB error.
      */
     public static function updateAttachmentName(array $request): array
     {
@@ -770,7 +770,7 @@ class Attachment
             Logger::error(
                 "updateAttachmentName: Failed to update attachment $attachmentID on board $boardID - " . $e->getMessage()
             );
-            throw new RuntimeException("Database error while updating attachment name.");
+            throw new ApiException("Database error while updating attachment name.");
         }
 
         // Update the board modified time
@@ -786,7 +786,7 @@ class Attachment
      * @param array $request Must include 'board_id' and 'id', optionally 'thumbnail' (boolean).
      * @return void
      * @throws InvalidArgumentException On missing or invalid input.
-     * @throws RuntimeException On permission, record not found, or file access issues.
+     * @throws ApiException On permission, record not found, or file access issues.
      */
     public static function proxyAttachment(array $request): void
     {
@@ -810,7 +810,7 @@ class Attachment
             Board::GetBoardData($boardID, UserType::Observer);
         } catch (Throwable $e) {
             Logger::error("proxyAttachment: Board access denied or error for board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Access denied or board not found.");
+            throw new ApiException("Access denied or board not found.");
         }
 
         // Retrieve attachment record safely
@@ -818,7 +818,7 @@ class Attachment
             $attachmentRecord = Attachment::GetAttachmentRecord($boardID, $attachmentID);
         } catch (Throwable $e) {
             Logger::error("proxyAttachment: Attachment not found $attachmentID for board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Attachment not found.");
+            throw new ApiException("Attachment not found.");
         }
 
         // Determine attachment file path
@@ -841,12 +841,12 @@ class Attachment
             try {
                 $fullPath = Attachment::GetAttachmentFilePathFromRecord($attachmentRecord);
                 if (!File::fileExists($fullPath)) {
-                    throw new RuntimeException("Attachment file missing on disk.");
+                    throw new ApiException("Attachment file missing on disk.");
                 }
                 $attachmentPath = $fullPath;
             } catch (Throwable $e) {
                 Logger::error("proxyAttachment: Attachment file missing or inaccessible - " . $e->getMessage());
-                throw new RuntimeException("Attachment file not found or unreadable.");
+                throw new ApiException("Attachment file not found or unreadable.");
             }
         }
 
@@ -871,7 +871,7 @@ class Attachment
             File::outputFile($attachmentPath, $mimeType, $downloadFilename, !$isImage);
         } catch (Throwable $e) {
             Logger::error("proxyAttachment: Failed to output file $attachmentPath - " . $e->getMessage());
-            throw new RuntimeException("Failed to output attachment file.");
+            throw new ApiException("Failed to output attachment file.");
         }
     }
 

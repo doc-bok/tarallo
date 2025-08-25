@@ -78,7 +78,7 @@ class ConfigTest extends TestCase
         $_ENV['TARALLO_DB_USERNAME'] = '';
         $_ENV['TARALLO_DB_PASSWORD'] = '';
 
-        $this->expectException(RuntimeException::class);
+        $this->expectException(ApiException::class);
         $this->expectExceptionMessage('Missing required config key');
 
         // Create new instance forcibly for test purpose (if constructor private, use Reflection)

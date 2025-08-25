@@ -134,7 +134,7 @@ class File {
      * Resolve a relative FTP path to an absolute filesystem path.
      * @param string $relativePath A relative path (e.g. 'uploads/file.txt').
      * @return string Absolute path within FTP root.
-     * @throws RuntimeException if FTP root is not configured.
+     * @throws ApiException if FTP root is not configured.
      */
     public static function ftpDir(string $relativePath): string {
         Logger::info("Converting relative path [" . $relativePath . "] to absolute path.");
@@ -142,7 +142,7 @@ class File {
         $ftpRoot = rtrim(Config::getInstance()->get('FTP_ROOT'), '/');
         if (!$ftpRoot) {
             Logger::error("FTP root is not configured.");
-            throw new RuntimeException("FTP root is not configured.");
+            throw new ApiException("FTP root is not configured.");
         }
 
         Logger::info("FTP root is set to [" . $ftpRoot . "].");
@@ -206,7 +206,7 @@ class File {
 
         if (!str_starts_with($normalResolved, $normalFtpRoot)) {
             Logger::error("Resolved path escapes FTP root([" . $ftpRoot. "]): [" . $resolvedPath . "]. Relative path is [" . $relativePath . "].");
-            throw new RuntimeException("Resolved path escapes FTP root. [$resolvedPath]");
+            throw new ApiException("Resolved path escapes FTP root. [$resolvedPath]");
         }
 
         // For Windows, optionally convert slashes back to backslashes if needed
@@ -223,7 +223,7 @@ class File {
      * @param string $filePath  The file path (can be relative to FTP root).
      * @param int    $mode      Directory permissions (default 0775).
      * @return bool  True if the directory exists or was created successfully, false otherwise.
-     * @throws RuntimeException if directory creation fails.
+     * @throws ApiException if directory creation fails.
      */
     public static function prepareDir(string $filePath, int $mode = 0775): bool
     {
@@ -247,7 +247,7 @@ class File {
 
         $error = error_get_last()['message'] ?? 'unknown error';
         Logger::error("Failed to create directory: $absDir — $error");
-        throw new RuntimeException("Failed to create directory '$absDir': $error");
+        throw new ApiException("Failed to create directory '$absDir': $error");
     }
 
     /**
@@ -257,7 +257,7 @@ class File {
      * @param int    $dirMode    Directory permissions (default: 0775).
      * @param int    $fileMode   File permissions if creating a new file (default: 0664).
      * @return string Absolute resolved file path.
-     * @throws RuntimeException if directory or file creation fails.
+     * @throws ApiException if directory or file creation fails.
      */
     public static function prepareFile(
         string $filePath,
@@ -279,7 +279,7 @@ class File {
             } else {
                 $error = error_get_last()['message'] ?? 'unknown error';
                 Logger::error("Failed to create file '$absPath': $error");
-                throw new RuntimeException("Failed to create file '$absPath': $error");
+                throw new ApiException("Failed to create file '$absPath': $error");
             }
         }
 
@@ -295,7 +295,7 @@ class File {
      * @param int    $dirMode    Directory permissions (default: 0775).
      * @param int    $fileMode   File permissions (default: 0664).
      * @return int   Number of bytes written.
-     * @throws RuntimeException if the write fails.
+     * @throws ApiException if the write fails.
      */
     public static function writeToFile(
         string $filePath,
@@ -315,7 +315,7 @@ class File {
         if ($bytes === false) {
             $error = error_get_last()['message'] ?? 'unknown error';
             Logger::error("Failed to write to file '$absPath': $error");
-            throw new RuntimeException("Failed to write to file '$absPath': $error");
+            throw new ApiException("Failed to write to file '$absPath': $error");
         }
 
         Logger::debug("Wrote $bytes bytes to file: $absPath");
@@ -326,7 +326,7 @@ class File {
      * Reads a file from the FTP root as a string with safety checks and optional size limit.
      * @param int|null $maxBytes Optional maximum bytes to read (null for no limit).
      * @return string File contents.
-     * @throws RuntimeException if file cannot be read.
+     * @throws ApiException if file cannot be read.
      */
     public static function readFileAsString(string $filePath, ?int $maxBytes = null): string
     {
@@ -334,20 +334,20 @@ class File {
 
         if (!is_file($absPath)) {
             Logger::error("readFileAsString: File not found '$absPath'");
-            throw new RuntimeException("File not found: $absPath");
+            throw new ApiException("File not found: $absPath");
         }
 
         $handle = @fopen($absPath, 'rb');
         if (!$handle) {
             $error = error_get_last()['message'] ?? 'unknown error';
             Logger::error("readFileAsString: Failed to open '$absPath': $error");
-            throw new RuntimeException("Unable to open file '$absPath': $error");
+            throw new ApiException("Unable to open file '$absPath': $error");
         }
 
         if (!flock($handle, LOCK_SH)) {
             fclose($handle);
             Logger::error("readFileAsString: Could not lock file '$absPath' for reading.");
-            throw new RuntimeException("Unable to acquire shared lock on file '$absPath'");
+            throw new ApiException("Unable to acquire shared lock on file '$absPath'");
         }
 
         $contents = $maxBytes !== null
@@ -359,12 +359,12 @@ class File {
 
         if ($contents === false) {
             Logger::error("readFileAsString: Failed to read from '$absPath'");
-            throw new RuntimeException("Error reading from file: $absPath");
+            throw new ApiException("Error reading from file: $absPath");
         }
 
         if ($maxBytes !== null && strlen($contents) > $maxBytes) {
             Logger::error("readFileAsString: File '$absPath' exceeds limit of $maxBytes bytes");
-            throw new RuntimeException("File size exceeds limit of $maxBytes bytes: $absPath");
+            throw new ApiException("File size exceeds limit of $maxBytes bytes: $absPath");
         }
 
         return $contents;
@@ -375,7 +375,7 @@ class File {
      * @param string $filePath   Relative or absolute path within FTP root.
      * @param bool   $mustExist  If true, throw an error if the file is missing. If false, silently skip missing files.
      * @return bool  True if the file was deleted, false if skipped/missing.
-     * @throws RuntimeException if deletion fails when $mustExist is true.
+     * @throws ApiException if deletion fails when $mustExist is true.
      */
     public static function deleteFile(string $filePath, bool $mustExist = false): bool
     {
@@ -384,7 +384,7 @@ class File {
         if (!file_exists($absPath)) {
             if ($mustExist) {
                 Logger::error("deleteFile: File not found '$absPath'");
-                throw new RuntimeException("File not found: $absPath");
+                throw new ApiException("File not found: $absPath");
             }
             Logger::debug("deleteFile: File '$absPath' does not exist, skipping");
             return false;
@@ -403,7 +403,7 @@ class File {
             }
             $error = error_get_last()['message'] ?? 'unknown error';
             Logger::error("deleteFile: Failed to delete '$absPath': $error");
-            throw new RuntimeException("Unable to delete file '$absPath': $error");
+            throw new ApiException("Unable to delete file '$absPath': $error");
         }
 
         if ($fh) {
@@ -421,7 +421,7 @@ class File {
      * @param bool   $mustExist  If true, throw if the directory doesn't exist.
      * @param bool   $dryRun     If true, list files/dirs without deleting.
      * @return bool  True if deleted (or would be deleted in dryRun), false if skipped/missing.
-     * @throws RuntimeException on failure (unless $mustExist=false and dir missing).
+     * @throws ApiException on failure (unless $mustExist=false and dir missing).
      */
     public static function deleteDir(string $dirPath, bool $mustExist = false, bool $dryRun = false): bool
     {
@@ -433,7 +433,7 @@ class File {
         if (!is_dir($absDir)) {
             if ($mustExist) {
                 Logger::error("deleteDir: Directory not found '$absDir'");
-                throw new RuntimeException("Directory not found: $absDir");
+                throw new ApiException("Directory not found: $absDir");
             }
             Logger::debug("deleteDir: Directory '$absDir' does not exist, skipping");
             return false;
@@ -444,7 +444,7 @@ class File {
             if (!@rmdir($absDir)) {
                 $error = error_get_last()['message'] ?? 'unknown error';
                 Logger::error("deleteDir: Failed to remove dir '$absDir': $error");
-                throw new RuntimeException("Failed to remove directory $absDir: $error");
+                throw new ApiException("Failed to remove directory $absDir: $error");
             }
             Logger::info("Deleted directory: $absDir");
         } else {
@@ -472,7 +472,7 @@ class File {
                 if (!$dryRun && !@rmdir($path)) {
                     $error = error_get_last()['message'] ?? 'unknown error';
                     Logger::error("deleteDirInternal: Failed to remove dir '$path': $error");
-                    throw new RuntimeException("Failed to remove directory $path: $error");
+                    throw new ApiException("Failed to remove directory $path: $error");
                 }
                 if ($dryRun) {
                     Logger::info("[DRY-RUN] Would delete directory: $path");
@@ -498,7 +498,7 @@ class File {
                         }
                         $error = error_get_last()['message'] ?? 'unknown error';
                         Logger::error("deleteDirInternal: Failed to delete file '$path': $error");
-                        throw new RuntimeException("Failed to delete file $path: $error");
+                        throw new ApiException("Failed to delete file $path: $error");
                     }
                     if ($fh) {
                         @flock($fh, LOCK_UN);
@@ -510,7 +510,7 @@ class File {
                     if (!@unlink($path)) {
                         $error = error_get_last()['message'] ?? 'unknown error';
                         Logger::error("deleteDirInternal: Failed to delete link '$path': $error");
-                        throw new RuntimeException("Failed to delete link $path: $error");
+                        throw new ApiException("Failed to delete link $path: $error");
                     }
                     Logger::info("Deleted link: $path");
                 }
@@ -523,7 +523,7 @@ class File {
      * @param string $contentType MIME type to send (e.g., "image/png").
      * @param string $fileName   Name for the download or inline display.
      * @param bool   $isDownload If true, forces download ("attachment"); otherwise displays inline.
-     * @throws RuntimeException if file missing or unreadable.
+     * @throws ApiException if file missing or unreadable.
      */
     #[NoReturn]
     public static function outputFile(
@@ -614,13 +614,13 @@ class File {
      * @param array $request Must contain: 'context', 'chunkIndex', 'data'
      * @return array ['size' => int]
      * @throws InvalidArgumentException On bad input.
-     * @throws RuntimeException On permission denied, invalid context, or file error.
+     * @throws ApiException On permission denied, invalid context, or file error.
      */
     public static function UploadChunk(array $request): array
     {
         // --- Require login ---
         if (!Session::isUserLoggedIn()) {
-            throw new RuntimeException("Must be logged in to upload data", 403);
+            throw new ApiException("Must be logged in to upload data", 403);
         }
 
         // --- Validate basic parameters ---
@@ -642,18 +642,18 @@ class File {
         switch ($context) {
             case 'ImportBoard':
                 if (empty($_SESSION['is_admin']) && !DB::getInstance()->getDBSetting('board_import_enabled')) {
-                    throw new RuntimeException("Board import is disabled on this server (upload)", 403);
+                    throw new ApiException("Board import is disabled on this server (upload)", 403);
                 }
                 $destFilePath = Board::TEMP_EXPORT_FILE;
                 break;
             default:
-                throw new RuntimeException("Invalid upload context '$context'", 400);
+                throw new ApiException("Invalid upload context '$context'", 400);
         }
 
         // --- Decode base64 safely ---
         $chunkContent = base64_decode($dataB64, true);
         if ($chunkContent === false) {
-            throw new RuntimeException("Invalid base64-encoded chunk data", 400);
+            throw new ApiException("Invalid base64-encoded chunk data", 400);
         }
 
         // --- Ensure directory exists ---
@@ -664,13 +664,13 @@ class File {
 
         // --- Write data ---
         if (!File::writeToFile($destFilePath, $chunkContent, $writeFlags)) {
-            throw new RuntimeException("Failed to write chunk to storage", 500);
+            throw new ApiException("Failed to write chunk to storage", 500);
         }
 
         // --- Report file size ---
         $fullPath = File::ftpDir($destFilePath);
         if (!is_file($fullPath)) {
-            throw new RuntimeException("Destination file missing after write", 500);
+            throw new ApiException("Destination file missing after write", 500);
         }
         $size = filesize($fullPath);
 

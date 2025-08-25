@@ -32,7 +32,7 @@ class CardList
         // Permission + board existence check
         try {
             Board::GetBoardData($boardId, UserType::Moderator);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             Logger::warning("MoveCardList: User $userId tried to move list $listId in board $boardId without permission");
             http_response_code(403);
             return ['error' => 'Access denied'];
@@ -41,7 +41,7 @@ class CardList
         // Source list must exist in this board
         try {
             $cardListData = Card::GetCardlistData($boardId, $listId);
-        } catch (RuntimeException) {
+        } catch (ApiException) {
             http_response_code(404);
             return ['error' => 'List not found in board'];
         }
@@ -52,7 +52,7 @@ class CardList
             // New prev list must exist in this board
             try {
                 $prevListData = Card::GetCardlistData($boardId, $newPrevList);
-            } catch (RuntimeException) {
+            } catch (ApiException) {
                 http_response_code(400);
                 return ['error' => 'Invalid new_prev_cardlist_id'];
             }
@@ -106,13 +106,13 @@ class CardList
      * Remove a card list node from the linked-list ordering by re-linking its neighbours.
      * @param array $cardListData Must contain 'prev_list_id' and 'next_list_id' keys.
      * @return void
-     * @throws RuntimeException On invalid data or DB error.
+     * @throws ApiException On invalid data or DB error.
      */
     public static function removeCardListFromLL(array $cardListData): void
     {
         foreach (['prev_list_id', 'next_list_id'] as $key) {
             if (!isset($cardListData[$key])) {
-                throw new RuntimeException("Missing required key: $key");
+                throw new ApiException("Missing required key: $key");
             }
         }
 
@@ -150,7 +150,7 @@ class CardList
         } catch (Throwable $e) {
             DB::getInstance()->rollBack();
             Logger::error("RemoveCardListFromLL: Failed for list (prev=$prevId, next=$nextId) - " . $e->getMessage());
-            throw new RuntimeException("Database error while re-linking card lists");
+            throw new ApiException("Database error while re-linking card lists");
         }
     }
 
@@ -160,13 +160,13 @@ class CardList
      * @param int $prevListID The ID of the list before the new one (0 if none).
      * @param int $nextListID The ID of the list after the new one (0 if none).
      * @return void
-     * @throws RuntimeException On invalid IDs or DB error.
+     * @throws ApiException On invalid IDs or DB error.
      */
     public static function addCardListToLL(int $newListID, int $prevListID, int $nextListID): void
     {
         // Validate IDs
         if ($newListID <= 0) {
-            throw new RuntimeException("Invalid newListID: $newListID");
+            throw new ApiException("Invalid newListID: $newListID");
         }
 
         try {
@@ -207,7 +207,7 @@ class CardList
                 "AddCardListToLL: Failed inserting $newListID between prev=$prevListID and next=$nextListID - " .
                 $e->getMessage()
             );
-            throw new RuntimeException("Failed to update linked list order for new card list");
+            throw new ApiException("Failed to update linked list order for new card list");
         }
     }
 
@@ -216,7 +216,7 @@ class CardList
      * @param array $request Must contain 'board_id', 'id', and 'name'.
      * @return array Updated card list data.
      * @throws InvalidArgumentException On invalid/missing input.
-     * @throws RuntimeException On DB error.
+     * @throws ApiException On DB error.
      */
     public static function updateCardListName(array $request): array
     {
@@ -259,7 +259,7 @@ class CardList
             }
         } catch (Throwable $e) {
             Logger::error("updateCardListName: DB error updating card list $cardlistID - " . $e->getMessage());
-            throw new RuntimeException("Database error updating card list name.");
+            throw new ApiException("Database error updating card list name.");
         }
 
         // Mark board as modified
@@ -275,7 +275,7 @@ class CardList
      * @param array $request Must contain 'board_id', 'prev_list_id', 'name'.
      * @return array Newly inserted card list record.
      * @throws InvalidArgumentException On invalid input.
-     * @throws RuntimeException On DB or linked-list errors.
+     * @throws ApiException On DB or linked-list errors.
      */
     public static function addCardList(array $request): array
     {
@@ -313,7 +313,7 @@ class CardList
      * @param int    $prevListID The previous list's ID (0 if adding at start).
      * @param string $name       The list name.
      * @return array Newly created card list record.
-     * @throws RuntimeException On failed DB insert or linked-list update.
+     * @throws ApiException On failed DB insert or linked-list update.
      */
     public static function addNewCardListInternal(int $boardID, int $prevListID, string $name): array
     {
@@ -325,12 +325,12 @@ class CardList
             );
         } catch (Throwable $e) {
             Logger::error("addNewCardListInternal: Failed counting lists for board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Database error checking existing lists");
+            throw new ApiException("Database error checking existing lists");
         }
 
         // If board is empty but prevListID given, it's invalid
         if ($cardListCount == 0 && $prevListID > 0) {
-            throw new RuntimeException("The specified previous card list is not in the destination board", 400);
+            throw new ApiException("The specified previous card list is not in the destination board", 400);
         }
 
         $nextListID = 0;
@@ -354,7 +354,7 @@ class CardList
                     ]
                 );
                 if (!$prevCardListRecord) {
-                    throw new RuntimeException("Invalid previous card list ID", 400);
+                    throw new ApiException("Invalid previous card list ID", 400);
                 }
             }
 
@@ -379,7 +379,7 @@ class CardList
             );
 
             if (!$newListID) {
-                throw new RuntimeException("Failed to insert new card list");
+                throw new ApiException("Failed to insert new card list");
             }
 
             CardList::addCardListToLL((int)$newListID, $prevListID, $nextListID);
@@ -388,7 +388,7 @@ class CardList
         } catch (Throwable $e) {
             DB::getInstance()->rollBack();
             Logger::error("addNewCardListInternal: Insert/LL update failed for board $boardID - " . $e->getMessage());
-            throw new RuntimeException("Failed to add card list");
+            throw new ApiException("Failed to add card list");
         }
 
         return Card::GetCardlistData($boardID, (int)$newListID);
@@ -399,7 +399,7 @@ class CardList
      * @param array $request Must contain 'board_id' and 'id'.
      * @return array The deleted list's data.
      * @throws InvalidArgumentException On invalid/missing parameters.
-     * @throws RuntimeException On deletion failure or if list is not empty.
+     * @throws ApiException On deletion failure or if list is not empty.
      */
     public static function deleteCardList(array $request): array
     {
@@ -431,11 +431,11 @@ class CardList
             );
         } catch (Throwable $e) {
             Logger::error("deleteCardList: Failed to count cards for list $listID - " . $e->getMessage());
-            throw new RuntimeException("Database error checking list contents");
+            throw new ApiException("Database error checking list contents");
         }
 
         if ($cardCount > 0) {
-            throw new RuntimeException(
+            throw new ApiException(
                 "List $listID still contains $cardCount cards and cannot be deleted",
                 400
             );
@@ -454,7 +454,7 @@ class CardList
      * Internal helper to remove a card list and update linked-list pointers.
      * @param array $cardListData Must contain 'id', 'prev_list_id', 'next_list_id'.
      * @return void Deleted list's data.
-     * @throws RuntimeException On DB/linked list errors.
+     * @throws ApiException On DB/linked list errors.
      */
     private static function deleteCardListInternal(array $cardListData): void
     {
@@ -472,7 +472,7 @@ class CardList
         } catch (Throwable $e) {
             DB::getInstance()->rollBack();
             Logger::error("deleteCardListInternal: Failed to delete list {$cardListData['id']} - " . $e->getMessage());
-            throw new RuntimeException("Failed to delete card list");
+            throw new ApiException("Failed to delete card list");
         }
     }
 }

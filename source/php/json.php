@@ -26,17 +26,17 @@ class Json
 
     /**
      * Reads the raw request body safely with a byte limit.
-     * @throws RuntimeException if the input cannot be read or exceeds limit.
+     * @throws ApiException if the input cannot be read or exceeds limit.
      */
     public static function getRequestBody(int $maxBytes = self::DEFAULT_MAX_BYTES): string
     {
         $body = file_get_contents('php://input', false, null, 0, $maxBytes + 1);
         if ($body === false) {
-            throw new RuntimeException("Failed to read request body.");
+            throw new ApiException("Failed to read request body.");
         }
 
         if (strlen($body) > $maxBytes) {
-            throw new RuntimeException("Request body exceeds $maxBytes bytes.");
+            throw new ApiException("Request body exceeds $maxBytes bytes.");
         }
 
         return $body;
