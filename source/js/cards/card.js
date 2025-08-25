@@ -21,7 +21,7 @@ export class Card {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async open(id) {
-        return await asyncCall('OpenCard', {id});
+        return await asyncCall('OpenCard', {id}, 'GET');
     }
 
     /**
@@ -38,7 +38,8 @@ export class Card {
                 moved_card_id: movedCardId,
                 new_prev_card_id: newPrevCardId,
                 dest_cardlist_id: destinationCardListId
-            })
+            },
+            'PUT')
     }
 
     /**
@@ -48,7 +49,7 @@ export class Card {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async updateTitle(id, title) {
-        return await asyncCall('UpdateCardTitle', {id, title});
+        return await asyncCall('UpdateCardTitle', {id, title}, 'PUT');
     }
 
     /**
@@ -58,7 +59,7 @@ export class Card {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async updateFlags(id, locked) {
-        return await asyncCall('UpdateCardFlags', {id, locked});
+        return await asyncCall('UpdateCardFlags', {id, locked}, 'PUT');
     }
 
     /**
@@ -68,7 +69,7 @@ export class Card {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async updateContent(id, content) {
-        return await asyncCall('UpdateCardContent', {id, content});
+        return await asyncCall('UpdateCardContent', {id, content}, 'PUT');
     }
 
     /**
@@ -77,6 +78,6 @@ export class Card {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async delete(id) {
-        return await asyncCall('DeleteCard', {deleted_card_id: id});
+        return await asyncCall('DeleteCard', {deleted_card_id: id}, 'DELETE');
     }
 }

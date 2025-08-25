@@ -6,222 +6,332 @@ require_once __DIR__ . '/../vendor/autoload.php';
 // Load the environment variables from the .env file.
 use Dotenv\Dotenv;
 
-// Support loading extra env files (like .env.production)
-$dotenv = Dotenv::createImmutable(__DIR__ . '/../', [
-    '.env',
-    '.env.' . ($_ENV['APP_ENV'] ?? 'production')
-]);
-$dotenv->safeLoad();
-
-// page initialization
-header('Content-Type: application/json; charset=utf-8');
-session_start(['cookie_samesite' => 'Strict',]);
-
-// initialize parameters
-$request = Json::decodePostJSON(); // params posted as json
-$request = array_merge($request == null ? array() : $request, $_GET); // params added to the url
-
-// check the api call name has been specified
-// and it's a valid API call
-if (!isset($request['OP']) || !method_exists("API", $request['OP'])) {
-	http_response_code(400);
-	exit("Invalid 'OP' code: " . $request['OP']);
-}
-
-// call the requested API and echo the result as JSON
-try {
-    $methodName = "API::" . $request['OP'];
-    $response = $methodName($request);
-    echo json_encode($response);
-} catch (Exception $e) {
-    http_response_code($e->getCode());
-
-    $message = 'Server error';
-    if(Config::getInstance()->get('APP_ENV') === 'development') {
-        $message .= ': ' . $e->getMessage();
-    } elseif($e->getCode() < 500) {
-        $message = 'Error: ' . $e->getMessage();
-    }
-
-    echo json_encode(["server_error" => $message]);
-}
-
-// contains all the tarallo api calls
+/**
+ * Contains all the Tarallo API calls.
+ */
 class API
 {
-    public static function GetCurrentPage(array $request): array
+    private const ALLOWED_METHODS = [
+        'GET' => [
+            'GetCurrentPage',
+            'OpenCard',
+            'GetBoardPermissions',
+            'ExportBoard'
+        ],
+        'POST' => [
+            'Login',
+            'Logout',
+            'Register',
+            'AddNewCard',
+            'UploadAttachment',
+            'UploadBackground',
+            'AddCardList',
+            'CreateNewBoard',
+            'ImportBoard',
+            'ImportFromTrello',
+            'CreateBoardLabel',
+            'RequestBoardAccess',
+            'UploadChunk'
+        ],
+        'PUT' => [
+            'MoveCard',
+            'MoveCardList',
+            'UpdateCardTitle',
+            'UpdateCardContent',
+            'UpdateCardFlags',
+            'UpdateAttachmentName',
+            'UpdateCardListName',
+            'UpdateBoardTitle',
+            'CloseBoard',
+            'ReopenBoard',
+            'UpdateBoardLabel',
+            'SetCardLabel',
+            'SetUserPermission'
+        ],
+        'DELETE' => [
+            'DeleteCard',
+            'DeleteAttachment',
+            'DeleteCardList',
+            'DeleteBoard',
+            'DeleteBoardLabel'
+        ],
+    ];
+
+    public function run(): void
+    {
+        $this->loadEnvironment();
+        $this->initializePage();
+        $parameters = $this->decodeParameters();
+
+        // call the requested API and echo the result as JSON
+        try {
+            $operation = $parameters['OP'];
+            $this->validateAPIMethod($operation);
+            $response = $this->$operation($parameters);
+            echo json_encode($response);
+        } catch (Exception $e) {
+            http_response_code($e->getCode());
+
+            $message = 'Server error';
+            if (Config::getInstance()->get('APP_ENV') === 'development') {
+                $message .= ': ' . $e->getMessage();
+            } elseif ($e->getCode() < 500) {
+                $message = 'Error: ' . $e->getMessage();
+            }
+
+            echo json_encode(["server_error" => $message]);
+        }
+    }
+
+    /**
+     * Loads the environment for the current installation. Supports loading
+     * extra env files (like .env.production).
+     * @return void
+     */
+    private function loadEnvironment(): void {
+        $dotenv = Dotenv::createImmutable(__DIR__ . '/../', [
+            '.env',
+            '.env.' . ($_ENV['APP_ENV'] ?? 'production')
+        ]);
+
+        $dotenv->safeLoad();
+    }
+
+    /**
+     * Initialize the response.
+     * @return void
+     */
+    private function initializePage(): void {
+        header('Content-Type: application/json; charset=utf-8');
+        session_start(['cookie_samesite' => 'Strict',]);
+    }
+
+    /**
+     * Gets parameters from both the URL string and POST JSON.
+     * @return array
+     */
+    private function decodeParameters(): array {
+        return array_merge(Json::decodePostJSON(), $_GET ?? []);
+    }
+
+    /**
+     * Check the api call name has been specified and it's a valid API call
+     * @param string $operation The operation the client is requesting.
+     * @return void
+     */
+    private function validateAPIMethod(string $operation): void {
+
+        // Check we actually have an OP parameter before we do anything else.
+        if (!$operation) {
+            throw new RuntimeException("Invalid or missing OP parameter", 400);
+        }
+
+        // Check the HTTP method is supported
+        $httpMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+        if (!array_key_exists($httpMethod, self::ALLOWED_METHODS)) {
+            throw new RuntimeException("HTTP method $httpMethod is not supported", 405);
+        }
+
+        // Check the OP is supported with the HTTP method being used.
+        if (!in_array($operation, self::ALLOWED_METHODS[$httpMethod], true)) {
+            header('Allow: ' . $this->getAllowedMethodsForOperation($operation));
+            throw new RuntimeException("HTTP method $httpMethod not allowed for operation $operation", 405);
+        }
+    }
+
+    /**
+     * Get a comma-separated string of allowed HTTP methods for a given operation.
+     * @param string $operation The operation requested.
+     * @return string The list of supported HTTP methods.
+     */
+    private function getAllowedMethodsForOperation(string $operation): string {
+        $methods = [];
+        foreach (self::ALLOWED_METHODS as $method => $operations) {
+            if (in_array($operation, $operations, true)) {
+                $methods[] = $method;
+            }
+        }
+        return implode(', ', $methods);
+    }
+
+    // ===== API Calls =====
+
+    private function GetCurrentPage(array $request): array
     {
         $page = new Page(DB::getInstance());
         return $page->getCurrentPage($request);
     }
 
-    public static function Login(array $request): array
+    private function Login(array $request): array
     {
         return Session::login($request);
     }
 
-    public static function Register(array $request): array
+    private function Register(array $request): array
     {
         return Account::register($request);
     }
 
-    public static function Logout(array $request): array
+    private function Logout(array $request): array
     {
         return Session::logout($request);
     }
 
-    public static function OpenCard(array $request): array
+    private function OpenCard(array $request): array
     {
         return Card::openCard($request);
     }
 
-    public static function AddNewCard(array $request): array
+    private function AddNewCard(array $request): array
     {
         return Card::addNewCard($request);
     }
 
-    public static function DeleteCard(array $request): array
+    private function DeleteCard(array $request): array
     {
         return Card::deleteCard($request);
     }
 
-    public static function MoveCard(array $request): array
+    private function MoveCard(array $request): array
     {
         return Card::moveCard($request);
     }
 
-    public static function MoveCardList(array $request): array
+    private function MoveCardList(array $request): array
     {
         return CardList::moveCardList($request);
     }
 
-    public static function UpdateCardTitle(array $request): array
+    private function UpdateCardTitle(array $request): array
     {
         return Card::updateCardTitle($request);
     }
 
-    public static function UpdateCardContent(array $request): array
+    private function UpdateCardContent(array $request): array
     {
         return Card::updateCardContent($request);
     }
 
-    public static function UpdateCardFlags(array $request): array
+    private function UpdateCardFlags(array $request): array
     {
         return Card::updateCardFlags($request);
     }
 
-    public static function UploadAttachment(array $request): array
+    private function UploadAttachment(array $request): array
     {
         return Attachment::uploadAttachment($request);
     }
 
-    public static function UploadBackground(array $request): array
+    private function UploadBackground(array $request): array
     {
         return Board::uploadBackground($request);
     }
 
-	public static function DeleteAttachment(array $request): array
+	private function DeleteAttachment(array $request): array
     {
 		return Attachment::deleteAttachment($request);
 	}
 
-	public static function UpdateAttachmentName(array $request): array
+	private function UpdateAttachmentName(array $request): array
 	{
 		return Attachment::updateAttachmentName($request);
 	}
 
-	public static function UpdateCardListName(array $request): array
+	private function UpdateCardListName(array $request): array
 	{
 		return CardList::updateCardListName($request);
 	}
 
-	public static function AddCardList(array $request): array
+	private function AddCardList(array $request): array
 	{
 		return CardList::addCardList($request);
 	}
 
-	public static function DeleteCardList(array $request): array
+	private function DeleteCardList(array $request): array
 	{
 		return CardList::deleteCardList($request);
 	}
 
-	public static function UpdateBoardTitle(array $request): array
+	private function UpdateBoardTitle(array $request): array
 	{
 		return Board::updateBoardTitle($request);
 	}
 
-	public static function CreateNewBoard(array $request): array
+	private function CreateNewBoard(array $request): array
 	{
         return Board::createNewBoard($request);
 	}
 
-	public static function CloseBoard(array $request): array
+	private function CloseBoard(array $request): array
 	{
 		return Board::closeBoard($request);
 	}
 
-	public static function ReopenBoard(array $request): array
+	private function ReopenBoard(array $request): array
 	{
 		return Board::reopenBoard($request);
 	}
 
-	public static function DeleteBoard(array $request): array
+	private function DeleteBoard(array $request): array
 	{
 		return Board::deleteBoard($request);
 	}
 
-	public static function ImportBoard(): array
+	private function ImportBoard(): array
 	{
 		return Board::importBoard();
 	}
 
-	public static function ImportFromTrello(array $request): array
+	private function ImportFromTrello(array $request): array
 	{
 		return Board::importFromTrello($request);
 	}
 
-	public static function CreateBoardLabel(array $request): array
+	private function CreateBoardLabel(array $request): array
 	{
         return Label::createBoardLabel($request);
 	}
 
-	public static function UpdateBoardLabel(array $request): array
+	private function UpdateBoardLabel(array $request): array
 	{
 		return Label::updateBoardLabel($request);
 	}
 
-	public static function DeleteBoardLabel(array $request): array
+	private function DeleteBoardLabel(array $request): array
 	{
 		return Label::deleteBoardLabel($request);
 	}
 
-	public static function SetCardLabel(array $request): array
+	private function SetCardLabel(array $request): array
 	{
 		return Label::setCardLabel($request);
 	}
 
-	public static function GetBoardPermissions(array $request): array
+	private function GetBoardPermissions(array $request): array
     {
 		return Permission::getBoardPermissions($request);
 	}
 
-	public static function SetUserPermission(array $request): array
+	private function SetUserPermission(array $request): array
     {
         return Permission::setUserPermission($request);
 	}
 
-	public static function RequestBoardAccess(array $request): array
+	private function RequestBoardAccess(array $request): array
 	{
 		return Permission::requestBoardAccess($request);
 	}
 
-	public static function ExportBoard(array $request): void
+	private function ExportBoard(array $request): void
 	{
 		Board::exportBoard($request);
 	}
 
-	public static function UploadChunk(array $request): array
+	private function UploadChunk(array $request): array
 	{
 		return File::uploadChunk($request);
 	}
 }
+
+$api = new API();
+$api->run();

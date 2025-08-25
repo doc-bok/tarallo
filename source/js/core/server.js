@@ -5,10 +5,11 @@ import {TaralloServer} from '../api.js';
  * failure to allow for better error handling.
  * @param apiName The API that wants to be called.
  * @param params The request parameters.
+ * @param method The method to use for the call.
  * @returns {Promise<*>} The promise
  */
-export async function asyncCall(apiName, params) {
-    const result = await TaralloServer.call(apiName, params);
+export async function asyncCall(apiName, params, method = 'POST') {
+    const result = await TaralloServer.call(apiName, params, method);
 
     if (result.succeeded) {
         return result.response;

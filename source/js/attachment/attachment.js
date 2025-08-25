@@ -23,7 +23,7 @@ export class Attachment {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async updateName(id, name) {
-        return await asyncCall('UpdateAttachmentName', {id, name});
+        return await asyncCall('UpdateAttachmentName', {id, name}, 'PUT');
     }
 
     /**
@@ -32,6 +32,6 @@ export class Attachment {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async delete(id) {
-        return await asyncCall('DeleteAttachment', {id});
+        return await asyncCall('DeleteAttachment', {id}, 'DELETE');
     }
 }

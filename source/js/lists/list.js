@@ -22,7 +22,7 @@ export class List {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async updateName(id, name) {
-        return await asyncCall('UpdateCardListName', {id, name});
+        return await asyncCall('UpdateCardListName', {id, name}, 'PUT');
     }
 
     /**
@@ -37,7 +37,8 @@ export class List {
             {
                 moved_cardlist_id: movedCardListId,
                 new_prev_cardlist_id: newPrevCardListId
-            });
+            },
+            'PUT');
     }
 
     /**
@@ -46,6 +47,6 @@ export class List {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async delete(id) {
-        return await asyncCall('DeleteCardList', {id});
+        return await asyncCall('DeleteCardList', {id}, 'DELETE');
     }
 }

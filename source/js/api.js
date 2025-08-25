@@ -8,21 +8,35 @@ export class TaralloServer {
     /**
      * Request a JSON response from the server.
      * @param pageUrl The URL of the page.
-     * @param postParams The POST parameters.
+     * @param params The parameters to use. Will automatically convert to URL
+     *               string or POST params, depending on request type.
+     * @param method The method to use for the call.
      * @returns {Promise<{succeeded: boolean, error: string}|{succeeded: boolean, response: any}>}
      */
-    static async jsonRequest(pageUrl, postParams) {
+    static async jsonRequest(pageUrl, params, method) {
         try {
-            const response = await fetch(pageUrl, {
-                method: "POST",
+            let requestUrl = pageUrl;
+            let request = {
+                method: method,
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(postParams)
-            });
+            }
+
+            // Remove PHPStorm-specific params for these requests.
+            delete params._ijt;
+            delete params._ij_reload;
+
+            if (method === 'GET') {
+                requestUrl = requestUrl + '?' + this.encodeQueryData(params);
+            } else {
+                request.body = JSON.stringify(params)
+            }
+
+            const response = await fetch(requestUrl, request);
 
             if (!response.ok) {
                 const errorText = await response.text();
                 throw new Error(
-                    errorText || `Request to ${pageUrl} failed with ${response.status} (${response.statusText})`
+                    errorText || `Request to ${requestUrl} failed with ${response.status} (${response.statusText})`
                 );
             }
 
@@ -37,15 +51,23 @@ export class TaralloServer {
      * Make a call to the Tarallo server.
      * @param apiName The API to call.
      * @param params The POST parameters.
+     * @param method The method to use for the call.
      * @returns {Promise<{succeeded: boolean, error: string}|{succeeded: boolean, response: *}>}
      */
-    static async call(apiName, params = {}) {
+    static async call(apiName, params = {}, method) {
         const postParams = {
             OP: apiName,
             ...Object.fromEntries(GetQueryStringParams()),
             ...params
         };
 
-        return await TaralloServer.jsonRequest("php/api.php", postParams);
+        return await TaralloServer.jsonRequest("php/api.php", postParams, method);
+    }
+
+    static encodeQueryData(data) {
+        const ret = [];
+        for (let d in data)
+            ret.push(encodeURIComponent(d) + '=' + encodeURIComponent(data[d]));
+        return ret.join('&');
     }
 }

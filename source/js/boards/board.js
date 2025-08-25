@@ -19,7 +19,7 @@ export class Board {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async getPermissions(id) {
-        return await asyncCall('GetBoardPermissions', {id});
+        return await asyncCall('GetBoardPermissions', {id}, 'GET');
     }
 
     /**
@@ -36,7 +36,7 @@ export class Board {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async updateTitle(title) {
-        return await asyncCall('UpdateBoardTitle', {title});
+        return await asyncCall('UpdateBoardTitle', {title}, 'PUT');
     }
 
     /**
@@ -55,7 +55,7 @@ export class Board {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async close(id) {
-        return await asyncCall('CloseBoard', {id});
+        return await asyncCall('CloseBoard', {id}, 'PUT');
     }
 
     /**
@@ -64,7 +64,7 @@ export class Board {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async reopen(id) {
-        return await asyncCall('ReopenBoard', {id});
+        return await asyncCall('ReopenBoard', {id}, 'PUT');
     }
 
     /**
@@ -73,6 +73,6 @@ export class Board {
      * @returns {Promise<*>} Updated when operation completes.
      */
     async delete(id) {
-        return await asyncCall('DeleteBoard', {id});
+        return await asyncCall('DeleteBoard', {id}, 'DELETE');
     }
 }

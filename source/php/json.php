@@ -70,8 +70,8 @@ class Json
             if ($throwOnError) {
                 throw new InvalidArgumentException("Invalid JSON in request: {$e->getMessage()}", 0, $e);
             }
+
             return [];
         }
     }
-
 }

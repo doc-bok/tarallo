@@ -21,7 +21,7 @@ export class Label {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async update(index, name, color) {
-        return await asyncCall('UpdateBoardLabel', {index, name, color});
+        return await asyncCall('UpdateBoardLabel', {index, name, color}, 'PUT');
     }
 
     /**
@@ -32,7 +32,7 @@ export class Label {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async set(cardId, index, active) {
-        return await asyncCall('SetCardLabel', {card_id: cardId, index, active});
+        return await asyncCall('SetCardLabel', {card_id: cardId, index, active}, 'PUT');
     }
 
     /**
@@ -41,6 +41,6 @@ export class Label {
      * @returns {Promise<*>} Updated when the operation completes.
      */
     async delete(index) {
-        return await  asyncCall('DeleteBoardLabel', {index});
+        return await  asyncCall('DeleteBoardLabel', {index}, 'DELETE');
     }
 }

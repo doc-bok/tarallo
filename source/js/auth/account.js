@@ -48,6 +48,6 @@ export class Account {
      */
     async setUserPermission(userId, userType) {
         const args = { user_id: userId, user_type: userType };
-        return await asyncCall("SetUserPermission", args);
+        return await asyncCall("SetUserPermission", args, 'PUT');
     }
 }
