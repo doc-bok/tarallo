@@ -1,0 +1,374 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Tarallo</title>
+    <link rel="icon" type="image/png" sizes="16x16" href="images/favicon.png">
+    <link rel="icon" type="image/png" sizes="64x64" href="images/favicon-large.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+    <link href="css/tarallo.css" rel="stylesheet" type="text/css" />
+
+    <!-- Template loaded for first startup -->
+    <template id="tmpl-firststartup">
+        <div class="centered-container">
+            <form id="first-startup-diag" class="centered-dialog dialog">
+                <h1>Welcome to Tarallo!</h1>
+                <p class="dim-text">Your Tarallo instance has just been initialized.</p>
+                <p class="separator">A new administrator account has been created:</p>
+                <label>
+                    Username
+                    <input value="$admin_user" readonly>
+                </label>
+                <label>
+                    Password
+                    <input value="$admin_pass" readonly>
+                </label>
+                <p class="popup persistent warning text-center">NB: This account credentials won't be shown again so save them!</p>
+                <button type="submit" id="continue-btn" class="contrast-btn separator">Continue to Tarallo</button>
+            </form>
+        </div>
+    </template>
+
+    <!-- Template loaded for login page -->
+    <template id="tmpl-login">
+        <div class="centered-container">
+            <form id="login-form" class="centered-dialog dialog" onsubmit="return false;">
+                <label>
+                    Username
+                    <input type="text" id="login-username" placeholder="Username" value="$user_name" />
+                </label>
+                <label>
+                    Password
+                   <input type="password" id="login-password" placeholder="Password" />
+                </label>
+                <button type="submit" id="login-btn" class="contrast-btn separator full-width">Login</button>
+                <a id="register-page-btn" class="inline-link separator" href="#">Register a New Account</a>
+                <p id="login-error" class="popup separator"></p>
+            </form>
+        </div>
+    </template>
+
+    <!--- Template loaded for an instance message -->
+    <template id="tmpl-instance-msg">
+        <div id="instance-message" class="popup persistent">$instance_msg</div>
+    </template>
+
+    <!-- Template loaded for the register page -->
+    <template id="tmpl-register">
+        <div class="centered-container">
+            <form id="register-form" class="centered-dialog dialog"  onsubmit="return false;">
+                <label>
+                    Username
+                    <input type="text" id="register-username" placeholder="Username" />
+                </label>
+                <label>
+                    Display Name
+                    <input type="text" id="login-display-name" placeholder="Name Surname" />
+                </label>
+                <label>
+                    Password
+                    <input type="password" id="register-password" placeholder="Password" />
+                </label>
+                <button type="submit" id="register-btn" class="contrast-btn separator full-width">Register</button>
+                <a id="login-page-btn" class="inline-link separator" href="#">Go Back to Login Page</a>
+                <p id="register-error" class="popup separator"></p>
+            </form>
+        </div>
+    </template>
+
+    <!-- Template for home page -->
+    <template id="tmpl-home">
+        <div id="workspace-container" class="vscrollable">
+            <a id="create-workspace-button" class="contrast-btn">&#10010 Create Workspace</a>
+            <ul id="workspace-list">
+            </ul>
+        </div>
+    </template>
+
+    <!-- Template for Workspace -->
+    <template id="tmpl-workspace">
+        <li id="workspace-board-lists-container" class="vscrollable">
+            <h3>$name</h3>
+            <ul id="workspace boards">
+            </ul>
+        </li>
+    </template>
+
+    <!-- Template for board lists page -->
+    <template id="tmpl-boardlist">
+        <div id="board-lists-container" class="vscrollable">
+            <div id="boards">
+                <div id="new-board-btn" class="boardtile boardtile-btn">
+                    <h4>&#10010 Create new board</h4>
+                </div>
+                <div id="import-board-btn" class="boardtile boardtile-btn">
+                    <h4>&#10010 Import board</h4>
+                </div>
+                <div id="trello-import-btn" class="boardtile boardtile-btn">
+                    <h4>&#10010 Import from Trello</h4>
+                </div>
+            </div>
+            <h2>Closed boards</h2>
+            <div id="closed-boards">
+            </div>
+        </div>
+    </template>
+
+    <!-- Template for a board tile -->
+    <template id="tmpl-boardtile">
+        <div class="boardtile" style="background-image: url('$background_thumb_url')" id="board-tile-$id">
+            <div class="backdrop">
+                <svg class="delete-board-btn contrast-icon"><use href="#icon-trashbin" /></svg>
+                <a href="?board_id=$id">
+                    <h4>$title</h4>
+                    <p class="last-edit-date">Last edit: $last_modified_date</p>
+                </a>
+            </div>
+        </div>
+    </template>
+    <template id="tmpl-closed-boardtile">
+        <div class="boardtile closed" id="board-tile-$id">
+            <a href="?board_id=$id">
+                <h4>$title</h4>
+            </a>
+        </div>
+    </template>
+    <template id="tmpl-board">
+        <div id="board">
+            <div id="add-cardlist-btn" class="cardlist">
+                <h3>&#10010 Add another list</h3>
+            </div>
+        </div>
+    </template>
+    <template id="tmpl-closed-board">
+        <div class="centered-container">
+            <div id="closedboard" class="centered-dialog dialog">
+                <h1>This board is closed</h1>
+                <button id="closedboard-reopen-btn" class="contrast-btn">Reopen board</button>
+                <p id="closedboard-delete-label" class="hidden">All the board cards and attachments will be deleted, and you won't be able to acces them again, are you sure?</p>
+                <a id="closedboard-delete-link" class="inline-link" href="#">Permanently delete board</a>
+            </div>
+        </div>
+    </template>
+    <template id="tmpl-loading-dialog">
+        <div class="centered-container">
+            <div id="loading-dialog" class="centered-dialog dialog">
+                <h1>$title</h1>
+                <p class="separator text-center">$msg</p>
+                <div class="loader separator"></div>
+            </div>
+        </div>
+    </template>
+    <template id="tmpl-unaccessible-board">
+        <div class="centered-container">
+            <div id="unaccessibleboard" class="centered-dialog dialog">
+                <h1>You are not a member of this board.</h1>
+                <button id="unaccessibleboard-request-btn" class="contrast-btn">Request access</button>
+                <p id="unaccessibleboard-waiting-label" class="hidden">Access has been requested to a moderator, refresh this page when authorized.</p>
+            </div>
+        </div>
+    </template>
+
+    <!-- Template for Card List page -->
+    <template id="tmpl-cardlist">
+        <div class="cardlist vscrollable" dbid="$id" id="cardlist-$id" draggable="true">
+            <div class="cardlist-start">
+                <div class="cardlist-title">
+                    <h3 id="card-list-title-$id" contenteditable="true" spellcheck="false">$name</h3>
+                </div>
+                <div class="addcard-btn addcard-ui"><p>&#10010 Add a card</p></div>
+                <div class="card editcard-card editcard-ui hidden" contenteditable="true" placeholder="Enter a title for this card..."></div>
+                <div class="editcard-container editcard-ui hidden">
+                    <button class="editcard-submit-btn contrast-btn">Add card</button>
+                    <button class="editcard-cancel-btn close-btn dim-btn"></button>
+                </div>
+            </div>
+        </div>
+    </template>
+    <template id="tmpl-card">
+        <div class="card" dbid="$id" id="card-$id" draggable="true">
+            <img class="lazy" src="" data-src="" />
+            <div class="card-labellist labellist hidden"></div>
+            <h4>$title</h4>
+            <div class="card-moved-date hidden">&#10149 $last_moved_date</div>
+        </div>
+    </template>
+    <template id="tmpl-card-label">
+        <div id="label-$card-id-$index" class="card-label label label-$index $color">$name</div>
+    </template>
+    <template id="tmpl-opencard">
+        <div id="card-dialog-container" class="dialog-container">
+            <div class="opencard dialog scrollable-dialog vscrollable" id="opencard-$id" dbid="$id">
+                <button class="dialog-close-btn close-btn dim-btn"></button>
+                <h2 id="opencard-title" contenteditable="true" spellcheck="false">$title</h2>
+                <div class="opencard-labellist labellist">
+                    <button class="opencard-add-label dim-btn">&#10010</button>
+                </div>
+                <div id="opencard-label-select-diag" class="label-diag dialog topmost hidden">
+                    <button class="opencard-label-create-btn label-row separator dim-btn">Create new</button>
+                    <button class="opencard-label-cancel-btn label-row dim-btn">Cancel</button>
+                </div>
+                <div id="opencard-content-toolbar">
+                    <h3>Description</h3>
+                    <svg class="opencard-lock-btn icon"><use href="#icon-unlocked" /></svg>
+                </div>
+                <div class="opencard-content" contenteditable="true" spellcheck="false">$content</div>
+                <h3>
+                    Attachments
+                    <button class="add-attachment-btn contrast-btn">Add</button>
+                </h3>
+                <h3 class="dim-text">Ctrl+V or drop files here</h3>
+                <div class="opencard-attachlist"></div>
+            </div>
+        </div>
+    </template>
+    <template id="tmpl-opencard-label-edit-diag">
+        <div id="opencard-label-edit-diag" class="label-diag topmost dialog" dbid="$index">
+            <button class="opencard-label label-row label $color" color="$color">$name</button>
+            <label class="label-row separator">Label name</label>
+            <input type="text" id="opencard-label-edit-name" class="label-row" value="$name" />
+            <label class="label-row separator">Label color</label>
+            <div id="opencard-label-edit-color-list" class="label-row labellist">
+            </div>
+            <button id="opencard-label-edit-cancel-btn" class="label-row separator dim-btn">Cancel</button>
+            <button id="opencard-label-edit-delete-btn" class="label-row dim-btn" confirmed="0">Delete label</button>
+            <button id="opencard-label-edit-save-btn" class="label-row contrast-btn">Save label</button>
+        </div>
+    </template>
+    <template id="tmpl-opencard-label-edit-color-tile">
+        <button class="color-tile $color"></button>
+    </template>
+    <template id="tmpl-selectable-label">
+        <div class="selectable-label-container label-row" id="label-$card-id-$index-open">
+            <button class="selectable-label label label-$index $color">$name</button>
+            <button class="selectable-label-edit-btn dim-btn">&#9998</button>
+        </div>
+    </template>
+    <template id="tmpl-opencard-label">
+        <button id="label-$card-id-$index-open" class="label label-$index $color">$name</button>
+    </template>
+
+    <!-- Template for a card attachment -->
+    <template id="tmpl-opencard-attachment">
+        <div class="opencard-attachment" id="attachment-$id">
+            <a class="opencard-attachment-link" href="" target="_blank">
+                <div class="ext">$extension</div>
+                <img src="" />
+                <svg class="dim-icon"><use href="#icon-attachment" /></svg>
+            </a>
+            <div class="loader"></div>
+            <div class="opencard-attachment-desc">
+                <p id="attachment-$id-title" class="attachment-name" contenteditable="true">$name</p>
+                <div class="toolbar">
+                    <button class="copy-markup-btn dim-btn thin-btn">Copy Markup</button>
+                </div>
+            </div>
+            <div class="opencard-attachment-btns">
+                <svg class="opencard-attachment-delete-btn opencard-attachment-btn icon"><use href="#icon-trashbin" /></svg>
+            </div>
+        </div>
+    </template>
+    <template id="tmpl-share-dialog">
+        <div id="share-dialog-container" class="dialog-container">
+            <div id="share-dialog" class="dialog scrollable-dialog vscrollable" dbid="$id">
+                <button class="dialog-close-btn close-btn dim-btn"></button>
+                <h2>Sharing permissions</h2>
+                <div id="share-dialog-list" class="separator">
+                    <div class="share-dialog-entry buttons separator">
+                        <p id="share-dialog-popup" class="popup"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+    <template id="tmpl-share-dialog-entry">
+        <div class="share-dialog-entry">
+            <label class="share-dialog-item $class_list:optional">$display_name</label>
+            <div class="share-dialog-item">
+                <select class="permission" data-user-type="$user_type" data-user-id="$user_id" title="$hover_text:optional">
+                    <option value="0">Owner</option>
+                    <option value="2">Moderator</option>
+                    <option value="6">Member</option>
+                    <option value="8">Observer</option>
+                    <option value="9">Guest</option>
+                    <option value="10">Blocked</option>
+                </select>
+            </div>
+        </div>
+    </template>
+    <svg style="display:none">
+        <symbol id="icon-trashbin" preserveAspectRatio="xMinYMin meet" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m-6 5v6m4-6v6" />
+        </symbol>
+        <symbol id="icon-attachment" preserveAspectRatio="xMinYMin meet" viewBox="0 0 24 24" fill="none">
+            <path d="m21.153 10.9-9.016 9.015a5.25 5.25 0 0 1-7.425-7.425l9.016-9.015a3.5 3.5 0 1 1 4.95 4.95l-8.662 8.662a1.75 1.75 0 1 1-2.475-2.475l7.601-7.602" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </symbol>
+        <symbol id="icon-locked" viewBox="0 0 20 20" fill="none">
+            <path fill="currentColor" fill-rule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" clip-rule="evenodd" />
+        </symbol>
+        <symbol id="icon-unlocked" viewBox="0 0 20 20">
+            <path fill="currentColor" fill-rule="evenodd" d="M14.5 1A4.5 4.5 0 0 0 10 5.5V9H3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5V5.5a3 3 0 1 1 6 0v2.75a.75.75 0 0 0 1.5 0V5.5A4.5 4.5 0 0 0 14.5 1Z" clip-rule="evenodd" />
+        </symbol>
+        <symbol id="icon-copy" viewBox="0 0 24 24">
+            <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                <path d="M8 4v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.242a2 2 0 0 0-.602-1.43L16.083 2.57A2 2 0 0 0 14.685 2H10a2 2 0 0 0-2 2Z" />
+                <path d="M16 18v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h2" />
+            </g>
+        </symbol>
+    </svg>
+</head>
+<body>
+    <div id="progress-bar" style="width:0%"></div>
+    <div id="titlebar">
+        <h1>Tarall<img class="title-icon" src="images/favicon-large.png" /></h1>
+    </div>
+
+    <!-- The Project Bar -->
+    <div id="project-bar">
+
+        <div id="project-bar-left" class="projectbar-tile">
+            <h2 id="board-title" contenteditable="true" spellcheck="false">$title</h2>
+            <h3>
+                <a class="inline-link" href="?">Back to Boards</a> |
+                <a id="board-change-bg-btn" class="inline-link" href="#">Change Background</a> |
+                <a id="board-share-btn" class="inline-link" href="#">Edit Permissions</a> |
+                <a id="board-export-btn" class="inline-link" href="php/api.php?OP=ExportBoard&board_id=$id">Export Board</a>
+            </h3>
+        </div>
+
+        <div id="project-bar-middle" class="projectbar-tile">
+            <svg class="bin-icon icon"><use href="#icon-trashbin" /></svg>
+        </div>
+
+        <div id="project-bar-closed" class="projectbar-tile">
+            <h2 id="board-title-closed">$title</h2>
+            <h3>
+                <a class="inline-link" href="?">Back to Boards</a>
+            </h3>
+        </div>
+
+        <div id="project-bar-right" class="projectbar-tile">
+            <h3>
+                Logged in as $display_name |
+                <a id="project-bar-logout-btn" class="inline-link" href="#">Log Out</a>
+            </h3>
+        </div>
+    </div>
+
+    <h2 id="page-error" class="popup"></h2>
+
+    <div id="content">
+    </div>
+
+    <div id="loading-spinner">
+        <div class="spinner"></div>
+    </div>
+
+    <div id="footer">
+        Sources: <a href="https://github.com/doc-bok/tarallo" class="inline-link">GitHub repository</a> | DB Version: $db_version
+    </div>
+    <script type="module" src="js/drag-drop-touch.js"></script>
+    <script src="js/textformat.js"></script>
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>

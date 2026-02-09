@@ -357,6 +357,7 @@ select:focus-visible {
     box-sizing: border-box;
 }
 
+#workspace,
 #board-lists-container,
 #board {
     flex-grow: 1;
@@ -530,6 +531,24 @@ select:focus-visible {
 =========================== */
 [contentEditable]:focus {
     outline: var(--accent-color-1) solid 0.15rem;
+}
+
+/* ===========================
+   Workspaces
+=========================== */
+
+#workspace-container {
+    background: var(--bg-color-3);
+    margin: 1em;
+    padding: 1em;
+    border: 1px solid var(--text-color-1);
+    border-radius: 1em;
+}
+
+#workspace-list {
+    padding: 0 1em;
+    margin: 1em auto;
+    border: 1px solid var(--accent-color-1);
 }
 
 /* ===========================

@@ -8,6 +8,7 @@ import {ImportExportUi} from "./import-export/import-export-ui.js";
 import {ListUI} from "./lists/list-ui.js";
 import {PageUi} from './page/page-ui.js';
 import {Page} from "./page/page.js";
+import {WorkspaceUI} from "./workspace/workspace-ui.js";
 
 /**
  * The definition of the Tarallo Client
@@ -36,6 +37,7 @@ export class TaralloClient {
         this.listUI = new ListUI();
         this.page = new Page();
         this.pageUI = new PageUi();
+        this.workspaceUI = new WorkspaceUI();
     }
 
     /**
@@ -86,7 +88,8 @@ export class TaralloClient {
             importUI: this.importUI,
             labelUI: this.labelUI,
             listUI: this.listUI,
-            page: this.page
+            page: this.page,
+            workspaceUI: this.workspaceUI
         });
     }
 

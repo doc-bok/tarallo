@@ -6,6 +6,8 @@
 class Workspace
 {
     private const TABLE_NAME = 'tarallo_workspaces';
+
+    private API $api;
     private DB $db;
     private WorkspacePermissions $workspacePermissions;
 
@@ -13,10 +15,19 @@ class Workspace
      * Ensure we have workspace permissions set up.
      * TODO: Switch to a DI model.
      */
-    public function __construct($db, $workspacePermissions)
+    public function __construct($api, $db, $workspacePermissions)
     {
+        $this->api = $api;
         $this->db = $db;
         $this->workspacePermissions = $workspacePermissions;
+
+        $this->api->registerOperation('POST', 'CreateNewWorkspace', [$this, 'create']);
+        $this->api->registerOperation('GET', 'ReadAllWorkspaces', [$this, 'readAll']);
+        $this->api->registerOperation('GET', 'ReadWorkspace', [$this, 'read']);
+        $this->api->registerOperation('PUT', 'UpdateWorkspaceTitle', [$this, 'updateTitle']);
+        $this->api->registerOperation('PUT', 'UpdateWorkspaceLogo', [$this, 'updateLogo']);
+        $this->api->registerOperation('PUT', 'UpdateWorkspaceIsPublic', [$this, 'updateIsPublic']);
+        $this->api->registerOperation('DELETE', 'DeleteWorkspace', [$this, 'delete']);
     }
 
     /**

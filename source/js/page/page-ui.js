@@ -23,17 +23,19 @@ export class PageUi {
      * @param labelUI The label UI
      * @param listUI The list UI
      * @param page The page helpers
+     * @param workspaceUI The Workspace UI
      */
-    init({account: account, boardUI, cardDnd, cardUI, importUI, labelUI, listUI, page}) {
-        this.account = account;
-        this.boardUI = boardUI;
-        this.cardDnd = cardDnd;
-        this.cardUI = cardUI;
-        this.importUI = importUI;
-        this.labelUI = labelUI;
-        this.listUI = listUI;
-        this.page = page;
+    init({account, boardUI, cardDnd, cardUI, importUI, labelUI, listUI, page, workspaceUI}) {
+        this._account = account;
+        this._boardUI = boardUI;
+        this._cardDnd = cardDnd;
+        this._cardUI = cardUI;
+        this._importUI = importUI;
+        this._labelUI = labelUI;
+        this._listUI = listUI;
+        this._page = page;
         this._projectBar = new ProjectBar();
+        this._workspaceUI = workspaceUI;
     }
 
     /**
@@ -42,7 +44,7 @@ export class PageUi {
     async getCurrentPage() {
         try {
             this._showLoadingSpinner();
-            const response = await asyncCall("GetCurrentPage", {});
+            const response = await asyncCall("GetCurrentPage", {}, 'GET');
             this._loadPage(response);
         } catch (e) {
             showErrorPopup("Failed to load page: " + e.message, "page-error");
@@ -71,6 +73,16 @@ export class PageUi {
                 this._loadLoginPage(pageContent);
                 break;
 
+            case "Home":
+                this._projectBar.showBasicOptions(pageContent);
+                this._loadHomePage(pageContent);
+                break;
+
+            case "Workspace":
+                this._projectBar.showBasicOptions(pageContent);
+                this._loadWorkspacePage(pageContent);
+                break;
+
             case "BoardList":
                 this._projectBar.showBasicOptions(pageContent);
                 this._loadBoardListPage(pageContent);
@@ -93,7 +105,7 @@ export class PageUi {
         }
 
         // Update the footer.
-        const footerElem = this.page.getFooterElem();
+        const footerElem = this._page.getFooterElem();
         if (footerElem) {
             footerElem.innerHTML = replaceHtmlTemplateArgs(footerElem.innerHTML, pageContent);
         }
@@ -102,7 +114,7 @@ export class PageUi {
         this._projectBar.setLogoutEvent(
             async () => {
                 try {
-                    await this.account.logout();
+                    await this._account.logout();
                     await this.getCurrentPage();
                 } catch (e) {
                     showErrorPopup('Logout failed: ' + e.message, 'page-error');
@@ -140,7 +152,7 @@ export class PageUi {
             "Tarallo - Login");
 
         // setup login button event
-        const formNode = this.page.getLoginFormElem();
+        const formNode = this._page.getLoginFormElem();
         setEventBySelector(
             formNode,
             "#login-btn",
@@ -152,8 +164,34 @@ export class PageUi {
         // add instance message if any
         if (instance_msg) {
             const instanceMsgElem = loadTemplate("tmpl-instance-msg", {instance_msg})
-            this.page.getContentElem().prepend(instanceMsgElem);
+            this._page.getContentElem().prepend(instanceMsgElem);
         }
+    }
+
+    _loadHomePage({workspace_list}) {
+        this._loadTemplateWithTitle(
+            "tmpl-home",
+            {},
+            "Tarallo - Workspace");
+
+        // Load workspaces
+        for (let i = 0; i < workspace_list.length; i++) {
+            this._workspaceUI.loadWorkspaceTile(workspace_list[i]);
+        }
+
+        // Add events
+        this._onClick("create-workspace-button", () => this._workspaceUI._openCreateWorkspaceDialog());
+    }
+
+    _loadWorkspacePage({}) {
+        this._loadTemplateWithTitle(
+            "tmpl-workspace",
+            {},
+            "Tarallo - Workspace");
+
+        // Load board lists
+
+        // Add events
     }
 
     /**
@@ -169,12 +207,13 @@ export class PageUi {
             "Tarallo - Boards");
 
         for (let i = 0; i < boards.length; i++) {
-            this.boardUI.loadBoardTile(boards[i]);
+            this._boardUI.loadBoardTile(boards[i]);
         }
+
         // add events
-        this._onClick("new-board-btn", () => this.boardUI.createNewBoard());
-        this._onClick("import-board-btn", () => this.importUI.importBoard());
-        this._onClick("trello-import-btn", () => this.importUI.importFromTrello());
+        this._onClick("new-board-btn", () => this._boardUI.createNewBoard());
+        this._onClick("import-board-btn", () => this._importUI.importBoard());
+        this._onClick("trello-import-btn", () => this._importUI.importFromTrello());
     }
 
     /**
@@ -204,25 +243,25 @@ export class PageUi {
             {title, id, display_name},
             title);
 
-        const boardElem = this.page.getBoardElem();
-        const newCardlistBtn = this.page.getAddCardListButtonElem()
+        const boardElem = this._page.getBoardElem();
+        const newCardlistBtn = this._page.getAddCardListButtonElem()
 
         if (label_names) {
-            this.labelUI.setLabelNames(label_names.split(","));
-            this.labelUI.setLabelColors(label_colors.split(","));
+            this._labelUI.setLabelNames(label_names.split(","));
+            this._labelUI.setLabelColors(label_colors.split(","));
         }
 
-        this.labelUI.setAllColorNames(all_color_names);
+        this._labelUI.setAllColorNames(all_color_names);
 
         // create card lists
         for (const cardlist of this._dbLinkedListIterator(cardlists, "id", "prev_list_id", "next_list_id")) {
             // create cardlist
-            const newCardlistElem = this.listUI.loadCardList(cardlist);
+            const newCardlistElem = this._listUI.loadCardList(cardlist);
 
             // create owned cards
             const cardlistID = cardlist["id"];
             for (const cardData of this._dbLinkedListIterator(cards, "id", "prev_card_id", "next_card_id", card => card["cardlist_id"] === cardlistID)) {
-                const newCardElem = this.cardUI.loadCard(cardData, newCardlistElem);
+                const newCardElem = this._cardUI.loadCard(cardData, newCardlistElem);
                 // append the new card to the list
                 newCardlistElem.appendChild(newCardElem);
             }
@@ -232,19 +271,19 @@ export class PageUi {
         }
 
         // project bar drag drop events
-        const projectBar = this.page.getProjectBarElem();
+        const projectBar = this._page.getProjectBarElem();
         projectBar.ondragover = (e) => e.preventDefault();
-        projectBar.ondragenter = (e) => this.cardDnd.dragDeleteEnter(e);
-        projectBar.ondragleave = (e) => this.cardDnd.dragDeleteLeave(e);
-        projectBar.ondrop = (e) => this.cardDnd.dropDelete(e);
+        projectBar.ondragenter = (e) => this._cardDnd.dragDeleteEnter(e);
+        projectBar.ondragleave = (e) => this._cardDnd.dragDeleteLeave(e);
+        projectBar.ondrop = (e) => this._cardDnd.dropDelete(e);
 
         // other events
         setEventBySelector(projectBar, '#board-title', 'onclick', () => selectAllInnerText('board-title'));
-        setEventBySelector(projectBar, "#board-title", "onblur", (elem) => this.boardUI.boardTitleChanged(elem));
+        setEventBySelector(projectBar, "#board-title", "onblur", (elem) => this._boardUI.boardTitleChanged(elem));
         setEventBySelector(projectBar, "#board-title", "onkeydown", (elem, event) => blurOnEnter(event));
-        setEventBySelector(projectBar, "#board-change-bg-btn", "onclick", () => this.boardUI.changeBackground());
-        setEventBySelector(projectBar, "#board-share-btn", "onclick", () => this.boardUI.shareBoard(id));
-        this._onClick("add-cardlist-btn", () => this.listUI.addCardList());
+        setEventBySelector(projectBar, "#board-change-bg-btn", "onclick", () => this._boardUI.changeBackground());
+        setEventBySelector(projectBar, "#board-share-btn", "onclick", () => this._boardUI.shareBoard(id));
+        this._onClick("add-cardlist-btn", () => this._listUI.addCardList());
     }
 
     /**
@@ -260,8 +299,8 @@ export class PageUi {
             {display_name},
             "[Closed]" + title);
 
-        this._onClick("closedboard-reopen-btn", () => this.boardUI.reopenBoard(id));
-        this._onClick("closedboard-delete-link", () => this.boardUI.showBoardDeleteConfirmation(id));
+        this._onClick("closedboard-reopen-btn", () => this._boardUI.reopenBoard(id));
+        this._onClick("closedboard-delete-link", () => this._boardUI.showBoardDeleteConfirmation(id));
     }
 
     /**
@@ -277,12 +316,12 @@ export class PageUi {
             "Tarallo");
 
         if (access_requested) {
-            this.page.getUnaccessibleBoardRequestButtonElem().classList.add("hidden");
-            this.page.getUnaccessibleBoardWaitingLabelElem().classList.remove("hidden");
+            this._page.getUnaccessibleBoardRequestButtonElem().classList.add("hidden");
+            this._page.getUnaccessibleBoardWaitingLabelElem().classList.remove("hidden");
         }
 
         //events
-        this._onClick("unaccessibleboard-request-btn", () => this.boardUI.requestBoardAccess());
+        this._onClick("unaccessibleboard-request-btn", () => this._boardUI.requestBoardAccess());
     }
 
     /**
@@ -306,7 +345,7 @@ export class PageUi {
                 const displayName = formNode.querySelector("#login-display-name").value;
 
                 try {
-                    const response = await this.account.register(username, password, displayName);
+                    const response = await this._account.register(username, password, displayName);
                     this._loadLoginPage({user_name: response.username});
                     showInfoPopup("Account successfully created, please login!", "login-error");
                 } catch (e) {
@@ -326,7 +365,7 @@ export class PageUi {
      */
     _loadTemplateWithTitle(templateId, content, title) {
         const template = document.getElementById(templateId);
-        const contentDiv = this.page.getContentElem();
+        const contentDiv = this._page.getContentElem();
         contentDiv.innerHTML = replaceHtmlTemplateArgs(template.innerHTML, content);
         document.title = title;
     }
@@ -424,13 +463,13 @@ export class PageUi {
     }
 
     async _login() {
-        const formNode = this.page.getLoginFormElem();
+        const formNode = this._page.getLoginFormElem();
         if (formNode) {
             const username = formNode.querySelector('#login-username').value;
             const password = formNode.querySelector('#login-password').value;
 
             try {
-                await this.account.login(username, password);
+                await this._account.login(username, password);
                 await this.getCurrentPage();
             } catch (e) {
                 showErrorPopup("Login failed: " + e.message, 'login-error');

@@ -6,12 +6,21 @@ require_once __DIR__ . '/../vendor/autoload.php';
 class Page
 {
     const DEFAULT_BG = "images/tarallo-bg.jpg";
-    
+
+    private API $api;
     private DB $db;
-    
-    public function __construct(DB $db)
+
+    /**
+     * Construction - Register our operations.
+     * @param Api $api The main API class.
+     * @param DB $db The database wrapper.
+     */
+    public function __construct(Api $api, DB $db)
     {
+        $this->api = $api;
         $this->db = $db;
+
+        $this->api->registerOperation('GET', 'GetCurrentPage', [$this, 'getCurrentPage']);
     }
 
     /**
@@ -107,7 +116,7 @@ class Page
      */
     private function getHomePage(array $request): array {
         $workspacePermissions = new WorkspacePermissions($this->db);
-        $workspaces = new Workspace($this->db, $workspacePermissions);
+        $workspaces = new Workspace($this->api, $this->db, $workspacePermissions);
         $data = $workspaces->readAll($request);
 
         // Create a workspace if one doesn't exist yet.
